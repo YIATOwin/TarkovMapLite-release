@@ -1,0 +1,16 @@
+# build output
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+
+# local dev leftovers
+Assets/maps/*.png.tmp
+*.log
+*.tmp
+
+# OS
+Thumbs.db
+desktop.ini

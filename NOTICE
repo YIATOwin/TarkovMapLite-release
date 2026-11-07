@@ -1,0 +1,59 @@
+TarkovMapLite — third-party material and disclaimers
+=====================================================
+
+1. Map artwork
+--------------
+Assets/maps/**/*.png are rasterised from the map SVGs in tools/maps-src/.
+Those SVGs come from the tarkov.dev map resources (https://github.com/the-hideout/tarkov-dev),
+which in turn are traced from maps that belong to the game.
+
+  * The PNGs here are derivatives (rendered at ~4000 px on the long edge,
+    one image per floor with the ground layer hidden).
+  * They are provided for personal, non-commercial use together with this tool.
+  * All rights to the original game artwork belong to Battlestate Games Limited.
+
+If you are a rights holder and want a map removed, open an issue and it will be
+deleted.
+
+2. Game data
+------------
+Assets/data-seed.json is a snapshot of:
+
+  * https://json.tarkov.dev/pve/tasks        (+ tasks_zh translations)
+  * https://json.tarkov.dev/pve/items        (+ items_zh translations)
+  * https://json.tarkov.dev/pve/maps         (+ maps_zh translations)
+
+fetched on 2026-11-07. Task and item text, translations, loot spawn points,
+extract and transit positions all originate from that API (project: tarkov.dev,
+by the-hideout). Only the records referenced by task objectives are kept.
+
+3. Trademarks
+-------------
+"Escape from Tarkov", "Tarkov" and related marks are trademarks of
+Battlestate Games Limited. This project is **not affiliated with, endorsed by,
+or sponsored by Battlestate Games Limited**. The name is used only to describe
+what the tool is for.
+
+4. How the tool interacts with the game
+---------------------------------------
+TarkovMapLite only:
+
+  * reads the game's own log files (<game>\Logs\*.log),
+  * reads the *file names* of screenshots in
+    <Documents>\Escape From Tarkov\Screenshots,
+  * reads/writes its own cache in %LOCALAPPDATA%\TarkovMapLite.
+
+It does **not** inject into the game process, read or write game memory, patch
+files, simulate input, or interact with BattlEye in any way. It is a passive
+companion window.
+
+Reading local files can still conflict with a game's terms of service. You use
+this software at your own risk; the authors accept no liability for any account
+action taken by a third party.
+
+5. Prior art
+------------
+The map SVG sources were taken from the TarkovMonitor source tree
+(https://github.com/the-hideout/TarkovMonitor, GPL-3.0). No TarkovMonitor source
+code is included in this repository — only the artwork and data files described
+above.

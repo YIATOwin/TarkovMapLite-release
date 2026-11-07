@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <AssemblyName>TarkovMapLite</AssemblyName>
+    <RootNamespace>TarkovMapLite</RootNamespace>
+    <!-- 画布控件只在本程序里用，不进设计器，不需要给属性配序列化器 -->
+    <NoWarn>$(NoWarn);WFO1000</NoWarn>
+    <!-- 单文件自包含：朋友机器不需要装 .NET 运行时 -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 单文件分发：资源编进 exe -->
+    <EmbeddedResource Include="Assets\maps\**\*.png" />
+    <EmbeddedResource Include="Assets\maps\maps.json" />
+    <!-- 我这边抓取时的任务/物品数据快照：没网或第一次运行时直接可用 -->
+    <EmbeddedResource Include="Assets\data-seed.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 回收大对象后把内存还给系统，而不是留在 GC 段里 -->
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
+  </ItemGroup>
+
+</Project>
