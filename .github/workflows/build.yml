@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# softprops/action-gh-release 需要写权限；默认 token 常常是只读的
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
