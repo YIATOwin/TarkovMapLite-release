@@ -35,7 +35,8 @@ $maps = $json.data.maps
 $wanted = @(
     'factory','customs','woods','lighthouse','shoreline','reserve',
     'interchange','streets-of-tarkov','ground-zero','terminal',
-    'night-factory','infected-factory','ground-zero-21','ground-zero-tutorial'
+    'night-factory','infected-factory','ground-zero-21','ground-zero-tutorial',
+    'the-labyrinth'
 )
 
 function Round1([double]$v) { return [math]::Round($v, 1) }
