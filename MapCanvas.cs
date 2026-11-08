@@ -309,13 +309,7 @@ internal sealed class MapCanvas : Control
                 continue;
             }
             var dim = state is TaskState.Finished or TaskState.Failed;
-            var color = state switch
-            {
-                TaskState.Started => Color.FromArgb(76, 154, 255),
-                TaskState.Finished => Color.FromArgb(120, 200, 140),
-                TaskState.Failed => Color.FromArgb(220, 110, 110),
-                _ => Color.FromArgb(150, 150, 160),
-            };
+            var color = ColorOf(state);
             using var path = new GraphicsPath();
             var pts = zone.Points.Select(p => new PointF(origin.X + p.X * scale, origin.Y + p.Y * scale)).ToArray();
             path.AddPolygon(pts);
@@ -327,71 +321,141 @@ internal sealed class MapCanvas : Control
             g.DrawPath(inner, path);
         }
 
-        // 点位：任务所在楼层和当前楼层不同时，用上下箭头提示
+        // 点位 + 连线。
+        // 一个任务经常有好几个分散区域（"去这几个地方"类任务），只画点很难看出是一件事，
+        // 所以同任务的多个"地方"之间用虚线连起来，并给每处标上序号。
+        // 屏幕上挨得很近的区域（同一个房间里的 5 个 zone）先合并成一处，
+        // 否则圆点和序号会叠成一团，什么也看不清。
         var currentFloor = CurrentFloor;
         using var dotPen = new Pen(Color.White, 2f);
         using var arrowBrush = new SolidBrush(Color.White);
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var zone in Zones)
-        {
-            if (!seen.Add(zone.TaskId))
-            {
-                continue;
-            }
-            var state = log?.StateOf(zone.TaskId) ?? TaskState.None;
-            if (!IsZoneVisible(zone, state))
-            {
-                continue;
-            }
-            var color = state switch
-            {
-                TaskState.Started => Color.FromArgb(76, 154, 255),
-                TaskState.Finished => Color.FromArgb(120, 200, 140),
-                TaskState.Failed => Color.FromArgb(220, 110, 110),
-                _ => Color.FromArgb(150, 150, 160),
-            };
-            using var dotBrush = new SolidBrush(color);
-            var x = origin.X + zone.Center.X * scale;
-            var y = origin.Y + zone.Center.Y * scale;
-            g.FillEllipse(dotBrush, x - 7, y - 7, 14, 14);
-            g.DrawEllipse(dotPen, x - 7, y - 7, 14, 14);
+        var visible = Zones
+            .Where(z => IsZoneVisible(z, log?.StateOf(z.TaskId) ?? TaskState.None))
+            .ToList();
+        var groups = visible.GroupBy(z => z.TaskId).ToList();
 
-            if (zone.Floor != currentFloor)
+        // 任务 → 合并后的若干"处"（屏幕坐标 + 代表楼层）
+        var placesByTask = new Dictionary<string, List<(PointF Point, int Floor)>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in groups)
+        {
+            var places = new List<(PointF Point, int Floor, int Count)>();
+            foreach (var zone in group)
             {
-                // 目标在当前层上/下方：圆圈里画一个白色三角箭头
-                var up = zone.Floor > currentFloor;
-                var apex = up ? y - 4.6f : y + 4.6f;
-                var baseY = up ? y + 2.8f : y - 2.8f;
-                g.FillPolygon(arrowBrush, new[]
+                var p = new PointF(origin.X + zone.Center.X * scale, origin.Y + zone.Center.Y * scale);
+                var hit = -1;
+                for (var i = 0; i < places.Count; i++)
                 {
-                    new PointF(x, apex),
-                    new PointF(x - 3.8f, baseY),
-                    new PointF(x + 3.8f, baseY),
-                });
+                    if (Math.Abs(places[i].Point.X - p.X) <= 22 && Math.Abs(places[i].Point.Y - p.Y) <= 22)
+                    {
+                        hit = i;
+                        break;
+                    }
+                }
+                if (hit < 0)
+                {
+                    places.Add((p, zone.Floor, 1));
+                }
+                else
+                {
+                    // 多点平均，合并后的标记落在它们中间
+                    var (old, floor, count) = places[hit];
+                    var merged = new PointF((old.X * count + p.X) / (count + 1), (old.Y * count + p.Y) / (count + 1));
+                    places[hit] = (merged, floor, count + 1);
+                }
+            }
+            placesByTask[group.Key] = places.Select(x => (x.Point, x.Floor)).ToList();
+        }
+
+        // 先画连线，压在多边形上面、点位下面
+        foreach (var (taskId, places) in placesByTask)
+        {
+            if (places.Count < 2)
+            {
+                continue;
+            }
+            var color = ColorOf(log?.StateOf(taskId) ?? TaskState.None);
+            using var link = new Pen(Color.FromArgb(205, color), 2.1f)
+            {
+                DashStyle = DashStyle.Custom,
+                DashPattern = new[] { 6f, 4f },
+            };
+            g.DrawLines(link, places.Select(p => p.Point).ToArray());
+        }
+
+        using var numFont = new Font("Segoe UI", 6.5f, FontStyle.Bold);
+        foreach (var (taskId, places) in placesByTask)
+        {
+            var state = log?.StateOf(taskId) ?? TaskState.None;
+            var color = ColorOf(state);
+            var multi = places.Count > 1;
+            using var dotBrush = new SolidBrush(color);
+            // 序号角标用深一点的颜色，压在圆点右上角，和箭头互不干扰
+            using var badgeBrush = new SolidBrush(Color.FromArgb(255,
+                Math.Max(0, color.R - 70), Math.Max(0, color.G - 50), Math.Max(0, color.B - 40)));
+            using var badgePen = new Pen(Color.FromArgb(220, 12, 16, 20), 1f);
+            for (var index = 0; index < places.Count; index++)
+            {
+                var (point, floor) = places[index];
+                var x = point.X;
+                var y = point.Y;
+                const float radius = 7.5f;
+                g.FillEllipse(dotBrush, x - radius, y - radius, radius * 2, radius * 2);
+                g.DrawEllipse(dotPen, x - radius, y - radius, radius * 2, radius * 2);
+
+                if (floor != currentFloor)
+                {
+                    // 目标在当前层上/下方：圆圈里画一个白色三角箭头
+                    var up = floor > currentFloor;
+                    var apex = up ? y - 4.6f : y + 4.6f;
+                    var baseY = up ? y + 2.8f : y - 2.8f;
+                    g.FillPolygon(arrowBrush, new[]
+                    {
+                        new PointF(x, apex),
+                        new PointF(x - 3.8f, baseY),
+                        new PointF(x + 3.8f, baseY),
+                    });
+                }
+
+                if (multi)
+                {
+                    // 角标：右上角一个小圆 + 序号，箭头/普通点都能带上编号
+                    const float badge = 6.5f;
+                    var bx = x + 6.5f;
+                    var by = y - 8.5f;
+                    g.FillEllipse(badgeBrush, bx - badge, by - badge, badge * 2, badge * 2);
+                    g.DrawEllipse(badgePen, bx - badge, by - badge, badge * 2, badge * 2);
+                    TextRenderer.DrawText(g, (index + 1).ToString(), numFont,
+                        new Rectangle((int)bx - 6, (int)by - 7, 12, 14), Color.White,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+                }
             }
         }
 
         // 标签：每个任务一个，字号固定为屏幕像素；重叠的就让位，
-        // 优先显示进行中的任务
+        // 优先显示进行中的任务。多区域的任务在名字后面标出总共有几处。
         using var label = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold);
         using var textBrush = new SolidBrush(Color.White);
         using var halo = new SolidBrush(Color.FromArgb(220, 0, 0, 0));
         var placed = new List<RectangleF>();
-        var ordered = Zones
-            .GroupBy(z => z.TaskId)
-            .Select(g => g.First())
-            .OrderByDescending(z => log?.StateOf(z.TaskId) == TaskState.Started)
+        var ordered = groups
+            .OrderByDescending(g => log?.StateOf(g.Key) == TaskState.Started)
+            .ThenByDescending(g => placesByTask.TryGetValue(g.Key, out var pl) ? pl.Count : 0)
             .ToList();
-        foreach (var zone in ordered)
+        foreach (var group in ordered)
         {
+            var zone = group.First();
             var state = log?.StateOf(zone.TaskId) ?? TaskState.None;
             if (!IsZoneVisible(zone, state))
             {
                 continue;
             }
-            var x = origin.X + zone.Center.X * scale + 10;
-            var y = origin.Y + zone.Center.Y * scale - 8;
-            var size = g.MeasureString(zone.TaskName, label);
+            var places = placesByTask.TryGetValue(zone.TaskId, out var list) && list.Count > 0
+                ? list
+                : new List<(PointF Point, int Floor)> { (new PointF(origin.X + zone.Center.X * scale, origin.Y + zone.Center.Y * scale), zone.Floor) };
+            var text = places.Count > 1 ? $"{zone.TaskName}（{places.Count} 处）" : zone.TaskName;
+            var x = places[0].Point.X + 10;
+            var y = places[0].Point.Y - 8;
+            var size = g.MeasureString(text, label);
             var box = new RectangleF(x - 2, y - 2, size.Width + 4, size.Height + 4);
             if (!box.IntersectsWith(new RectangleF(0, 0, ClientSize.Width, ClientSize.Height)))
             {
@@ -405,11 +469,20 @@ internal sealed class MapCanvas : Control
             placed.Add(box);
             foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
             {
-                g.DrawString(zone.TaskName, label, halo, x + dx, y + dy);
+                g.DrawString(text, label, halo, x + dx, y + dy);
             }
-            g.DrawString(zone.TaskName, label, textBrush, x, y);
+            g.DrawString(text, label, textBrush, x, y);
         }
     }
+
+    /// <summary>任务状态对应的颜色，画区域、点位、连线都共用。</summary>
+    private static Color ColorOf(TaskState state) => state switch
+    {
+        TaskState.Started => Color.FromArgb(76, 154, 255),
+        TaskState.Finished => Color.FromArgb(120, 200, 140),
+        TaskState.Failed => Color.FromArgb(220, 110, 110),
+        _ => Color.FromArgb(150, 150, 160),
+    };
 
     private void DrawFloors(Graphics g)
     {
