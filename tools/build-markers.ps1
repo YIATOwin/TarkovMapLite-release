@@ -36,7 +36,7 @@ $wanted = @(
     'factory','customs','woods','lighthouse','shoreline','reserve',
     'interchange','streets-of-tarkov','ground-zero','terminal',
     'night-factory','infected-factory','ground-zero-21','ground-zero-tutorial',
-    'the-labyrinth'
+    'the-labyrinth','the-lab','the-lab-dark','infected-lab'
 )
 
 function Round1([double]$v) { return [math]::Round($v, 1) }

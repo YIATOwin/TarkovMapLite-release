@@ -71,10 +71,11 @@ Copy-Item '...\publish\TarkovMapLite.exe' "$env:USERPROFILE\Desktop\TarkovMapLit
 | night-factory / infected-factory | Night Factory / Infected Factory | 复用 factory 位图（`imageKey`） |
 | ground-zero-21 / ground-zero-tutorial | Ground Zero 21+ / (Tutorial) | 复用 ground-zero |
 | **the-labyrinth** | The Labyrinth | **瓦片拼接 4096×3840（147 块 z=4）** |
+| **the-lab / the-lab-dark / infected-lab** | The Lab / (Dark) / Infected | **瓦片拼接 2800×2100（111 块 z=4，仅 1st 层）** |
 
 **还缺 5 张**（数据都在接口里，只差图）：
 - `the-lab` / `the-lab-dark` / `infected-lab`：同一套瓦片，3 层（1st / 2nd / Technical）
-- `icebreaker`：7 层瓦片
+- `icebreaker`：7 层瓦片（`maps/icebreaker/06_infirmary…`，tileSize 256，transform [2.0,125.0,3.5,91.0]，rotation 180）
 
 ## 七、接口与数据（详见 docs/DATA-RULES.md）
 
@@ -130,3 +131,8 @@ Copy-Item '...\publish\TarkovMapLite.exe' "$env:USERPROFILE\Desktop\TarkovMapLit
 - **数据相关功能：先探接口、把字段和样例给他看，再动手**
 - 界面问题常是「控件默认行为反直觉」，先找默认行为，别加代码
 - 反复强调：内存占用要低，体积可以大
+## 十二、作息
+
+- 平时 **12:00 睡、07:00 起、09:00 上班**（北京时间）
+- 晚上是主要协作时段；白天工作时间的改动他可能没法立刻验证
+- 汇报时可以直接给「现在能验 / 需要你确认」两类，省得他找时间
