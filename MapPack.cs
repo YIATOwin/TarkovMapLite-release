@@ -13,12 +13,18 @@ public sealed class MapProjection
     /// 共用别的图的位图（夜间工厂和工厂同一张图）。为空表示用自己的 Key 目录。
     /// </summary>
     public string ImageKey { get; init; } = "";
+    /// <summary>共用别的图的任务/标记数据（瓦片版海关用 customs 的数据）。</summary>
+    public string DataKey { get; init; } = "";
     /// <summary>[scaleX, marginX, scaleZ, marginZ]</summary>
     public double[] Transform { get; init; } = new double[4];
     public double Rotation { get; init; }
     public double[][] Bounds { get; init; } = Array.Empty<double[]>();
     public double[] ViewBox { get; init; } = new double[4];
     public IReadOnlyList<MapLayer> Layers { get; init; } = Array.Empty<MapLayer>();
+
+    /// <summary>任务与标记从哪个地图 key 取（为空就是自己）。</summary>
+    public string Data =>
+        string.IsNullOrEmpty(DataKey) ? Key : DataKey;
 
     public double ViewBoxWidth => ViewBox.Length >= 4 ? ViewBox[2] : 0;
     public double ViewBoxHeight => ViewBox.Length >= 4 ? ViewBox[3] : 0;

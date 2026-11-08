@@ -156,3 +156,13 @@ Copy-Item '...\publish\TarkovMapLite.exe' "$env:USERPROFILE\Desktop\TarkovMapLit
 
 **已计划功能**：给同时有两种素材的地图加「SVG / 瓦片」切换按钮（瓦片更新、层数更多）。
 每张图的 transform 都能从站点 JS 里按 `"normalizedName"` 找到，标定公式同 `像素 = transform × 2^zoom`。
+## 十四、海关瓦片版进度（2026-11-08 19:10）
+
+- 已拼 5 层到 `Assets/maps/customs-tiles/`：base(160 块,15.3MB) / Second_Floor(25) / Third_Floor(9) / Fourth_Floor(2) / Underground(8)，4096×2816
+- maps.json 新增条目 `customs-tiles`（显示名「海关（瓦片）」），用 `dataKey: "customs"` 复用海关的任务与标记数据
+- MapPack/MapMarkers/MapForm 已支持 `dataKey`（任务、标记、撤离点按 DataKey 取）
+- **坐标还没标定好**：区域落在图左上角，说明 bounds 的换算仍有偏差
+  - 参数：tileSize 256、zoom 4、transform [0.239,168.65,0.239,136.35]、rotation 180、瓦片范围 x 0..15 y 3..13
+  - 下一步：拿海关配置里的 label 世界坐标（和实验室一样的方法）反推 bounds
+- 待办：其余老地图（factory 4 层、reserve 6 层、groundzero 4 层、woods/shoreline/interchange 1 层）照同样流程做；破冰船 16 层最后做
+- 另需修：状态栏「N 个区域」还是按 map.Key 统计，应改用 DataKey

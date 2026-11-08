@@ -60,13 +60,13 @@ internal static class MapMarkers
         {
             return new MarkerLayer();
         }
-        if (Image.TryGetValue(map.Key, out var cached))
+        if (Image.TryGetValue(map.Data, out var cached))
         {
             return cached;
         }
         EnsureLoaded();
         var layer = new MarkerLayer();
-        if (World.TryGetValue(map.Key, out var source))
+        if (World.TryGetValue(map.Data, out var source))
         {
             void Project(List<PointF> from, List<PointF> to)
             {
@@ -104,7 +104,7 @@ internal static class MapMarkers
                 layer.Spawns.Add((new PointF((float)u, (float)v), cats));
             }
         }
-        Image[map.Key] = layer;
+        Image[map.Data] = layer;
         return layer;
     }
 

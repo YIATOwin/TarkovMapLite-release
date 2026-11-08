@@ -704,13 +704,13 @@ internal sealed class MapForm : Form
             return;
         }
         _canvas.SetMap(map, map.DisplayName);
-        _canvas.Zones = TarkovData.ZonesByMap.TryGetValue(map.Key, out var zones)
+        _canvas.Zones = TarkovData.ZonesByMap.TryGetValue(map.Data, out var zones)
             ? zones
             : new List<ZoneShape>();
-        _canvas.Extracts = TarkovData.Extracts.TryGetValue(map.Key, out var extracts)
+        _canvas.Extracts = TarkovData.Extracts.TryGetValue(map.Data, out var extracts)
             ? extracts
             : new List<MapMarker>();
-        _canvas.Transits = TarkovData.Transits.TryGetValue(map.Key, out var transits)
+        _canvas.Transits = TarkovData.Transits.TryGetValue(map.Data, out var transits)
             ? transits
             : new List<MapMarker>();
         _canvas.SelectedTaskId = null;
@@ -1087,7 +1087,7 @@ internal sealed class MapForm : Form
     private void FocusTaskFloor(string taskId)
     {
         var map = CurrentMap;
-        if (map == null || !TarkovData.ZonesByMap.TryGetValue(map.Key, out var zones))
+        if (map == null || !TarkovData.ZonesByMap.TryGetValue(map.Data, out var zones))
         {
             return;
         }
@@ -1157,7 +1157,7 @@ internal sealed class MapForm : Form
             _header.Text = $"任意地区任务 · {_taskList.Items.Count}";
             return;
         }
-        if (map != null && TarkovData.ZonesByMap.TryGetValue(map.Key, out var zones))
+        if (map != null && TarkovData.ZonesByMap.TryGetValue(map.Data, out var zones))
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var zone in zones)
