@@ -98,7 +98,7 @@ internal sealed class MapForm : Form
         _mapSelect.FlatStyle = FlatStyle.Flat;
         _mapSelect.BackColor = Color.FromArgb(34, 39, 46);
         _mapSelect.ForeColor = TextMain;
-        _mapSelect.Width = 200;
+        _mapSelect.Width = 250;
         _mapSelect.Location = new Point(50, 11);
         _mapSelect.Font = new Font("Microsoft YaHei UI", 9f);
         _mapSelect.DrawMode = DrawMode.OwnerDrawFixed;
@@ -136,7 +136,7 @@ internal sealed class MapForm : Form
         };
 
         _showExtracts.Text = "撤离点";
-        _showExtracts.Location = new Point(262, 9);
+        _showExtracts.Location = new Point(310, 9);
         _showExtracts.Size = new Size(62, 26);
         _showExtracts.Click += (_, _) =>
         {
@@ -163,7 +163,7 @@ internal sealed class MapForm : Form
         _layerButton.FlatStyle = FlatStyle.Flat;
         _layerButton.BackColor = Color.FromArgb(34, 39, 46);
         _layerButton.ForeColor = TextMain;
-        _layerButton.Location = new Point(332, 9);
+        _layerButton.Location = new Point(380, 9);
         _layerButton.Size = new Size(64, 26);
         _layerButton.Font = new Font("Microsoft YaHei UI", 8.5f);
         _layerButton.FlatAppearance.BorderColor = PanelLine;
@@ -177,7 +177,7 @@ internal sealed class MapForm : Form
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(34, 39, 46),
             ForeColor = TextMain,
-            Location = new Point(404, 9),
+            Location = new Point(452, 9),
             Size = new Size(84, 26),
             Font = new Font("Microsoft YaHei UI", 8.5f),
         };
@@ -197,7 +197,7 @@ internal sealed class MapForm : Form
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(34, 39, 46),
             ForeColor = TextMain,
-            Location = new Point(496, 9),
+            Location = new Point(544, 9),
             Size = new Size(56, 26),
             Font = new Font("Microsoft YaHei UI", 8.5f),
         };
@@ -667,7 +667,7 @@ internal sealed class MapForm : Form
         foreach (var map in MapPack.Maps)
         {
             var name = map.DisplayName.Length > 0 ? map.DisplayName : map.Key;
-            _mapSelect.Items.Add(active.TryGetValue(map.Key, out var count) ? $"{name} · {count}" : name);
+            _mapSelect.Items.Add(active.TryGetValue(map.Key, out var count) ? $"{name} · {count} 个进行中任务" : name);
         }
         _mapSelect.EndUpdate();
         if (_mapSelect.Items.Count > 0)

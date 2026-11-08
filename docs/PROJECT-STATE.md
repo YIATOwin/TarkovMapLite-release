@@ -136,3 +136,23 @@ Copy-Item '...\publish\TarkovMapLite.exe' "$env:USERPROFILE\Desktop\TarkovMapLit
 - 平时 **12:00 睡、07:00 起、09:00 上班**（北京时间）
 - 晚上是主要协作时段；白天工作时间的改动他可能没法立刻验证
 - 汇报时可以直接给「现在能验 / 需要你确认」两类，省得他找时间
+## 十三、瓦片版地图清单（2026-11-08 从站点 JS 提取）
+
+站点对多数地图同时有 SVG 和 **瓦片**两套素材，瓦片是 0.16 的新美术。瓦片路径前缀：
+
+| 地图 | 瓦片目录 | 层数 |
+| --- | --- | --- |
+| customs | `maps/customs_0.16/{main,2nd,3rd,4th,underground}` | 5 |
+| factory | `maps/factory/{main,2nd,3rd,tunnels}` | 4 |
+| ground-zero | `maps/groundzero/{main_summer,2nd,3rd,garage}` | 4 |
+| interchange | `maps/interchange/main` | 1 |
+| reserve | `maps/reserve/{main,2nd,3rd,4th,5th,bunkers}` | 6 |
+| shoreline | `maps/shoreline/main_summer` | 1 |
+| woods | `maps/woods/main_0.16` | 1 |
+| labyrinth | `maps/labyrinth/main` | 1（已做） |
+| the-lab | `maps/labs_v4/{1st,2nd,technical}` | 3（已做） |
+| icebreaker | `maps/icebreaker/00_control_room … 15_bridge_roof` | **16**（未做） |
+| streets / lighthouse / terminal | 无瓦片，只有 SVG | — |
+
+**已计划功能**：给同时有两种素材的地图加「SVG / 瓦片」切换按钮（瓦片更新、层数更多）。
+每张图的 transform 都能从站点 JS 里按 `"normalizedName"` 找到，标定公式同 `像素 = transform × 2^zoom`。
