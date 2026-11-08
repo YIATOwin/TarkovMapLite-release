@@ -96,6 +96,8 @@ public static class TarkovData
     public static Dictionary<string, List<MapMarker>> Extracts { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     public static Dictionary<string, List<MapMarker>> Transits { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     public static Dictionary<string, string> TaskTrader { get; private set; } = new();
+    /// <summary>任务 id → wiki 链接（地点照片都在 wiki 页上）。</summary>
+    public static Dictionary<string, string> TaskWiki { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     public static DateTime FetchedAt { get; private set; }
     public static string Status { get; private set; } = "";
     /// <summary>最近一次是否成功从接口拉到数据。</summary>
@@ -110,7 +112,7 @@ public static class TarkovData
             var dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TarkovMapLite");
             Directory.CreateDirectory(dir);
-            return Path.Combine(dir, "data-v5.json");
+            return Path.Combine(dir, "data-v6.json");
         }
     }
 
@@ -301,7 +303,7 @@ public static class TarkovData
                 }
                 if (zones.Count > 0 || objectives.Count > 0)
                 {
-                    records.Add(new { id, name, trader = traders[id], zones, obj = objectives });
+                    records.Add(new { id, name, trader = traders[id], wiki = t["wikiLink"]?.GetValue<string>() ?? "", zones, obj = objectives });
                 }
             }
 
@@ -379,6 +381,7 @@ public static class TarkovData
         var names = new Dictionary<string, string>();
         var traders = new Dictionary<string, string>();
         var objectivesByTask = new Dictionary<string, List<ObjectiveInfo>>();
+        var wikis = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var node in tasks ?? new JsonArray())
         {
             if (node is not JsonObject t)
@@ -389,6 +392,10 @@ public static class TarkovData
             var name = t["name"]?.GetValue<string>() ?? id;
             names[id] = name;
             traders[id] = t["trader"]?.GetValue<string>() ?? "";
+            if (t["wiki"]?.GetValue<string>() is { Length: > 0 } wiki)
+            {
+                wikis[id] = wiki;
+            }
 
             if ((t["obj"] as JsonArray) is { Count: > 0 } objectiveNodes)
             {
@@ -462,6 +469,7 @@ public static class TarkovData
         TaskObjectives = objectivesByTask;
         TaskNames = names;
         TaskTrader = traders;
+        TaskWiki = wikis;
     }
 
     /// <summary>

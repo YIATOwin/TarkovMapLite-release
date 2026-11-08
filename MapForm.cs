@@ -24,6 +24,9 @@ internal sealed class MapForm : Form
     private readonly Label _itemHeader = new();
     private readonly System.Windows.Forms.Timer _toastTimer = new() { Interval = 1600 };
     private readonly Label _detailHeader = new();
+    private readonly Button _wikiButton = new();
+    /// <summary>当前选中任务的 wiki 链接（没有就是空串）。</summary>
+    private string _currentWiki = "";
     private readonly TaskLog _log = new();
     private readonly PlayerLocator _player = new();
     /// <summary>最近一次进图（scene preset path）读到的地图 key，玩家定位就绑在这张图上。</summary>
@@ -259,14 +262,35 @@ internal sealed class MapForm : Form
             }
         };
 
-        _detailHeader.Dock = DockStyle.Top;
-        _detailHeader.Height = 26;
+        _detailHeader.Dock = DockStyle.Fill;
         _detailHeader.Text = "目标";
         _detailHeader.ForeColor = TextMain;
         _detailHeader.BackColor = Color.FromArgb(22, 25, 29);
         _detailHeader.TextAlign = ContentAlignment.MiddleLeft;
         _detailHeader.Padding = new Padding(10, 0, 0, 0);
         _detailHeader.Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold);
+
+        // 位置照片只有 wiki 上有，给个一键入口
+        _wikiButton.Text = "Wiki";
+        _wikiButton.Dock = DockStyle.Right;
+        _wikiButton.Width = 48;
+        _wikiButton.FlatStyle = FlatStyle.Flat;
+        _wikiButton.FlatAppearance.BorderSize = 0;
+        _wikiButton.BackColor = Color.FromArgb(34, 39, 46);
+        _wikiButton.ForeColor = Color.FromArgb(140, 190, 255);
+        _wikiButton.Font = new Font("Microsoft YaHei UI", 8f);
+        _wikiButton.Cursor = Cursors.Hand;
+        _wikiButton.Visible = false;
+        _wikiButton.Click += (_, _) => OpenWiki();
+
+        var detailHeaderPanel = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 26,
+            BackColor = Color.FromArgb(22, 25, 29),
+        };
+        detailHeaderPanel.Controls.Add(_detailHeader);
+        detailHeaderPanel.Controls.Add(_wikiButton);
 
         _detail.Dock = DockStyle.Fill;
         _detail.ReadOnly = true;
@@ -281,7 +305,7 @@ internal sealed class MapForm : Form
         var detailHost = ClipScrollbar(_detail);
         detailHost.Dock = DockStyle.Fill;
         detailPanel.Controls.Add(detailHost);
-        detailPanel.Controls.Add(_detailHeader);
+        detailPanel.Controls.Add(detailHeaderPanel);
         // 目标与所需物品之间：6px 空隙 + 2px 亮线。
         // Dock 是"后加的先贴边"，所以要按 空隙 → 亮线 → 物品面板 的顺序加，
         // 才会得到 目标 / 空隙 / 亮线 / 物品面板 这样从上到下的层次。
@@ -521,7 +545,7 @@ internal sealed class MapForm : Form
         _itemList.BackColor = Color.FromArgb(19, 22, 26);
         _itemList.ForeColor = Color.FromArgb(210, 218, 228);
         _itemList.DrawMode = DrawMode.OwnerDrawFixed;
-        _itemList.ItemHeight = 22;
+        _itemList.ItemHeight = 30;
         _itemList.Font = new Font("Microsoft YaHei UI", 9f);
         _itemList.DrawItem += (sender, e) =>
         {
@@ -544,8 +568,23 @@ internal sealed class MapForm : Form
                 e.Graphics.FillRectangle(mark, e.Bounds.X, e.Bounds.Y + 3, 2, e.Bounds.Height - 6);
             }
             using var small = new Font("Microsoft YaHei UI", 8.5f);
+            var iconSize = e.Bounds.Height - 6;
+            var iconRect = new Rectangle(e.Bounds.X + 5, e.Bounds.Y + 3, iconSize, iconSize);
+            var id = (_itemList.Items[e.Index] as ItemRow)?.Id ?? "";
+            var icon = string.IsNullOrEmpty(id) ? null : ItemImages.Get(id);
+            if (icon != null)
+            {
+                e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                e.Graphics.DrawImage(icon, iconRect);
+            }
+            else
+            {
+                // 还没下载好：画个占位方块，避免文字跳来跳去
+                using var slot = new SolidBrush(Color.FromArgb(30, 34, 41));
+                e.Graphics.FillRectangle(slot, iconRect);
+            }
             TextRenderer.DrawText(e.Graphics, _itemList.Items[e.Index]?.ToString() ?? "", small,
-                new Rectangle(e.Bounds.X + 10, e.Bounds.Y + 3, e.Bounds.Width - 14, 16),
+                new Rectangle(iconRect.Right + 6, e.Bounds.Y + 6, e.Bounds.Width - iconSize - 16, 18),
                 selected || hovered ? Color.White : Color.FromArgb(210, 218, 228),
                 TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         };
@@ -631,6 +670,23 @@ internal sealed class MapForm : Form
         _detail.SelectionColor = _detail.ForeColor;
     }
 
+    /// <summary>在默认浏览器里打开任务的 wiki 页——具体埋在哪/长什么样的照片只有那上面有。</summary>
+    private void OpenWiki()
+    {
+        if (string.IsNullOrEmpty(_currentWiki))
+        {
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo(_currentWiki) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _status.Text = "打开 wiki 失败：" + ex.Message;
+        }
+    }
+
     private void ShowTaskDetail(TaskRow? row)
     {
         if (row == null)
@@ -638,11 +694,15 @@ internal sealed class MapForm : Form
             _detail.Clear();
             _detailHeader.Text = "目标";
             _itemList.Items.Clear();
+            _currentWiki = "";
+            _wikiButton.Visible = false;
             return;
         }
         _detailHeader.Text = "目标 · " + row.Name;
+        _currentWiki = TarkovData.TaskWiki.TryGetValue(row.Id, out var taskWiki) ? taskWiki : "";
+        _wikiButton.Visible = _currentWiki.Length > 0;
         _detail.Clear();
-        var needed = new List<string>();
+        var needed = new List<(string Id, string Name)>();
         if (TarkovData.TaskObjectives.TryGetValue(row.Id, out var objectives))
         {
             foreach (var objective in objectives)
@@ -652,7 +712,10 @@ internal sealed class MapForm : Form
                 if (objective.Items.Count > 0)
                 {
                     var names = objective.Items.Select(ItemName).ToList();
-                    needed.AddRange(names);
+                    foreach (var id in objective.Items)
+                    {
+                        needed.Add((id, ItemName(id)));
+                    }
                     AppendDetail("     物品  " + string.Join("、", names), Color.FromArgb(240, 190, 110));
                 }
                 if (objective.Keys.Count > 0)
@@ -663,7 +726,10 @@ internal sealed class MapForm : Form
                         .ToList();
                     foreach (var group in objective.Keys)
                     {
-                        needed.AddRange(group.Select(ItemName));
+                        foreach (var id in group)
+                        {
+                            needed.Add((id, ItemName(id)));
+                        }
                     }
                     AppendDetail("     钥匙  " + string.Join(" 或 ", groups), Color.FromArgb(140, 190, 255));
                 }
@@ -679,24 +745,51 @@ internal sealed class MapForm : Form
         _itemList.BeginUpdate();
         _itemList.Items.Clear();
         var distinct = needed
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.CurrentCulture)
+            .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new ItemRow(g.Key, g.First().Name))
+            .OrderBy(item => item.Name, StringComparer.CurrentCulture)
             .ToList();
         if (distinct.Count == 0)
         {
-            _itemList.Items.Add("（这个任务不需要物品）");
+            _itemList.Items.Add(new ItemRow("", "（这个任务不需要物品）"));
         }
         else
         {
-            foreach (var name in distinct)
+            foreach (var item in distinct)
             {
-                _itemList.Items.Add(name);
+                _itemList.Items.Add(item);
+            }
+            // 顺手把缩略图拉下来，好了以后重画这一列
+            foreach (var item in distinct)
+            {
+                var id = item.Id;
+                ItemImages.Request(id, () =>
+                {
+                    if (IsDisposed || !IsHandleCreated)
+                    {
+                        return;
+                    }
+                    try
+                    {
+                        BeginInvoke(() => _itemList.Invalidate());
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // 窗口正在关闭
+                    }
+                });
             }
         }
         _itemList.EndUpdate();
 
         UpdateSpawnPoints(row);
+    }
+
+    /// <summary>"所需物品"的一行：物品 id + 显示名，列表里带缩略图。</summary>
+    private sealed record ItemRow(string Id, string Name)
+    {
+        public override string ToString() => Name;
     }
 
     /// <summary>
