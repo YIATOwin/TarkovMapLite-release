@@ -25,6 +25,8 @@ internal sealed class MapForm : Form
     private readonly System.Windows.Forms.Timer _toastTimer = new() { Interval = 1600 };
     private readonly Label _detailHeader = new();
     private readonly Button _wikiButton = new();
+    private readonly Button _layerButton = new();
+    private readonly ContextMenuStrip _layerMenu = new();
     /// <summary>当前选中任务的 wiki 链接（没有就是空串）。</summary>
     private string _currentWiki = "";
     private string _currentSlug = "";
@@ -156,13 +158,26 @@ internal sealed class MapForm : Form
             _canvas.Invalidate();
         };
 
+        // 图层下拉：多选，勾哪个画哪个
+        _layerButton.Text = "图层";
+        _layerButton.FlatStyle = FlatStyle.Flat;
+        _layerButton.BackColor = Color.FromArgb(34, 39, 46);
+        _layerButton.ForeColor = TextMain;
+        _layerButton.Location = new Point(332, 9);
+        _layerButton.Size = new Size(64, 26);
+        _layerButton.Font = new Font("Microsoft YaHei UI", 8.5f);
+        _layerButton.FlatAppearance.BorderColor = PanelLine;
+        _layerButton.Click += (_, _) =>
+            _layerMenu.Show(_layerButton, new Point(0, _layerButton.Height));
+        BuildLayerMenu();
+
         var refresh = new Button
         {
             Text = "刷新数据",
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(34, 39, 46),
             ForeColor = TextMain,
-            Location = new Point(336, 9),
+            Location = new Point(404, 9),
             Size = new Size(84, 26),
             Font = new Font("Microsoft YaHei UI", 8.5f),
         };
@@ -182,14 +197,14 @@ internal sealed class MapForm : Form
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(34, 39, 46),
             ForeColor = TextMain,
-            Location = new Point(428, 9),
+            Location = new Point(496, 9),
             Size = new Size(56, 26),
             Font = new Font("Microsoft YaHei UI", 8.5f),
         };
         fit.FlatAppearance.BorderColor = PanelLine;
         fit.Click += (_, _) => _canvas.Fit();
 
-        top.Controls.AddRange(new Control[] { title, _mapSelect, _showExtracts, refresh, fit });
+        top.Controls.AddRange(new Control[] { title, _mapSelect, _showExtracts, _layerButton, refresh, fit });
 
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 26, BackColor = PanelBack };
         _status.AutoSize = false;
@@ -363,6 +378,71 @@ internal sealed class MapForm : Form
         Controls.Add(right);
         Controls.Add(bottom);
         Controls.Add(top);
+    }
+
+    /// <summary>"图层"下拉：多选，勾哪个画哪个。</summary>
+    private void BuildLayerMenu()
+    {
+        _layerMenu.Font = new Font("Microsoft YaHei UI", 9f);
+        // 深色菜单：默认是白底，和整体风格不搭
+        _layerMenu.BackColor = Color.FromArgb(28, 32, 38);
+        _layerMenu.ForeColor = TextMain;
+        _layerMenu.Renderer = new ToolStripProfessionalRenderer(new DarkMenuColors());
+
+        void Add(string text, bool initial, Func<bool> get, Action<bool> set, Color color)
+        {
+            var item = new ToolStripMenuItem(text)
+            {
+                CheckOnClick = true,
+                Checked = initial,
+                // 勾选标记跟着文字颜色走，深色背景下才看得见
+                ForeColor = color,
+            };
+            item.CheckedChanged += (_, _) =>
+            {
+                set(item.Checked);
+                UpdateLayerButtonText();
+                _canvas.Invalidate();
+            };
+            _layerMenu.Items.Add(item);
+        }
+
+        Add("容器", _canvas.ShowContainers, () => _canvas.ShowContainers,
+            value => _canvas.ShowContainers = value, Color.FromArgb(214, 176, 96));
+        Add("散落物资", _canvas.ShowLoot, () => _canvas.ShowLoot,
+            value => _canvas.ShowLoot = value, Color.FromArgb(255, 186, 88));
+        Add("出生点", _canvas.ShowSpawns, () => _canvas.ShowSpawns,
+            value => _canvas.ShowSpawns = value, Color.FromArgb(150, 200, 240));
+        Add("危险区", _canvas.ShowHazards, () => _canvas.ShowHazards,
+            value => _canvas.ShowHazards = value, Color.FromArgb(235, 120, 110));
+        Add("固定武器", _canvas.ShowStatics, () => _canvas.ShowStatics,
+            value => _canvas.ShowStatics = value, Color.FromArgb(180, 190, 205));
+        UpdateLayerButtonText();
+    }
+
+    /// <summary>深色 ToolStrip 配色：菜单项背景和边框。</summary>
+    private sealed class DarkMenuColors : ProfessionalColorTable
+    {
+        public override Color MenuItemSelected => Color.FromArgb(46, 52, 62);
+        public override Color MenuItemBorder => Color.FromArgb(70, 80, 95);
+        public override Color ToolStripDropDownBackground => Color.FromArgb(28, 32, 38);
+        public override Color ImageMarginGradientBegin => Color.FromArgb(28, 32, 38);
+        public override Color ImageMarginGradientMiddle => Color.FromArgb(28, 32, 38);
+        public override Color ImageMarginGradientEnd => Color.FromArgb(28, 32, 38);
+        public override Color MenuBorder => Color.FromArgb(58, 66, 78);
+    }
+
+    private void UpdateLayerButtonText()
+    {
+        var count = 0;
+        foreach (ToolStripItem item in _layerMenu.Items)
+        {
+            if (item is ToolStripMenuItem { Checked: true })
+            {
+                count++;
+            }
+        }
+        _layerButton.Text = count == 0 ? "图层" : $"图层 {count}";
     }
 
     private void DrawTaskRow(object? sender, DrawItemEventArgs e)

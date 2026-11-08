@@ -34,6 +34,13 @@ internal sealed class MapCanvas : Control
     /// <summary>是否显示撤离点 / 转移点。</summary>
     public bool ShowExtracts { get; set; }
 
+    /// <summary>静态图层开关：容器 / 散落物资 / 出生点 / 危险区 / 固定武器。</summary>
+    public bool ShowContainers { get; set; } = true;
+    public bool ShowLoot { get; set; } = true;
+    public bool ShowSpawns { get; set; }
+    public bool ShowHazards { get; set; } = true;
+    public bool ShowStatics { get; set; }
+
     public List<MapMarker> Extracts { get; set; } = new();
     public List<MapMarker> Transits { get; set; } = new();
 
@@ -214,6 +221,12 @@ internal sealed class MapCanvas : Control
         }
 
         g.SmoothingMode = SmoothingMode.AntiAlias;
+        // 静态标记（容器/散落物资/出生点/危险区）压在地图上面、任务区域下面，
+        // 这样任务的多边形和点位不会被物资点盖住
+        if (ShowContainers || ShowLoot || ShowSpawns || ShowHazards || ShowStatics)
+        {
+            DrawStaticMarkers(g, s, origin);
+        }
         if (ShowZones && SpawnPoints.Count > 0)
         {
             DrawSpawnPoints(g, s, origin);
@@ -230,6 +243,131 @@ internal sealed class MapCanvas : Control
         DrawPlayer(g, s, origin);
         DrawFloors(g);
         DrawZoom(g);
+    }
+
+    /// <summary>容器 / 散落物资 / 出生点 / 危险区 / 固定武器。</summary>
+    private void DrawStaticMarkers(Graphics g, float scale, PointF origin)
+    {
+        var layer = MapMarkers.For(_map);
+        if (layer.IsEmpty)
+        {
+            return;
+        }
+        var bounds = new RectangleF(0, 0, ClientSize.Width, ClientSize.Height);
+        var visible = new RectangleF(
+            origin.X - 40, origin.Y - 40, ClientSize.Width + 80, ClientSize.Height + 80);
+
+        PointF At(PointF p) => new(origin.X + p.X * scale, origin.Y + p.Y * scale);
+
+        // 雷区：半透明红面 + 红边
+        if (ShowHazards)
+        {
+            foreach (var (ring, _) in layer.HazardAreas)
+            {
+                var pts = ring.Select(At).ToArray();
+                if (!pts.Any(p => visible.Contains(p)))
+                {
+                    continue;
+                }
+                using var fill = new SolidBrush(Color.FromArgb(46, 220, 70, 70));
+                using var line = new Pen(Color.FromArgb(150, 220, 70, 70), 1.2f);
+                g.FillPolygon(fill, pts);
+                g.DrawPolygon(line, pts);
+            }
+        }
+
+        // 容器：土黄色小方块
+        if (ShowContainers)
+        {
+            using var fill = new SolidBrush(Color.FromArgb(190, 214, 176, 96));
+            using var edge = new Pen(Color.FromArgb(210, 40, 32, 16), 1f);
+            foreach (var point in layer.Containers)
+            {
+                var p = At(point);
+                if (!visible.Contains(p))
+                {
+                    continue;
+                }
+                var r = 3.2f;
+                g.FillRectangle(fill, p.X - r, p.Y - r, r * 2, r * 2);
+                g.DrawRectangle(edge, p.X - r, p.Y - r, r * 2, r * 2);
+            }
+        }
+
+        // 散落物资：琥珀色小圆点
+        if (ShowLoot)
+        {
+            using var fill = new SolidBrush(Color.FromArgb(200, 255, 186, 88));
+            foreach (var point in layer.Loose)
+            {
+                var p = At(point);
+                if (!visible.Contains(p))
+                {
+                    continue;
+                }
+                g.FillEllipse(fill, p.X - 2.1f, p.Y - 2.1f, 4.2f, 4.2f);
+            }
+        }
+
+        // 危险点（非雷区）：红色三角 + 感叹号太挤，就用三角
+        if (ShowHazards)
+        {
+            using var fill = new SolidBrush(Color.FromArgb(210, 235, 90, 80));
+            foreach (var (point, _) in layer.Hazards)
+            {
+                var p = At(point);
+                if (!visible.Contains(p))
+                {
+                    continue;
+                }
+                g.FillPolygon(fill, new[]
+                {
+                    new PointF(p.X, p.Y - 4.5f),
+                    new PointF(p.X + 4.5f, p.Y + 3.5f),
+                    new PointF(p.X - 4.5f, p.Y + 3.5f),
+                });
+            }
+        }
+
+        // 出生点：空心圈，颜色区分类别（玩家蓝 / AI 橙 / Boss 紫 / 狙击手深红）
+        if (ShowSpawns)
+        {
+            using var playerPen = new Pen(Color.FromArgb(170, 120, 200, 255), 1.3f);
+            using var botPen = new Pen(Color.FromArgb(150, 235, 165, 90), 1.3f);
+            using var bossPen = new Pen(Color.FromArgb(190, 200, 120, 255), 1.8f);
+            using var sniperPen = new Pen(Color.FromArgb(170, 240, 90, 90), 1.3f);
+            foreach (var (point, cats) in layer.Spawns)
+            {
+                var p = At(point);
+                if (!visible.Contains(p))
+                {
+                    continue;
+                }
+                var pen = cats.Contains('o') ? bossPen
+                    : cats.Contains('p') ? playerPen
+                    : cats.Contains('s') ? sniperPen
+                    : botPen;
+                var r = cats.Contains('o') ? 6f : 4.5f;
+                g.DrawEllipse(pen, p.X - r, p.Y - r, r * 2, r * 2);
+            }
+        }
+
+        // 固定武器：灰色方块加叉
+        if (ShowStatics)
+        {
+            using var fill = new SolidBrush(Color.FromArgb(180, 150, 160, 175));
+            foreach (var point in layer.Statics)
+            {
+                var p = At(point);
+                if (!visible.Contains(p))
+                {
+                    continue;
+                }
+                g.FillRectangle(fill, p.X - 3.5f, p.Y - 3.5f, 7, 7);
+            }
+        }
+
+        GC.KeepAlive(bounds);
     }
 
     /// <summary>当前区域是否应该显示：要过"仅进行中"和"只看选中任务"两道过滤。</summary>

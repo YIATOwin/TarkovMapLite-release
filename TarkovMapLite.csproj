@@ -30,6 +30,7 @@
     <EmbeddedResource Include="Assets\maps\maps.json" />
     <!-- 我这边抓取时的任务/物品数据快照：没网或第一次运行时直接可用 -->
     <EmbeddedResource Include="Assets\data-seed.json" />
+    <EmbeddedResource Include="Assets\markers.json" />
   </ItemGroup>
 
   <ItemGroup>
