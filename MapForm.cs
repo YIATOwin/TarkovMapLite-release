@@ -393,52 +393,30 @@ internal sealed class MapForm : Form
         {
             var item = new ToolStripMenuItem(text)
             {
-                CheckOnClick = true,
-                Checked = initial,
+                // 不用 CheckOnClick：它会连带把菜单关掉，这里自己处理
+                CheckState = initial ? CheckState.Checked : CheckState.Unchecked,
                 // 勾选标记跟着文字颜色走，深色背景下才看得见
                 ForeColor = color,
             };
-            item.CheckedChanged += (_, _) =>
+            item.Click += (_, _) =>
             {
-                set(item.Checked);
+                var on = item.CheckState != CheckState.Checked;
+                item.CheckState = on ? CheckState.Checked : CheckState.Unchecked;
+                set(on);
                 UpdateLayerButtonText();
                 _canvas.Invalidate();
             };
             _layerMenu.Items.Add(item);
         }
 
-        Add("容器", _canvas.ShowContainers, () => _canvas.ShowContainers,
-            value => _canvas.ShowContainers = value, Color.FromArgb(214, 176, 96));
-
-        // 容器的子菜单：每种类型一行（颜色和图上一致），像图例一样用
-        if (_layerMenu.Items[^1] is ToolStripMenuItem containerItem)
+        // 点一项就关菜单没法连续开关：把「点了项」这种关闭原因取消掉
+        _layerMenu.Closing += (_, e) =>
         {
-            containerItem.DropDownItems.Add(new ToolStripSeparator());
-            foreach (var (kind, count) in MapMarkers.KindsByCount())
+            if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
             {
-                var info = ContainerKinds.Resolve(kind);
-                var sub = new ToolStripMenuItem($"{info.Name}（{count}）")
-                {
-                    CheckOnClick = true,
-                    Checked = true,
-                    ForeColor = info.Color,
-                };
-                var slug = kind;
-                sub.CheckedChanged += (_, _) =>
-                {
-                    if (sub.Checked)
-                    {
-                        _canvas.HiddenContainerKinds.Remove(slug);
-                    }
-                    else
-                    {
-                        _canvas.HiddenContainerKinds.Add(slug);
-                    }
-                    _canvas.Invalidate();
-                };
-                containerItem.DropDownItems.Add(sub);
+                e.Cancel = true;
             }
-        }
+        };
 
         Add("散落物资", _canvas.ShowLoot, () => _canvas.ShowLoot,
             value => _canvas.ShowLoot = value, Color.FromArgb(255, 186, 88));
@@ -448,6 +426,97 @@ internal sealed class MapForm : Form
             value => _canvas.ShowHazards = value, Color.FromArgb(235, 120, 110));
         Add("固定武器", _canvas.ShowStatics, () => _canvas.ShowStatics,
             value => _canvas.ShowStatics = value, Color.FromArgb(180, 190, 205));
+        _layerMenu.Items.Add(new ToolStripSeparator());
+
+        // 容器带子菜单：点父项整体开/关，点子项父项跟着变半选
+        var containerItem = new ToolStripMenuItem("容器")
+        {
+            ForeColor = Color.FromArgb(214, 176, 96),
+            CheckState = _canvas.ShowContainers ? CheckState.Checked : CheckState.Unchecked,
+        };
+        _layerMenu.Items.Add(containerItem);
+
+        var kinds = new List<(string Slug, ToolStripMenuItem Item)>();
+        // 父项带子菜单时点父项只会展开，所以整体开关放两条独立命令
+        var showAll = new ToolStripMenuItem("全部显示") { ForeColor = TextMain };
+        var hideAll = new ToolStripMenuItem("全部隐藏") { ForeColor = TextMain };
+        containerItem.DropDownItems.Add(showAll);
+        containerItem.DropDownItems.Add(hideAll);
+        containerItem.DropDownItems.Add(new ToolStripSeparator());
+
+        void SetAll(bool on)
+        {
+            foreach (var (slug, sub) in kinds)
+            {
+                sub.CheckState = on ? CheckState.Checked : CheckState.Unchecked;
+                ApplyKindState(slug, on);
+            }
+            RefreshContainerState(containerItem, kinds);
+            _canvas.Invalidate();
+        }
+
+        showAll.Click += (_, _) => SetAll(true);
+        hideAll.Click += (_, _) => SetAll(false);
+
+        foreach (var (kind, count) in MapMarkers.KindsByCount())
+        {
+            var info = ContainerKinds.Resolve(kind);
+            var slug = kind;
+            var sub = new ToolStripMenuItem($"{info.Name}（{count}）")
+            {
+                ForeColor = info.Color,
+                CheckState = CheckState.Checked,
+            };
+            sub.Click += (_, _) =>
+            {
+                var on = sub.CheckState != CheckState.Checked;
+                sub.CheckState = on ? CheckState.Checked : CheckState.Unchecked;
+                ApplyKindState(slug, on);
+                RefreshContainerState(containerItem, kinds);
+                _canvas.Invalidate();
+            };
+            containerItem.DropDownItems.Add(sub);
+            kinds.Add((slug, sub));
+        }
+
+        containerItem.DropDown.Closing += (_, e) =>
+        {
+            if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
+            {
+                e.Cancel = true;
+            }
+        };
+
+        UpdateLayerButtonText();
+    }
+
+    private void ApplyKindState(string slug, bool visible)
+    {
+        if (visible)
+        {
+            _canvas.HiddenContainerKinds.Remove(slug);
+        }
+        else
+        {
+            _canvas.HiddenContainerKinds.Add(slug);
+        }
+    }
+
+    /// <summary>父项按子项汇总：全开=勾选、全关=空、混合=半选。</summary>
+    private void RefreshContainerState(
+        ToolStripMenuItem parent, List<(string Slug, ToolStripMenuItem Item)> children)
+    {
+        if (children.Count == 0)
+        {
+            return;
+        }
+        var on = children.Count(c => c.Item.CheckState == CheckState.Checked);
+        parent.CheckState = on == 0
+            ? CheckState.Unchecked
+            : on == children.Count
+                ? CheckState.Checked
+                : CheckState.Indeterminate;
+        _canvas.ShowContainers = on > 0;
         UpdateLayerButtonText();
     }
 
@@ -468,7 +537,7 @@ internal sealed class MapForm : Form
         var count = 0;
         foreach (ToolStripItem item in _layerMenu.Items)
         {
-            if (item is ToolStripMenuItem { Checked: true })
+            if (item is ToolStripMenuItem item2 && item2.CheckState == CheckState.Checked)
             {
                 count++;
             }

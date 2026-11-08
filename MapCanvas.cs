@@ -255,9 +255,9 @@ internal sealed class MapCanvas : Control
         {
             return;
         }
-        var bounds = new RectangleF(0, 0, ClientSize.Width, ClientSize.Height);
-        var visible = new RectangleF(
-            origin.X - 40, origin.Y - 40, ClientSize.Width + 80, ClientSize.Height + 80);
+        // 屏幕坐标从 (0,0) 起算。之前错写成从 origin 起算：缩放/平移后 origin 变成负数，
+        // 所有标记都被判成"在视野外"，所以放大一点标记就整片消失。
+        var visible = new RectangleF(-40, -40, ClientSize.Width + 80, ClientSize.Height + 80);
 
         PointF At(PointF p) => new(origin.X + p.X * scale, origin.Y + p.Y * scale);
 
@@ -369,7 +369,6 @@ internal sealed class MapCanvas : Control
             }
         }
 
-        GC.KeepAlive(bounds);
     }
 
     /// <summary>一种容器：实心形状 + 深色描边，形状区分大类、颜色区分具体类型。</summary>
