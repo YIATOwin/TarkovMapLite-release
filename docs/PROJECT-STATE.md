@@ -71,7 +71,7 @@ Copy-Item '...\publish\TarkovMapLite.exe' "$env:USERPROFILE\Desktop\TarkovMapLit
 | night-factory / infected-factory | Night Factory / Infected Factory | 复用 factory 位图（`imageKey`） |
 | ground-zero-21 / ground-zero-tutorial | Ground Zero 21+ / (Tutorial) | 复用 ground-zero |
 | **the-labyrinth** | The Labyrinth | **瓦片拼接 4096×3840（147 块 z=4）** |
-| **the-lab / the-lab-dark / infected-lab** | The Lab / (Dark) / Infected | **瓦片拼接 2800×2100（111 块 z=4，仅 1st 层）** |
+| **the-lab / the-lab-dark / infected-lab** | The Lab / (Dark) / Infected | **瓦片拼接 2800×2100（1st 111 块 / 2nd 70 块 / Technical 66 块）** |
 
 **还缺 5 张**（数据都在接口里，只差图）：
 - `the-lab` / `the-lab-dark` / `infected-lab`：同一套瓦片，3 层（1st / 2nd / Technical）
