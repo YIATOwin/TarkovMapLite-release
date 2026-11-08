@@ -667,7 +667,8 @@ internal sealed class MapForm : Form
         foreach (var map in MapPack.Maps)
         {
             var name = map.DisplayName.Length > 0 ? map.DisplayName : map.Key;
-            _mapSelect.Items.Add(active.TryGetValue(map.Key, out var count) ? $"{name} · {count} 个进行中任务" : name);
+            // 统计按数据归属算：海关（瓦片）和海关共用同一份区域数据
+            _mapSelect.Items.Add(active.TryGetValue(map.Data, out var count) ? $"{name} · {count} 个进行中任务" : name);
         }
         _mapSelect.EndUpdate();
         if (_mapSelect.Items.Count > 0)
@@ -708,10 +709,10 @@ internal sealed class MapForm : Form
             ? zones
             : new List<ZoneShape>();
         _canvas.Extracts = TarkovData.Extracts.TryGetValue(map.Data, out var extracts)
-            ? extracts
+            ? extracts.Select(m => m.Project(map)).ToList()
             : new List<MapMarker>();
         _canvas.Transits = TarkovData.Transits.TryGetValue(map.Data, out var transits)
-            ? transits
+            ? transits.Select(m => m.Project(map)).ToList()
             : new List<MapMarker>();
         _canvas.SelectedTaskId = null;
         _canvas.Invalidate();
@@ -1062,13 +1063,19 @@ internal sealed class MapForm : Form
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         var points = new List<PointF>();
-        if (TarkovData.SpawnPoints.TryGetValue(map.Key, out var perItem))
+        // 生成点存的是世界坐标，这里按当前地图投影（瓦片图和 SVG 图投影不同）
+        if (TarkovData.SpawnPoints.TryGetValue(map.Data, out var perItem))
         {
             foreach (var id in ids)
             {
-                if (perItem.TryGetValue(id, out var list))
+                if (!perItem.TryGetValue(id, out var list))
                 {
-                    points.AddRange(list);
+                    continue;
+                }
+                foreach (var world in list)
+                {
+                    var (u, v) = MapPack.ToImage(map, world.X, world.Y);
+                    points.Add(new PointF((float)u, (float)v));
                 }
             }
         }
@@ -1188,7 +1195,7 @@ internal sealed class MapForm : Form
     private void UpdateStatus()
     {
         var map = CurrentMap;
-        var zones = map != null && TarkovData.ZonesByMap.TryGetValue(map.Key, out var list) ? list : null;
+        var zones = map != null && TarkovData.ZonesByMap.TryGetValue(map.Data, out var list) ? list : null;
         var activeOnMap = zones == null
             ? 0
             : zones.Select(z => z.TaskId).Distinct()

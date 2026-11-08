@@ -14,8 +14,27 @@ public sealed class MapMarker
     public required string Kind { get; init; }
     /// <summary>撤离阵营（PMC/Scav/通用）或转移目标地图。</summary>
     public string Note { get; init; } = "";
-    /// <summary>投影到图片像素坐标后的位置。</summary>
+    /// <summary>投影到图片像素坐标后的位置（由 <see cref="Project"/> 按当前地图算）。</summary>
     public PointF Screen { get; set; }
+
+    /// <summary>
+    /// 按 <paramref name="map"/> 的投影得到一份可以直接画的副本。
+    /// 撤离点数据是按"数据地图 key"共享的，直接改 <see cref="Screen"/> 会让
+    /// 海关 / 海关（瓦片）互相覆盖，所以每次切图都重新算一份。
+    /// </summary>
+    public MapMarker Project(MapProjection map)
+    {
+        var (u, v) = MapPack.ToImage(map, X, Z);
+        return new MapMarker
+        {
+            Name = Name,
+            X = X,
+            Z = Z,
+            Kind = Kind,
+            Note = Note,
+            Screen = new PointF((float)u, (float)v),
+        };
+    }
 }
 
 /// <summary>从 /pve/maps 里一次性抓下来的东西。</summary>
@@ -39,17 +58,49 @@ public sealed class ObjectiveInfo
     public IReadOnlyList<IReadOnlyList<string>> Keys { get; init; } = Array.Empty<IReadOnlyList<string>>();
 }
 
-/// <summary>一个任务区域，已经投影成图片像素坐标。</summary>
+/// <summary>
+/// 一个任务区域。坐标只保留世界坐标（x,z），画到哪张图由 MapCanvas 按当前地图投影。
+/// 以前这里直接存"图片像素坐标"，于是共享同一份数据的第二张图（海关 / 海关瓦片）
+/// 会拿到另一套投影下的像素，区域就整体跑到图外去了。
+/// </summary>
 public sealed class ZoneShape
 {
     public required string TaskId { get; init; }
     public required string TaskName { get; init; }
     public required string Type { get; init; }
-    public required PointF[] Points { get; init; }
-    public required PointF Center { get; init; }
+    /// <summary>世界坐标（x,z）。同一份数据被多张图共享时只有这一份。</summary>
+    public required PointF[] WorldPoints { get; init; }
+    /// <summary>投影到某张图的像素坐标；由 <see cref="Project"/> 填好，供绘制用。</summary>
+    public PointF[] Points { get; init; } = Array.Empty<PointF>();
+    public PointF Center { get; init; }
     public RectangleF Bounds { get; init; }
     /// <summary>推断出来的楼层：0 地面，1 二层，2 三层，-1 地下。</summary>
     public int Floor { get; init; }
+
+    /// <summary>按 <paramref name="map"/> 的投影算出一份可以直接画的副本（世界坐标不变）。</summary>
+    public ZoneShape Project(MapProjection map)
+    {
+        var points = new PointF[WorldPoints.Length];
+        for (var i = 0; i < points.Length; i++)
+        {
+            var (u, v) = MapPack.ToImage(map, WorldPoints[i].X, WorldPoints[i].Y);
+            points[i] = new PointF((float)u, (float)v);
+        }
+        var minX = points.Min(p => p.X);
+        var minY = points.Min(p => p.Y);
+        return new ZoneShape
+        {
+            TaskId = TaskId,
+            TaskName = TaskName,
+            Type = Type,
+            WorldPoints = WorldPoints,
+            Points = points,
+            Center = new PointF(points.Average(p => p.X), points.Average(p => p.Y)),
+            Bounds = new RectangleF(minX, minY,
+                points.Max(p => p.X) - minX, points.Max(p => p.Y) - minY),
+            Floor = Floor,
+        };
+    }
 }
 
 /// <summary>
@@ -89,7 +140,7 @@ public static class TarkovData
     public static Dictionary<string, string> TaskNames { get; private set; } = new();
     /// <summary>物品 id → 中文名（只包含任务目标里引用到的，几百条）</summary>
     public static Dictionary<string, string> ItemNames { get; private set; } = new();
-    /// <summary>地图 key → 物品 id → 可能的散落生成点（图片像素坐标）。</summary>
+    /// <summary>地图 key → 物品 id → 可能的散落生成点（世界坐标 x,z）。</summary>
     public static Dictionary<string, Dictionary<string, List<PointF>>> SpawnPoints { get; private set; } = new();
     /// <summary>场景名（streets_preset）→ 地图 key，用来判断"进的是哪张图"。</summary>
     public static Dictionary<string, string> SceneToMap { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -178,7 +229,7 @@ public static class TarkovData
             }
         }
         ItemNames = items;
-        SpawnPoints = ProjectSpawns(ReadSpawns(root["spawns"]));
+        SpawnPoints = PackSpawns(ReadSpawns(root["spawns"]));
         SceneToMap = ReadScenes(root["scenes"]);
         Extracts = ProjectMarkers(ReadMarkers(root["extracts"]));
         Transits = ProjectMarkers(ReadMarkers(root["transits"]));
@@ -356,7 +407,7 @@ public static class TarkovData
             FetchedAt = DateTime.Now;
             ParseRecords(cache["tasks"] as JsonArray);
             ItemNames = itemNames;
-            SpawnPoints = ProjectSpawns(extras.Spawns);
+            SpawnPoints = PackSpawns(extras.Spawns);
             SceneToMap = extras.Scenes;
             Extracts = ProjectMarkers(extras.Extracts);
             Transits = ProjectMarkers(extras.Transits);
@@ -439,34 +490,30 @@ public static class TarkovData
             foreach (var zone in (t["zones"] as JsonArray) ?? new JsonArray())
             {
                 var mapKey = zone?["m"]?.GetValue<string>() ?? "";
-                var map = MapPack.Find(mapKey);
-                if (map == null)
+                // 只保留我们有地图的那些；不支持的地图直接丢掉，省内存
+                if (MapPack.Find(mapKey) == null)
                 {
                     continue;
                 }
-                var points = new List<PointF>();
+                var world = new List<PointF>();
                 foreach (var p in (zone?["p"] as JsonArray) ?? new JsonArray())
                 {
-                    var world = p!.AsArray();
-                    var (u, v) = MapPack.ToImage(map, world[0]!.GetValue<double>(), world[1]!.GetValue<double>());
-                    points.Add(new PointF((float)u, (float)v));
+                    var pair = p!.AsArray();
+                    world.Add(new PointF(
+                        (float)pair[0]!.GetValue<double>(),
+                        (float)pair[1]!.GetValue<double>()));
                 }
-                if (points.Count < 3)
+                if (world.Count < 3)
                 {
                     continue;
                 }
-                var cx = points.Average(p => p.X);
-                var cy = points.Average(p => p.Y);
-                var minX = points.Min(p => p.X);
-                var minY = points.Min(p => p.Y);
+                // 这里只存世界坐标；投影留到切图时按当前地图做（见 ZoneShape.Project）
                 var shape = new ZoneShape
                 {
                     TaskId = id,
                     TaskName = name,
                     Type = zone?["t"]?.GetValue<string>() ?? "",
-                    Points = points.ToArray(),
-                    Center = new PointF(cx, cy),
-                    Bounds = new RectangleF(minX, minY, points.Max(p => p.X) - minX, points.Max(p => p.Y) - minY),
+                    WorldPoints = world.ToArray(),
                     Floor = zone?["f"]?.GetValue<int?>() ?? 0,
                 };
                 if (!zones.TryGetValue(mapKey, out var list))
@@ -811,46 +858,37 @@ public static class TarkovData
     private static Dictionary<string, List<MapMarker>> ProjectMarkers(
         Dictionary<string, List<MapMarker>> markers)
     {
-        foreach (var (mapKey, list) in markers)
-        {
-            var map = MapPack.Find(mapKey);
-            if (map == null)
-            {
-                continue;
-            }
-            foreach (var marker in list)
-            {
-                var (u, v) = MapPack.ToImage(map, marker.X, marker.Z);
-                marker.Screen = new PointF((float)u, (float)v);
-            }
-        }
-        return markers;
+        // 只保留有地图的；坐标保持世界坐标，画之前由 MapMarker.Project 按当前地图投影
+        return markers
+            .Where(pair => MapPack.Find(pair.Key) != null)
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>世界坐标的生成点投影成图片像素坐标。</summary>
-    private static Dictionary<string, Dictionary<string, List<PointF>>> ProjectSpawns(
+    /// <summary>
+    /// 生成点保留世界坐标（x,z），画之前再按当前地图投影。
+    /// 和区域同理：共享数据的第二张图不能沿用第一张图的像素坐标。
+    /// </summary>
+    private static Dictionary<string, Dictionary<string, List<PointF>>> PackSpawns(
         Dictionary<string, Dictionary<string, List<double[]>>> raw)
     {
         var result = new Dictionary<string, Dictionary<string, List<PointF>>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (mapKey, perItem) in raw)
         {
-            var map = MapPack.Find(mapKey);
-            if (map == null)
+            if (MapPack.Find(mapKey) == null)
             {
                 continue;
             }
-            var projected = new Dictionary<string, List<PointF>>(StringComparer.OrdinalIgnoreCase);
+            var packed = new Dictionary<string, List<PointF>>(StringComparer.OrdinalIgnoreCase);
             foreach (var (itemId, points) in perItem)
             {
                 var list = new List<PointF>(points.Count);
                 foreach (var point in points)
                 {
-                    var (u, v) = MapPack.ToImage(map, point[0], point[1]);
-                    list.Add(new PointF((float)u, (float)v));
+                    list.Add(new PointF((float)point[0], (float)point[1]));
                 }
-                projected[itemId] = list;
+                packed[itemId] = list;
             }
-            result[mapKey] = projected;
+            result[mapKey] = packed;
         }
         return result;
     }

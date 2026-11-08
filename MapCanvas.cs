@@ -22,8 +22,30 @@ internal sealed class MapCanvas : Control
     public TaskLog? Log { get; set; }
     public bool ShowZones { get; set; } = true;
 
-    /// <summary>当前地图上所有区域（已按任务过滤）。</summary>
-    public List<ZoneShape> Zones { get; set; } = new();
+    private List<ZoneShape> _zones = new();
+    private List<ZoneShape> _projected = new();
+
+    /// <summary>
+    /// 当前地图上所有区域（世界坐标，来自 TarkovData）。
+    /// 赋值时按当前地图投影一次，绘制只用 <c>_projected</c>。
+    /// </summary>
+    public List<ZoneShape> Zones
+    {
+        get => _zones;
+        set
+        {
+            _zones = value ?? new List<ZoneShape>();
+            ProjectZones();
+        }
+    }
+
+    /// <summary>把世界坐标的区域投影到当前地图的像素空间；切图时重算。</summary>
+    private void ProjectZones()
+    {
+        _projected = _map == null
+            ? new List<ZoneShape>()
+            : _zones.Select(z => z.Project(_map)).ToList();
+    }
 
     /// <summary>选中任务所需物品的候选刷新点（图片像素坐标）。</summary>
     public List<PointF> SpawnPoints { get; set; } = new();
@@ -73,6 +95,7 @@ internal sealed class MapCanvas : Control
         _zoom = 1;
         _pan = PointF.Empty;
         _fitPending = true;      // 等拿到真实画布尺寸再算适配比例
+        ProjectZones();          // 换图要按新图的投影重算区域
         Invalidate();
     }
 
@@ -488,7 +511,7 @@ internal sealed class MapCanvas : Control
     private void DrawZones(Graphics g, float scale, PointF origin)
     {
         var log = Log;
-        foreach (var zone in Zones)
+        foreach (var zone in _projected)
         {
             var state = log?.StateOf(zone.TaskId) ?? TaskState.None;
             if (!IsZoneVisible(zone, state))
@@ -516,7 +539,7 @@ internal sealed class MapCanvas : Control
         var currentFloor = CurrentFloor;
         using var dotPen = new Pen(Color.White, 2f);
         using var arrowBrush = new SolidBrush(Color.White);
-        var visible = Zones
+        var visible = _projected
             .Where(z => IsZoneVisible(z, log?.StateOf(z.TaskId) ?? TaskState.None))
             .ToList();
         var groups = visible.GroupBy(z => z.TaskId).ToList();
@@ -784,7 +807,7 @@ internal sealed class MapCanvas : Control
         using var back = new SolidBrush(Color.FromArgb(150, 30, 40, 55));
         using var ring = new Pen(Color.White, 1.4f);
 
-        foreach (var zone in Zones.GroupBy(z => z.TaskId).Select(g2 => g2.First()))
+        foreach (var zone in _projected.GroupBy(z => z.TaskId).Select(g2 => g2.First()))
         {
             var state = log?.StateOf(zone.TaskId) ?? TaskState.None;
             if (!IsZoneVisible(zone, state))

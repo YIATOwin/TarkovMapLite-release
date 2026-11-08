@@ -53,14 +53,18 @@ internal static class MapMarkers
             .ToList();
     }
 
-    /// <summary>地图 key → 图片像素坐标的标记层（按地图缓存，绘制时不再换算）。</summary>
+    /// <summary>
+    /// 地图 → 图片像素坐标的标记层，按地图缓存。
+    /// 缓存 key 必须是 <c>map.Key</c> 而不是 <c>map.Data</c>：海关和海关（瓦片）共用数据，
+    /// 但投影完全不同，用 Data 当 key 会让第二张图拿到第一张图的像素坐标。
+    /// </summary>
     public static MarkerLayer For(MapProjection? map)
     {
         if (map == null)
         {
             return new MarkerLayer();
         }
-        if (Image.TryGetValue(map.Data, out var cached))
+        if (Image.TryGetValue(map.Key, out var cached))
         {
             return cached;
         }
@@ -104,7 +108,7 @@ internal static class MapMarkers
                 layer.Spawns.Add((new PointF((float)u, (float)v), cats));
             }
         }
-        Image[map.Data] = layer;
+        Image[map.Key] = layer;
         return layer;
     }
 

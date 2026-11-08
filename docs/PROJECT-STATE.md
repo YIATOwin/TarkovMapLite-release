@@ -166,3 +166,60 @@ Copy-Item '...\publish\TarkovMapLite.exe' "$env:USERPROFILE\Desktop\TarkovMapLit
   - 下一步：拿海关配置里的 label 世界坐标（和实验室一样的方法）反推 bounds
 - 待办：其余老地图（factory 4 层、reserve 6 层、groundzero 4 层、woods/shoreline/interchange 1 层）照同样流程做；破冰船 16 层最后做
 - 另需修：状态栏「N 个区域」还是按 map.Key 统计，应改用 DataKey
+### 海关瓦片标定现状（19:15）
+
+- **地标验证通过**：用 customs 配置里的 label（BigRed/Dorms/Fortress/Crackhouse/OldGas/Storage）在拼接图上画十字，六个全部对准
+  - 公式：px = -0.239x + 168.65；py = 0.239z + 136.35；u = px*16；v = (py-48)*16（48 = 3*256/16，因为瓦片 y 从 3 开始）
+  - 对应 bounds [[705.65,-369.67],[-365.48,366.74]]、viewBox 0,0,4096,2816
+- **但程序里区域仍画在图左上角**（超出图片上边缘），说明 app 侧的换算和上面不一致
+- 下一步排查：
+  1. 打印三个进行中任务 zone 的世界坐标，手算期望像素，和实际截图对照
+  2. 检查 MapProjection 反序列化（bounds 是否按 [x,z] 对解析）、MapCanvas 的 origin/scale 计算
+  3. 怀疑点：ToImage 用 bounds 矩形归一化，而图片有透明边距（art 实际在 y 250..2210），归一化基准可能和视觉基准不同
+
+### 海关瓦片偏移的真正原因（已定位，19:17）
+
+**不是标定问题，是数据结构问题。**
+
+`TarkovData.cs:451` 在**加载时**就把区域多边形投影成了**那张图自己的像素坐标**：
+
+```csharp
+var map = MapPack.Find(mapKey);          // 用的是 customs（SVG 版）
+var (u, v) = MapPack.ToImage(map, x, z);
+points.Add(new PointF((u, v)));
+var shape = new ZoneShape { Points = points.ToArray(), Center = ..., Bounds = ... };
+```
+
+于是：
+- SVG 海关 → 区域按 SVG 图的像素存
+- 海关（瓦片）→ 拿到的是**同一批 SVG 像素坐标**，投影完全不同 → 区域画在图外
+
+实验室/迷宫没这问题，因为它们是独立 key，区域本来就按自己的图投影。
+
+**修法（已做完，19:30）**：
+1. `ZoneShape` 增加 `WorldPoints`（世界 x,z）+ `Project(map)`；`Points/Center/Bounds` 改由投影填
+2. `TarkovData.ParseRecords` 只存世界坐标
+3. `MapCanvas`：`Zones` 改成属性，setter 里 `ProjectZones()`；`SetMap` 也重算；绘制全部走 `_projected`
+4. 状态栏「N 个区域」、下拉框「· N 个进行中任务」都改用 `map.Data`
+
+### 同一类 bug 的另外三处（一起修了）
+
+凡是"加载时投影成像素、按 DataKey 共享"的东西都有这个病：
+
+| 位置 | 症状 | 修法 |
+|---|---|---|
+| `TarkovData.SpawnPoints` | 散落物资点在瓦片图上错位 | `PackSpawns` 只存世界坐标，`MapForm.UpdateSpawnPoints` 按当前图投影 |
+| `TarkovData.ProjectMarkers`（撤离/转移点） | `Screen` 被两张图互相覆盖 | 改成 `MapMarker.Project(map)`，`ApplyMap` 里生成副本 |
+| `MapMarkers.For` 的缓存 key | 用 `map.Data` 当 key，海关和瓦片互相污染（谁先打开谁对） | 缓存 key 改成 `map.Key` |
+
+**通用规则**：`map.Key` 用来区分"同一份数据的两种画法"（像素缓存、图片）；
+`map.Data` 只用来查"数据内容"（区域、任务、撤离点、标记的原始世界坐标）。
+凡是缓存投影结果的地方，key 一律用 `map.Key`。
+
+### 验证结果（19:30，两边逐点对照）
+
+- 海关（瓦片）：116 个区域、3 个任务，区域多边形落在大建筑上
+- 撤离点 16 个名字（ZB-1011 / ZB-1013 / RUAF 路障 / 十字路口 / 拖车停车场 / 老加油站路障…）
+  在 SVG 版与瓦片版**相对位置一致**（同一套地理，只是两张图 fit 比例略有差别）
+- 「这是什么梗？」「收视灵药」「掠地攻城」三组区域标记、虚线连线、序号在两张图上位置吻合
+- 容器/散落物资点也不再错位
