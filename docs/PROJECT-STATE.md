@@ -223,3 +223,28 @@ var shape = new ZoneShape { Points = points.ToArray(), Center = ..., Bounds = ..
   在 SVG 版与瓦片版**相对位置一致**（同一套地理，只是两张图 fit 比例略有差别）
 - 「这是什么梗？」「收视灵药」「掠地攻城」三组区域标记、虚线连线、序号在两张图上位置吻合
 - 容器/散落物资点也不再错位
+
+## 瓦片管线（森林 / 海岸线 / 立交桥）
+
+标定数据不靠猜：`https://raw.githubusercontent.com/the-hideout/tarkov-dev/main/src/data/maps.json`
+里每个 `maps[]` 层都有 `transform / coordinateRotation / bounds / tilePath / labels`，
+其中 `labels` 就是现成的验证点（画上去肉眼对建筑）。`/pve/maps` 里没有这些字段。
+
+- `tools/fetch-tiles.ps1`：按 `tile = floor(transform(world) * 2^zoom / 256)` 算出瓦片矩形，
+  并行下载拼图，并直接打印可粘贴的 `bounds` + `viewBox`
+- `tools/composite-tiles.ps1`：官方瓦片把某些形状挖空（立交桥商场屋顶），
+  把 SVG 层按两张投影之间的仿射矩阵垫在下面补上
+
+三个踩过的坑：
+
+| 坑 | 现象 | 修法 |
+|---|---|---|
+| curl 配置文件里的 Windows 路径 | 每个瓦片写入失败 | `output = "C:\..."` 被当转义符，改用 `--output-dir` + 裸文件名 |
+| Content + EmbeddedResource 并存 | exe 296 MB，每张图收了两份 | 删掉 `Content` 复制项，176 MB |
+| 二维数组 `$a[$r,$c]` | PS 5.1 解析报 Missing ']' | 改成一维/标量，用 Cramer 法则解 3 元方程 |
+
+**注意**：maps.json 的 `bounds` 必须用**切块矩形**的世界四角，不是配置里的 bounds——
+图像含边缘不足一整块的余量，用配置值会整体错位。
+
+当前 22 张地图，素材 127 MB，exe 175.6 MB。剩下：factory(4 层)、reserve(6 层)、
+ground-zero(4 层)、icebreaker(16 层)；以及「SVG ↔ 瓦片」切换按钮。
