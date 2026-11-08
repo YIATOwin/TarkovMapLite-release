@@ -8,12 +8,15 @@ internal sealed class MapCanvas : Control
     private readonly Dictionary<string, Image> _images = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>图片缓存的最近使用顺序（末尾最新），用来淘汰旧图。</summary>
     private readonly List<string> _imageOrder = new();
+    /// <summary>每张缓存图解码后大约占多少字节（Width * Height * 4）。</summary>
+    private readonly Dictionary<string, long> _imageBytes = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>
-    /// 最多同时留几张解码后的图。一张 4096×2816 的瓦片图解码后约 46 MB，
-    /// 不限制的话逛十张图就是几百 MB——这个软件的出发点就是省内存。
-    /// 实际同时要用的是"当前底图 + 当前楼层图"，留 3 张够翻楼层了。
+    /// 解码后图片的总预算。一张 4000 px 的地图约 40 MB，一张 4352×4352 的瓦片图约 76 MB，
+    /// 不设上限的话逛十张图就是几百 MB——这个软件的出发点就是省内存。
+    /// 至少留 2 张（底图 + 当前楼层），有余量才继续留。
     /// </summary>
-    private const int ImageCacheLimit = 3;
+    private const long ImageCacheBudget = 120L * 1024 * 1024;
+    private const int ImageCacheMinimum = 2;
     private MapProjection? _map;
     private string _layer = "";
     private Image? _image;
@@ -218,6 +221,7 @@ internal sealed class MapCanvas : Control
             return null;
         }
         _images[path] = image;
+        _imageBytes[path] = 4L * image.Width * image.Height;
         _imageOrder.Add(path);
         TrimImages();
         return image;
@@ -234,13 +238,26 @@ internal sealed class MapCanvas : Control
         _imageOrder.Add(path);
     }
 
-    /// <summary>超出上限就释放最久没用过的图；正在显示的图刚 Touch 过，不会被选中。</summary>
+    /// <summary>
+    /// 超出内存预算就释放最久没用过的图；正在显示的图刚 Touch 过，不会被选中，
+    /// 而且无论多大都至少保留 <see cref="ImageCacheMinimum"/> 张。
+    /// </summary>
     private void TrimImages()
     {
-        while (_imageOrder.Count > ImageCacheLimit)
+        while (_imageOrder.Count > ImageCacheMinimum)
         {
+            long total = 0;
+            foreach (var path in _imageOrder)
+            {
+                total += _imageBytes.TryGetValue(path, out var bytes) ? bytes : 0;
+            }
+            if (total <= ImageCacheBudget)
+            {
+                return;
+            }
             var victim = _imageOrder[0];
             _imageOrder.RemoveAt(0);
+            _imageBytes.Remove(victim);
             if (_images.Remove(victim, out var image))
             {
                 image.Dispose();
@@ -1045,6 +1062,8 @@ internal sealed class MapCanvas : Control
                 image.Dispose();
             }
             _images.Clear();
+            _imageBytes.Clear();
+            _imageOrder.Clear();
         }
         base.Dispose(disposing);
     }

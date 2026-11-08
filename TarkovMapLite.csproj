@@ -23,13 +23,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\**\*.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- 单文件分发：资源编进 exe -->
+    <!--
+      资源只以 EmbeddedResource 形式进程序集。
+      以前这里还有两条 CopyToOutputDirectory 的 Content，单文件打包会把它们
+      再收进 exe 一份，于是每张图占两倍体积（296 MB 里有 70 MB 是重复的）。
+      想在不重编译的情况下换图，手工把 Assets 目录放到 exe 旁边即可：
+      Assets.Open 优先读旁边的散文件。
+    -->
     <EmbeddedResource Include="Assets\maps\**\*.png" />
     <EmbeddedResource Include="Assets\maps\maps.json" />
     <!-- 我这边抓取时的任务/物品数据快照：没网或第一次运行时直接可用 -->
     <EmbeddedResource Include="Assets\data-seed.json" />
+    <!-- 地图静态标记：容器/散落物资/出生点/危险区，由 tools/build-markers.ps1 生成 -->
     <EmbeddedResource Include="Assets\markers.json" />
   </ItemGroup>
 
