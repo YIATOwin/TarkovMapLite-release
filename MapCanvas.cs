@@ -6,6 +6,14 @@ namespace TarkovMapLite;
 internal sealed class MapCanvas : Control
 {
     private readonly Dictionary<string, Image> _images = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>图片缓存的最近使用顺序（末尾最新），用来淘汰旧图。</summary>
+    private readonly List<string> _imageOrder = new();
+    /// <summary>
+    /// 最多同时留几张解码后的图。一张 4096×2816 的瓦片图解码后约 46 MB，
+    /// 不限制的话逛十张图就是几百 MB——这个软件的出发点就是省内存。
+    /// 实际同时要用的是"当前底图 + 当前楼层图"，留 3 张够翻楼层了。
+    /// </summary>
+    private const int ImageCacheLimit = 3;
     private MapProjection? _map;
     private string _layer = "";
     private Image? _image;
@@ -196,20 +204,48 @@ internal sealed class MapCanvas : Control
         var path = _map.ImageFor(layer);
         if (_images.TryGetValue(path, out var cached))
         {
+            Touch(path);
             return cached;
         }
         var image = Assets.ReadImage("maps/" + path);
         if (image == null && !string.IsNullOrEmpty(layer))
         {
-            // 该楼层没有独立图片时退回基础图
-            image = Assets.ReadImage("maps/" + _map.Key + "/base.png");
+            // 该楼层没有独立图片：直接复用底图，不要再解码一份一样的图（一张就 40 MB）
+            return ImageFor(null);
         }
         if (image == null)
         {
             return null;
         }
         _images[path] = image;
+        _imageOrder.Add(path);
+        TrimImages();
         return image;
+    }
+
+    /// <summary>标记为"刚用过"，淘汰时优先丢最久没看的。</summary>
+    private void Touch(string path)
+    {
+        if (_imageOrder.Count > 0 && _imageOrder[^1] == path)
+        {
+            return;
+        }
+        _imageOrder.Remove(path);
+        _imageOrder.Add(path);
+    }
+
+    /// <summary>超出上限就释放最久没用过的图；正在显示的图刚 Touch 过，不会被选中。</summary>
+    private void TrimImages()
+    {
+        while (_imageOrder.Count > ImageCacheLimit)
+        {
+            var victim = _imageOrder[0];
+            _imageOrder.RemoveAt(0);
+            if (_images.Remove(victim, out var image))
+            {
+                image.Dispose();
+            }
+        }
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -224,7 +260,9 @@ internal sealed class MapCanvas : Control
         {
             Fit();
         }
-        _image ??= ImageFor(null);
+        // 每次都取一遍：一是保证底图留在缓存里（不被当最旧淘汰掉），
+        // 二是 ImageFor 会顺手把它的"最近使用"顺序刷到最新，代价只是一次字典查找。
+        _image = ImageFor(null);
         var s = (float)Scale;
         var origin = Origin;
         var rect = new RectangleF(origin.X, origin.Y,
