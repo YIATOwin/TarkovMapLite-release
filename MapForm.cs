@@ -967,6 +967,10 @@ internal sealed class MapForm : Form
             _wikiButton.Visible = false;
             return;
         }
+        // 换任务必须先清空：AppendDetail 只追加，不清空的话新任务的目标会接在上一个
+        // 任务后面，而下面又把光标滚回顶部——看起来就像"描述没有切换"。
+        _detail.Clear();
+        _detail.SelectionColor = _detail.ForeColor;
         _detailHeader.Text = "目标 · " + row.Name;
         _currentTaskId = row.Id;
         _currentWiki = TarkovData.TaskWiki.TryGetValue(row.Id, out var taskWiki) ? taskWiki : "";
