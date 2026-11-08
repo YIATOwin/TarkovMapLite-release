@@ -27,6 +27,8 @@ internal sealed class MapForm : Form
     private readonly Button _wikiButton = new();
     /// <summary>当前选中任务的 wiki 链接（没有就是空串）。</summary>
     private string _currentWiki = "";
+    private string _currentSlug = "";
+    private string _currentTaskId = "";
     private readonly TaskLog _log = new();
     private readonly PlayerLocator _player = new();
     /// <summary>最近一次进图（scene preset path）读到的地图 key，玩家定位就绑在这张图上。</summary>
@@ -270,10 +272,11 @@ internal sealed class MapForm : Form
         _detailHeader.Padding = new Padding(10, 0, 0, 0);
         _detailHeader.Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold);
 
-        // 位置照片只有 wiki 上有，给个一键入口
-        _wikiButton.Text = "Wiki";
+        // 任务页：tarkov.dev 在国内能直连（fandom 基本打不开），所以主链接用它，
+        // 右键还能选 fandom wiki（挂了代理的人用）。
+        _wikiButton.Text = "任务页";
         _wikiButton.Dock = DockStyle.Right;
-        _wikiButton.Width = 48;
+        _wikiButton.Width = 56;
         _wikiButton.FlatStyle = FlatStyle.Flat;
         _wikiButton.FlatAppearance.BorderSize = 0;
         _wikiButton.BackColor = Color.FromArgb(34, 39, 46);
@@ -281,7 +284,14 @@ internal sealed class MapForm : Form
         _wikiButton.Font = new Font("Microsoft YaHei UI", 8f);
         _wikiButton.Cursor = Cursors.Hand;
         _wikiButton.Visible = false;
-        _wikiButton.Click += (_, _) => OpenWiki();
+        _wikiButton.Click += (_, _) => OpenTaskPage();
+        _wikiButton.MouseUp += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                BuildTaskPageMenu().Show(_wikiButton, e.Location);
+            }
+        };
 
         var detailHeaderPanel = new Panel
         {
@@ -414,6 +424,7 @@ internal sealed class MapForm : Form
         ApplyMap(keepView: false);
 
         var stale = TarkovData.FetchedAt == DateTime.MinValue
+                    || TarkovData.Schema < TarkovData.CurrentSchema
                     || DateTime.Now - TarkovData.FetchedAt > TimeSpan.FromHours(24);
         if (stale)
         {
@@ -670,21 +681,55 @@ internal sealed class MapForm : Form
         _detail.SelectionColor = _detail.ForeColor;
     }
 
-    /// <summary>在默认浏览器里打开任务的 wiki 页——具体埋在哪/长什么样的照片只有那上面有。</summary>
-    private void OpenWiki()
+    /// <summary>
+    /// 用默认浏览器打开任务页。默认用 tarkov.dev（国内能直连），
+    /// 右键菜单里还有 fandom wiki（要代理）和自定义模板。
+    /// </summary>
+    private void OpenTaskPage()
     {
-        if (string.IsNullOrEmpty(_currentWiki))
+        var url = string.IsNullOrEmpty(_currentSlug)
+            ? _currentWiki
+            : $"https://tarkov.dev/task/{_currentSlug}";
+        OpenUrl(url);
+    }
+
+    private void OpenUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url))
         {
             return;
         }
         try
         {
-            Process.Start(new ProcessStartInfo(_currentWiki) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
-            _status.Text = "打开 wiki 失败：" + ex.Message;
+            _status.Text = "打开网页失败：" + ex.Message;
         }
+    }
+
+    /// <summary>右键菜单：让用户自己挑用哪个站点（fandom 需要代理）。</summary>
+    private ContextMenuStrip BuildTaskPageMenu()
+    {
+        var menu = new ContextMenuStrip { Font = new Font("Microsoft YaHei UI", 9f) };
+        if (!string.IsNullOrEmpty(_currentSlug))
+        {
+            menu.Items.Add("tarkov.dev 任务页", null,
+                (_, _) => OpenUrl($"https://tarkov.dev/task/{_currentSlug}"));
+        }
+        // 环境变量可以覆盖：TARKOVMAPLITE_TASK_URL=https://example.com/task/{slug}
+        var custom = Environment.GetEnvironmentVariable("TARKOVMAPLITE_TASK_URL");
+        if (!string.IsNullOrWhiteSpace(custom))
+        {
+            var url = custom.Replace("{slug}", _currentSlug).Replace("{id}", _currentTaskId);
+            menu.Items.Add("自定义站点", null, (_, _) => OpenUrl(url));
+        }
+        if (!string.IsNullOrEmpty(_currentWiki))
+        {
+            menu.Items.Add("Fandom Wiki（需代理）", null, (_, _) => OpenUrl(_currentWiki));
+        }
+        return menu;
     }
 
     private void ShowTaskDetail(TaskRow? row)
@@ -695,13 +740,16 @@ internal sealed class MapForm : Form
             _detailHeader.Text = "目标";
             _itemList.Items.Clear();
             _currentWiki = "";
+            _currentSlug = "";
+            _currentTaskId = "";
             _wikiButton.Visible = false;
             return;
         }
         _detailHeader.Text = "目标 · " + row.Name;
+        _currentTaskId = row.Id;
         _currentWiki = TarkovData.TaskWiki.TryGetValue(row.Id, out var taskWiki) ? taskWiki : "";
-        _wikiButton.Visible = _currentWiki.Length > 0;
-        _detail.Clear();
+        _currentSlug = TarkovData.TaskSlug.TryGetValue(row.Id, out var taskSlug) ? taskSlug : "";
+        _wikiButton.Visible = _currentSlug.Length > 0 || _currentWiki.Length > 0;
         var needed = new List<(string Id, string Name)>();
         if (TarkovData.TaskObjectives.TryGetValue(row.Id, out var objectives))
         {

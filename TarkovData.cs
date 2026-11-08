@@ -98,12 +98,17 @@ public static class TarkovData
     public static Dictionary<string, string> TaskTrader { get; private set; } = new();
     /// <summary>任务 id → wiki 链接（地点照片都在 wiki 页上）。</summary>
     public static Dictionary<string, string> TaskWiki { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>任务 id → tarkov.dev 的 slug（任务页地址 /task/&lt;slug&gt;）。</summary>
+    public static Dictionary<string, string> TaskSlug { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     public static DateTime FetchedAt { get; private set; }
     public static string Status { get; private set; } = "";
     /// <summary>最近一次是否成功从接口拉到数据。</summary>
     public static bool Online { get; private set; }
     /// <summary>当前用的是打包进 exe 的静态数据（没有缓存、也没联网时）。</summary>
     public static bool FromSeed { get; private set; }
+    /// <summary>缓存格式版本：老的内置数据升到这里就要强制刷新一次。</summary>
+    public const int CurrentSchema = 7;
+    public static int Schema { get; private set; }
 
     private static string CachePath
     {
@@ -112,7 +117,7 @@ public static class TarkovData
             var dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TarkovMapLite");
             Directory.CreateDirectory(dir);
-            return Path.Combine(dir, "data-v6.json");
+            return Path.Combine(dir, "data-v7.json");
         }
     }
 
@@ -158,6 +163,7 @@ public static class TarkovData
             return;
         }
         FetchedAt = DateTime.TryParse(root["fetched"]?.GetValue<string>(), out var at) ? at : DateTime.MinValue;
+        Schema = root["schema"]?.GetValue<int?>() ?? 0;
         ParseRecords(root["tasks"] as JsonArray);
         var items = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (root["items"] is JsonObject itemNodes)
@@ -303,7 +309,7 @@ public static class TarkovData
                 }
                 if (zones.Count > 0 || objectives.Count > 0)
                 {
-                    records.Add(new { id, name, trader = traders[id], wiki = t["wikiLink"]?.GetValue<string>() ?? "", zones, obj = objectives });
+                    records.Add(new { id, name, trader = traders[id], wiki = t["wikiLink"]?.GetValue<string>() ?? "", slug = t["normalizedName"]?.GetValue<string>() ?? "", zones, obj = objectives });
                 }
             }
 
@@ -337,6 +343,7 @@ public static class TarkovData
             var cache = new JsonObject
             {
                 ["fetched"] = DateTime.Now.ToString("o"),
+                ["schema"] = CurrentSchema,
                 ["tasks"] = JsonSerializer.SerializeToNode(records),
                 ["items"] = JsonSerializer.SerializeToNode(itemNames),
                 ["spawns"] = JsonSerializer.SerializeToNode(extras.Spawns),
@@ -382,6 +389,7 @@ public static class TarkovData
         var traders = new Dictionary<string, string>();
         var objectivesByTask = new Dictionary<string, List<ObjectiveInfo>>();
         var wikis = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var slugs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var node in tasks ?? new JsonArray())
         {
             if (node is not JsonObject t)
@@ -395,6 +403,10 @@ public static class TarkovData
             if (t["wiki"]?.GetValue<string>() is { Length: > 0 } wiki)
             {
                 wikis[id] = wiki;
+            }
+            if (t["slug"]?.GetValue<string>() is { Length: > 0 } slug)
+            {
+                slugs[id] = slug;
             }
 
             if ((t["obj"] as JsonArray) is { Count: > 0 } objectiveNodes)
@@ -470,6 +482,7 @@ public static class TarkovData
         TaskNames = names;
         TaskTrader = traders;
         TaskWiki = wikis;
+        TaskSlug = slugs;
     }
 
     /// <summary>
