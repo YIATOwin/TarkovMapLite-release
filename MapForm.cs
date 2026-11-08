@@ -452,6 +452,8 @@ internal sealed class MapForm : Form
                 ApplyKindState(slug, on);
             }
             RefreshContainerState(containerItem, kinds);
+            // 程序改 CheckState 不会自动重画，要悬停才刷新——必须手动让下拉失效
+            containerItem.DropDown.Invalidate(true);
             _canvas.Invalidate();
         }
 
@@ -473,6 +475,7 @@ internal sealed class MapForm : Form
                 sub.CheckState = on ? CheckState.Checked : CheckState.Unchecked;
                 ApplyKindState(slug, on);
                 RefreshContainerState(containerItem, kinds);
+                containerItem.DropDown.Invalidate(true);
                 _canvas.Invalidate();
             };
             containerItem.DropDownItems.Add(sub);
