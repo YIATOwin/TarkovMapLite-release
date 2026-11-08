@@ -15,6 +15,10 @@ public sealed class MapProjection
     public string ImageKey { get; init; } = "";
     /// <summary>共用别的图的任务/标记数据（瓦片版海关用 customs 的数据）。</summary>
     public string DataKey { get; init; } = "";
+    /// <summary>
+    /// 这条是别的图的另一种画法（瓦片版指向 SVG 版）。有值时顶栏出现「SVG 版 / 瓦片版」切换。
+    /// </summary>
+    public string VariantOf { get; init; } = "";
     /// <summary>[scaleX, marginX, scaleZ, marginZ]</summary>
     public double[] Transform { get; init; } = new double[4];
     public double Rotation { get; init; }

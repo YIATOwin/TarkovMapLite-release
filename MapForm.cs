@@ -14,6 +14,8 @@ internal sealed class MapForm : Form
     private readonly ComboBox _mapSelect = new();
     private readonly Chip _onlyActive = new();
     private readonly Chip _showExtracts = new();
+    /// <summary>「瓦片版 / SVG 版」切换：只在同一张图有两种画法时出现。</summary>
+    private readonly Chip _variant = new();
     private readonly Chip _noZone = new();
     private readonly Label _status = new();
     private readonly Label _dataStatus = new();
@@ -145,6 +147,19 @@ internal sealed class MapForm : Form
             _canvas.Invalidate();
         };
 
+        // 同一张图的另一种画法：默认隐藏，ApplyMap 里按当前地图决定要不要显示
+        _variant.Text = "瓦片版";
+        _variant.Location = new Point(616, 9);
+        _variant.Size = new Size(72, 26);
+        _variant.Visible = false;
+        _variant.Click += (_, _) =>
+        {
+            if (_variant.Tag is string key)
+            {
+                SelectMap(key);
+            }
+        };
+
         _noZone.Text = "任意地区";
         _noZone.Click += (_, _) =>
         {
@@ -204,7 +219,7 @@ internal sealed class MapForm : Form
         fit.FlatAppearance.BorderColor = PanelLine;
         fit.Click += (_, _) => _canvas.Fit();
 
-        top.Controls.AddRange(new Control[] { title, _mapSelect, _showExtracts, _layerButton, refresh, fit });
+        top.Controls.AddRange(new Control[] { title, _mapSelect, _showExtracts, _layerButton, refresh, fit, _variant });
 
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 26, BackColor = PanelBack };
         _status.AutoSize = false;
@@ -683,6 +698,28 @@ internal sealed class MapForm : Form
             ? MapPack.Maps[_mapSelect.SelectedIndex]
             : null;
 
+    /// <summary>
+    /// 同一张图的另一种画法：瓦片版指向它基于的 SVG 版，SVG 版则去找指向自己的瓦片版。
+    /// 只有真的存在另一种画法时才显示那个按钮，其余地图完全不受影响。
+    /// </summary>
+    private void UpdateVariantChip(MapProjection map)
+    {
+        var target = !string.IsNullOrEmpty(map.VariantOf)
+            ? map.VariantOf
+            : MapPack.Maps
+                .FirstOrDefault(other => string.Equals(other.VariantOf, map.Key, StringComparison.OrdinalIgnoreCase))
+                ?.Key;
+        if (string.IsNullOrEmpty(target) || MapPack.Find(target) == null)
+        {
+            _variant.Tag = null;
+            _variant.Visible = false;
+            return;
+        }
+        _variant.Tag = target;
+        _variant.Text = string.IsNullOrEmpty(map.VariantOf) ? "瓦片版" : "SVG 版";
+        _variant.Visible = true;
+    }
+
     private void SelectMap(string key)
     {
         var maps = MapPack.Maps.ToList();
@@ -715,6 +752,7 @@ internal sealed class MapForm : Form
             ? transits.Select(m => m.Project(map)).ToList()
             : new List<MapMarker>();
         _canvas.SelectedTaskId = null;
+        UpdateVariantChip(map);
         _canvas.Invalidate();
         RefreshTaskList();
         UpdateSpawnPoints(null);

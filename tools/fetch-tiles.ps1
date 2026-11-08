@@ -18,6 +18,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Entry,     # normalizedName, e.g. woods
     [int]$Zoom = 4,
     [string]$Layer = "",                              # maps[].key, defaults to $Entry
+    [string]$TilePath = "",                           # override the layer's own tilePath (floor layers)
     [string]$Out = "",
     [string]$LayerName = "",                          # "" -> base.png
     [string]$ConfigUrl = "https://raw.githubusercontent.com/the-hideout/tarkov-dev/main/src/data/maps.json",
@@ -44,7 +45,12 @@ if (-not $map) { throw "no map entry '$Entry' in $Config" }
 if (-not $Layer) { $Layer = $Entry }
 $l = $map.maps | Where-Object { $_.key -eq $Layer } | Select-Object -First 1
 if (-not $l) { throw "no layer '$Layer' under '$Entry'" }
-if (-not $l.tilePath) { throw "layer '$Layer' has no tilePath" }
+if ($TilePath) {
+    # Floor layers share the map's projection and grid; only the tile folder changes.
+    $l.tilePath = $TilePath
+} elseif (-not $l.tilePath) {
+    throw "layer '$Layer' has no tilePath"
+}
 if ($Zoom -lt $l.minZoom -or $Zoom -gt $l.maxZoom) {
     Write-Warning ("zoom {0} outside the declared {1}..{2}; continuing anyway" -f $Zoom, $l.minZoom, $l.maxZoom)
 }
