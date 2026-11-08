@@ -9,6 +9,10 @@ public sealed class MapProjection
     public string NormalizedName { get; init; } = "";
     public string DisplayName { get; init; } = "";
     public string Svg { get; init; } = "";
+    /// <summary>
+    /// 共用别的图的位图（夜间工厂和工厂同一张图）。为空表示用自己的 Key 目录。
+    /// </summary>
+    public string ImageKey { get; init; } = "";
     /// <summary>[scaleX, marginX, scaleZ, marginZ]</summary>
     public double[] Transform { get; init; } = new double[4];
     public double Rotation { get; init; }
@@ -20,8 +24,11 @@ public sealed class MapProjection
     public double ViewBoxHeight => ViewBox.Length >= 4 ? ViewBox[3] : 0;
 
     /// <summary>地图图片在 Assets/maps 下的相对路径（按楼层）。</summary>
-    public string ImageFor(string? svgLayer) =>
-        string.IsNullOrEmpty(svgLayer) ? $"{Key}/base.png" : $"{Key}/{svgLayer}.png";
+    public string ImageFor(string? svgLayer)
+    {
+        var folder = string.IsNullOrEmpty(ImageKey) ? Key : ImageKey;
+        return string.IsNullOrEmpty(svgLayer) ? $"{folder}/base.png" : $"{folder}/{svgLayer}.png";
+    }
 }
 
 public sealed class MapLayer

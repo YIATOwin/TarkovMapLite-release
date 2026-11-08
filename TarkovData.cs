@@ -69,8 +69,8 @@ public static class TarkovData
     private static readonly Dictionary<string, string> MapIdToKey = new(StringComparer.OrdinalIgnoreCase)
     {
         ["55f2d3fd4bdc2d5f408b4567"] = "factory",
-        ["59fc81d786f774390775787e"] = "factory",
-        ["6a8dd1325e15a5ea2e010820"] = "factory",
+        ["59fc81d786f774390775787e"] = "night-factory",
+        ["6a8dd1325e15a5ea2e010820"] = "infected-factory",
         ["56f40101d2720b2a4d8b45d6"] = "customs",
         ["5704e3c2d2720bac5b8b4567"] = "woods",
         ["5704e4dad2720bb55b8b4567"] = "lighthouse",
@@ -79,8 +79,8 @@ public static class TarkovData
         ["5714dbc024597771384a510d"] = "interchange",
         ["5714dc692459777137212e12"] = "streets-of-tarkov",
         ["653e6760052c01c1c805532f"] = "ground-zero",
-        ["65b8d6f5cdde2479cb2a3125"] = "ground-zero",
-        ["68236e8153654e8c1200798a"] = "ground-zero",
+        ["65b8d6f5cdde2479cb2a3125"] = "ground-zero-21",
+        ["68236e8153654e8c1200798a"] = "ground-zero-tutorial",
         ["65cc8f81a9aac3e77d0cfd3e"] = "terminal",
     };
 
@@ -107,7 +107,7 @@ public static class TarkovData
     /// <summary>当前用的是打包进 exe 的静态数据（没有缓存、也没联网时）。</summary>
     public static bool FromSeed { get; private set; }
     /// <summary>缓存格式版本：老的内置数据升到这里就要强制刷新一次。</summary>
-    public const int CurrentSchema = 7;
+    public const int CurrentSchema = 8;
     public static int Schema { get; private set; }
 
     private static string CachePath
@@ -117,7 +117,7 @@ public static class TarkovData
             var dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TarkovMapLite");
             Directory.CreateDirectory(dir);
-            return Path.Combine(dir, "data-v7.json");
+            return Path.Combine(dir, "data-v8.json");
         }
     }
 
