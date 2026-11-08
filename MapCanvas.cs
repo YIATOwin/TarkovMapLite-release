@@ -36,6 +36,8 @@ internal sealed class MapCanvas : Control
 
     /// <summary>静态图层开关：容器 / 散落物资 / 出生点 / 危险区 / 固定武器。</summary>
     public bool ShowContainers { get; set; } = true;
+    /// <summary>被隐藏的容器类型（在「图层」菜单里取消勾选）。</summary>
+    public HashSet<string> HiddenContainerKinds { get; } = new(StringComparer.OrdinalIgnoreCase);
     public bool ShowLoot { get; set; } = true;
     public bool ShowSpawns { get; set; }
     public bool ShowHazards { get; set; } = true;
@@ -276,21 +278,21 @@ internal sealed class MapCanvas : Control
             }
         }
 
-        // 容器：土黄色小方块
+        // 容器：每种类型一个颜色 + 形状（图例在「图层」菜单里）
         if (ShowContainers)
         {
-            using var fill = new SolidBrush(Color.FromArgb(190, 214, 176, 96));
-            using var edge = new Pen(Color.FromArgb(210, 40, 32, 16), 1f);
-            foreach (var point in layer.Containers)
+            foreach (var (point, kind) in layer.Containers)
             {
+                if (HiddenContainerKinds.Contains(kind))
+                {
+                    continue;
+                }
                 var p = At(point);
                 if (!visible.Contains(p))
                 {
                     continue;
                 }
-                var r = 3.2f;
-                g.FillRectangle(fill, p.X - r, p.Y - r, r * 2, r * 2);
-                g.DrawRectangle(edge, p.X - r, p.Y - r, r * 2, r * 2);
+                DrawContainer(g, p, ContainerKinds.Resolve(kind));
             }
         }
 
@@ -368,6 +370,54 @@ internal sealed class MapCanvas : Control
         }
 
         GC.KeepAlive(bounds);
+    }
+
+    /// <summary>一种容器：实心形状 + 深色描边，形状区分大类、颜色区分具体类型。</summary>
+    private static void DrawContainer(Graphics g, PointF p, ContainerKinds.Kind kind)
+    {
+        const float r = 3.4f;
+        using var fill = new SolidBrush(Color.FromArgb(215, kind.Color));
+        using var edge = new Pen(Color.FromArgb(200, 20, 22, 26), 1f);
+        switch (kind.Shape)
+        {
+            case 1: // 圆
+                g.FillEllipse(fill, p.X - r, p.Y - r, r * 2, r * 2);
+                g.DrawEllipse(edge, p.X - r, p.Y - r, r * 2, r * 2);
+                break;
+            case 2: // 菱形
+                var diamond = new[]
+                {
+                    new PointF(p.X, p.Y - r * 1.25f),
+                    new PointF(p.X + r * 1.25f, p.Y),
+                    new PointF(p.X, p.Y + r * 1.25f),
+                    new PointF(p.X - r * 1.25f, p.Y),
+                };
+                g.FillPolygon(fill, diamond);
+                g.DrawPolygon(edge, diamond);
+                break;
+            case 3: // 十字（医疗）
+                g.FillRectangle(fill, p.X - r * 0.45f, p.Y - r, r * 0.9f, r * 2);
+                g.FillRectangle(fill, p.X - r, p.Y - r * 0.45f, r * 2, r * 0.9f);
+                break;
+            case 4: // 三角（衣物/抽屉）
+                var tri = new[]
+                {
+                    new PointF(p.X, p.Y - r * 1.2f),
+                    new PointF(p.X + r * 1.1f, p.Y + r * 0.9f),
+                    new PointF(p.X - r * 1.1f, p.Y + r * 0.9f),
+                };
+                g.FillPolygon(fill, tri);
+                g.DrawPolygon(edge, tri);
+                break;
+            case 5: // 空心圈（电子）
+                g.DrawEllipse(new Pen(Color.FromArgb(220, kind.Color), 1.8f),
+                    p.X - r, p.Y - r, r * 2, r * 2);
+                break;
+            default: // 方块（箱子类）
+                g.FillRectangle(fill, p.X - r, p.Y - r, r * 2, r * 2);
+                g.DrawRectangle(edge, p.X - r, p.Y - r, r * 2, r * 2);
+                break;
+        }
     }
 
     /// <summary>当前区域是否应该显示：要过"仅进行中"和"只看选中任务"两道过滤。</summary>

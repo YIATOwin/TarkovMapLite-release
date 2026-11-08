@@ -409,6 +409,37 @@ internal sealed class MapForm : Form
 
         Add("容器", _canvas.ShowContainers, () => _canvas.ShowContainers,
             value => _canvas.ShowContainers = value, Color.FromArgb(214, 176, 96));
+
+        // 容器的子菜单：每种类型一行（颜色和图上一致），像图例一样用
+        if (_layerMenu.Items[^1] is ToolStripMenuItem containerItem)
+        {
+            containerItem.DropDownItems.Add(new ToolStripSeparator());
+            foreach (var (kind, count) in MapMarkers.KindsByCount())
+            {
+                var info = ContainerKinds.Resolve(kind);
+                var sub = new ToolStripMenuItem($"{info.Name}（{count}）")
+                {
+                    CheckOnClick = true,
+                    Checked = true,
+                    ForeColor = info.Color,
+                };
+                var slug = kind;
+                sub.CheckedChanged += (_, _) =>
+                {
+                    if (sub.Checked)
+                    {
+                        _canvas.HiddenContainerKinds.Remove(slug);
+                    }
+                    else
+                    {
+                        _canvas.HiddenContainerKinds.Add(slug);
+                    }
+                    _canvas.Invalidate();
+                };
+                containerItem.DropDownItems.Add(sub);
+            }
+        }
+
         Add("散落物资", _canvas.ShowLoot, () => _canvas.ShowLoot,
             value => _canvas.ShowLoot = value, Color.FromArgb(255, 186, 88));
         Add("出生点", _canvas.ShowSpawns, () => _canvas.ShowSpawns,

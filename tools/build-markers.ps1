@@ -31,6 +31,7 @@ Write-Host "reading $Source"
 $json = Get-Content $Source -Raw -Encoding UTF8 | ConvertFrom-Json
 $maps = $json.data.maps
 
+
 $wanted = @(
     'factory','customs','woods','lighthouse','shoreline','reserve',
     'interchange','streets-of-tarkov','ground-zero','terminal'
@@ -59,7 +60,10 @@ foreach ($prop in $maps.PSObject.Properties) {
     $containers = @()
     foreach ($point in $m.lootContainers) {
         if ($null -eq $point.position) { continue }
-        $containers += ,@((Round1 $point.position.x), (Round1 $point.position.z))
+        $kindId = "$($point.lootContainer)"
+        $kindNode = $json.data.lootContainers.$kindId
+        $kind = if ($kindNode) { $kindNode.normalizedName } else { "container" }
+        $containers += ,@((Round1 $point.position.x), (Round1 $point.position.z), $kind)
     }
     if ($containers.Count -gt 0) { $entry['containers'] = $containers }
 

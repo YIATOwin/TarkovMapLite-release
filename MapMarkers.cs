@@ -7,7 +7,8 @@ namespace TarkovMapLite;
 internal sealed class MarkerLayer
 {
     public List<PointF> Loose { get; } = new();
-    public List<PointF> Containers { get; } = new();
+    /// <summary>容器点：位置 + 类型（drawer / jacket / medbag ...）。</summary>
+    public List<(PointF Point, string Kind)> Containers { get; } = new();
     public List<PointF> Statics { get; } = new();
     /// <summary>点状危险区（地雷等）：位置 + 类型。</summary>
     public List<(PointF Point, string Type)> Hazards { get; } = new();
@@ -34,6 +35,24 @@ internal static class MapMarkers
 
     public static bool Loaded => _loaded;
 
+    /// <summary>所有出现过的容器类型（按点位数量从多到少），给「图层」菜单当图例。</summary>
+    public static List<(string Kind, int Count)> KindsByCount()
+    {
+        EnsureLoaded();
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var layer in World.Values)
+        {
+            foreach (var (_, kind) in layer.Containers)
+            {
+                counts[kind] = counts.TryGetValue(kind, out var n) ? n + 1 : 1;
+            }
+        }
+        return counts
+            .OrderByDescending(pair => pair.Value)
+            .Select(pair => (pair.Key, pair.Value))
+            .ToList();
+    }
+
     /// <summary>地图 key → 图片像素坐标的标记层（按地图缓存，绘制时不再换算）。</summary>
     public static MarkerLayer For(MapProjection? map)
     {
@@ -58,7 +77,11 @@ internal static class MapMarkers
                 }
             }
             Project(source.Loose, layer.Loose);
-            Project(source.Containers, layer.Containers);
+            foreach (var (point, kind) in source.Containers)
+            {
+                var (u, v) = MapPack.ToImage(map, point.X, point.Y);
+                layer.Containers.Add((new PointF((float)u, (float)v), kind));
+            }
             Project(source.Statics, layer.Statics);
             foreach (var (point, type) in source.Hazards)
             {
@@ -107,7 +130,7 @@ internal static class MapMarkers
                 }
                 var layer = new MarkerLayer();
                 ReadPoints(entry["loose"], layer.Loose);
-                ReadPoints(entry["containers"], layer.Containers);
+                ReadContainerPoints(entry["containers"], layer.Containers);
                 ReadPoints(entry["statics"], layer.Statics);
                 if (entry["hazards"] is JsonArray hazards)
                 {
@@ -169,6 +192,27 @@ internal static class MapMarkers
         catch
         {
             // 标记文件坏了不影响地图本身
+        }
+    }
+
+    private static void ReadContainerPoints(JsonNode? node, List<(PointF Point, string Kind)> target)
+    {
+        if (node is not JsonArray array)
+        {
+            return;
+        }
+        foreach (var item in array)
+        {
+            if (item is not JsonArray row || row.Count < 2)
+            {
+                continue;
+            }
+            var kind = row.Count >= 3 ? row[2]?.GetValue<string>() ?? "container" : "container";
+            target.Add((
+                new PointF(
+                    (float)(row[0]?.GetValue<double>() ?? 0),
+                    (float)(row[1]?.GetValue<double>() ?? 0)),
+                kind));
         }
     }
 
