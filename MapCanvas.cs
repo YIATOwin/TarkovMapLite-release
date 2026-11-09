@@ -409,7 +409,7 @@ internal sealed class MapCanvas : Control
                 {
                     continue;
                 }
-                DrawContainer(g, p, ContainerKinds.Resolve(kind));
+                DrawContainer(g, p, ContainerKinds.Resolve(kind), scale);
             }
         }
 
@@ -488,50 +488,78 @@ internal sealed class MapCanvas : Control
 
     }
 
-    /// <summary>一种容器：实心形状 + 深色描边，形状区分大类、颜色区分具体类型。</summary>
-    private static void DrawContainer(Graphics g, PointF p, ContainerKinds.Kind kind)
+    /// <summary>圆角矩形，容器图标的底板。</summary>
+    private static GraphicsPath RoundedRect(RectangleF rect, float radius)
     {
-        const float r = 3.4f;
-        using var fill = new SolidBrush(Color.FromArgb(215, kind.Color));
-        using var edge = new Pen(Color.FromArgb(200, 20, 22, 26), 1f);
-        switch (kind.Shape)
+        var path = new GraphicsPath();
+        var d = Math.Min(radius * 2, Math.Min(rect.Width, rect.Height));
+        path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+        path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+        path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+        path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
+    /// <summary>
+    /// 一种容器：圆角底 + 内部象形记号。点太小（缩得很远）时只留纯色块，
+    /// 因为 5px 里画笔画反而糊成一团。
+    /// </summary>
+    private static void DrawContainer(Graphics g, PointF p, ContainerKinds.Kind kind, float scale)
+    {
+        var s = Math.Clamp(scale * 30f, 3.6f, 7.2f);      // 半边长，约 7~14 px
+        var rect = new RectangleF(p.X - s, p.Y - s, s * 2, s * 2);
+        using var fill = new SolidBrush(Color.FromArgb(228, kind.Color));
+        using var edge = new Pen(Color.FromArgb(210, 18, 20, 24), 1f);
+        if (s < 4.6f)
         {
-            case 1: // 圆
-                g.FillEllipse(fill, p.X - r, p.Y - r, r * 2, r * 2);
-                g.DrawEllipse(edge, p.X - r, p.Y - r, r * 2, r * 2);
+            g.FillRectangle(fill, rect);
+            g.DrawRectangle(edge, rect.X, rect.Y, rect.Width, rect.Height);
+            return;
+        }
+
+        using var body = RoundedRect(rect, s * 0.42f);
+        g.FillPath(fill, body);
+        g.DrawPath(edge, body);
+
+        using var ink = new Pen(Color.FromArgb(240, 20, 22, 26), Math.Max(1f, s * 0.19f));
+        var u = s;
+        switch (kind.Glyph)
+        {
+            case ContainerKinds.Icon.Crate:
+                g.DrawLine(ink, p.X - u * 0.52f, p.Y - u * 0.52f, p.X + u * 0.52f, p.Y + u * 0.52f);
+                g.DrawLine(ink, p.X + u * 0.52f, p.Y - u * 0.52f, p.X - u * 0.52f, p.Y + u * 0.52f);
                 break;
-            case 2: // 菱形
-                var diamond = new[]
-                {
-                    new PointF(p.X, p.Y - r * 1.25f),
-                    new PointF(p.X + r * 1.25f, p.Y),
-                    new PointF(p.X, p.Y + r * 1.25f),
-                    new PointF(p.X - r * 1.25f, p.Y),
-                };
-                g.FillPolygon(fill, diamond);
-                g.DrawPolygon(edge, diamond);
+            case ContainerKinds.Icon.Bag:
+                g.DrawArc(ink, p.X - u * 0.34f, p.Y - u * 0.78f, u * 0.68f, u * 0.6f, 195, 150);
+                g.DrawLine(ink, p.X - u * 0.6f, p.Y + u * 0.08f, p.X + u * 0.6f, p.Y + u * 0.08f);
                 break;
-            case 3: // 十字（医疗）
-                g.FillRectangle(fill, p.X - r * 0.45f, p.Y - r, r * 0.9f, r * 2);
-                g.FillRectangle(fill, p.X - r, p.Y - r * 0.45f, r * 2, r * 0.9f);
+            case ContainerKinds.Icon.Drawer:
+                g.DrawLine(ink, p.X - u * 0.52f, p.Y - u * 0.26f, p.X + u * 0.52f, p.Y - u * 0.26f);
+                g.DrawLine(ink, p.X - u * 0.52f, p.Y + u * 0.28f, p.X + u * 0.52f, p.Y + u * 0.28f);
                 break;
-            case 4: // 三角（衣物/抽屉）
-                var tri = new[]
-                {
-                    new PointF(p.X, p.Y - r * 1.2f),
-                    new PointF(p.X + r * 1.1f, p.Y + r * 0.9f),
-                    new PointF(p.X - r * 1.1f, p.Y + r * 0.9f),
-                };
-                g.FillPolygon(fill, tri);
-                g.DrawPolygon(edge, tri);
+            case ContainerKinds.Icon.Hanger:
+                g.DrawArc(ink, p.X - u * 0.17f, p.Y - u * 0.8f, u * 0.34f, u * 0.34f, 200, 200);
+                g.DrawLine(ink, p.X, p.Y - u * 0.44f, p.X - u * 0.52f, p.Y + u * 0.46f);
+                g.DrawLine(ink, p.X, p.Y - u * 0.44f, p.X + u * 0.52f, p.Y + u * 0.46f);
+                g.DrawLine(ink, p.X - u * 0.52f, p.Y + u * 0.46f, p.X + u * 0.52f, p.Y + u * 0.46f);
                 break;
-            case 5: // 空心圈（电子）
-                g.DrawEllipse(new Pen(Color.FromArgb(220, kind.Color), 1.8f),
-                    p.X - r, p.Y - r, r * 2, r * 2);
+            case ContainerKinds.Icon.Dial:
+                g.DrawEllipse(ink, p.X - u * 0.42f, p.Y - u * 0.42f, u * 0.84f, u * 0.84f);
+                g.DrawLine(ink, p.X, p.Y, p.X, p.Y - u * 0.3f);
                 break;
-            default: // 方块（箱子类）
-                g.FillRectangle(fill, p.X - r, p.Y - r, r * 2, r * 2);
-                g.DrawRectangle(edge, p.X - r, p.Y - r, r * 2, r * 2);
+            case ContainerKinds.Icon.Monitor:
+                g.DrawRectangle(ink, p.X - u * 0.54f, p.Y - u * 0.52f, u * 1.08f, u * 0.72f);
+                g.DrawLine(ink, p.X, p.Y + u * 0.2f, p.X, p.Y + u * 0.48f);
+                g.DrawLine(ink, p.X - u * 0.3f, p.Y + u * 0.48f, p.X + u * 0.3f, p.Y + u * 0.48f);
+                break;
+            case ContainerKinds.Icon.Cross:
+                g.DrawLine(ink, p.X - u * 0.44f, p.Y, p.X + u * 0.44f, p.Y);
+                g.DrawLine(ink, p.X, p.Y - u * 0.44f, p.X, p.Y + u * 0.44f);
+                break;
+            case ContainerKinds.Icon.Body:
+                g.DrawEllipse(ink, p.X - u * 0.52f, p.Y - u * 0.46f, u * 0.42f, u * 0.42f);
+                g.DrawLine(ink, p.X - u * 0.1f, p.Y + u * 0.18f, p.X + u * 0.56f, p.Y + u * 0.18f);
                 break;
         }
     }
