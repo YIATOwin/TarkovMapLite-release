@@ -101,6 +101,8 @@ internal sealed class MapCanvas : Control
     public bool ShowContainers { get; set; }
     /// <summary>被隐藏的容器类型（在「图层」菜单里取消勾选）。</summary>
     public HashSet<string> HiddenContainerKinds { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>被隐藏的散落物资分类（LootKinds 的位值）。</summary>
+    public HashSet<int> HiddenLootKinds { get; } = new();
     public bool ShowLoot { get; set; }
     public bool ShowSpawns { get; set; }
     public bool ShowHazards { get; set; }
@@ -111,6 +113,14 @@ internal sealed class MapCanvas : Control
 
     /// <summary>BTR 停车点（图片像素坐标，由 MapForm 按当前地图投影）。</summary>
     public List<MapMarker> BtrStops { get; set; } = new();
+
+    /// <summary>需要钥匙的门（图片像素坐标）。默认关：和任务区域叠在一起会很花。</summary>
+    public bool ShowDoors { get; set; }
+    public List<DoorMarker> Doors { get; set; } = new();
+
+    /// <summary>闸点（拉杆/按钮/控制台）。默认关。</summary>
+    public bool ShowSwitches { get; set; }
+    public List<SwitchMarker> Switches { get; set; } = new();
 
     /// <summary>玩家位置（图片像素坐标）与朝向；只有 PlayerMapKey 和当前地图一致时才画。</summary>
     public PointF? PlayerPosition { get; set; }
@@ -136,6 +146,22 @@ internal sealed class MapCanvas : Control
 
     /// <summary>已经按当前地图投影好的区域（手机端直接拿去发，不用再算一遍）。</summary>
     public IReadOnlyList<ZoneShape> ProjectedZones => _projected;
+
+    /// <summary>
+    /// 屏幕点落在哪块任务区域上（右键"标记已完成"用）。取面积最小的那块：
+    /// 大区域套小区域时，玩家想点的通常是小块。没有命中返回 null。
+    /// </summary>
+    public ZoneShape? ZoneAt(Point screen)
+    {
+        if (_map == null)
+        {
+            return null;
+        }
+        var origin = Origin;
+        var scale = (float)Scale;
+        return DoneZones.HitTest(_projected, new PointF(screen.X, screen.Y),
+            p => new PointF(origin.X + p.X * scale, origin.Y + p.Y * scale));
+    }
 
     public void SetMap(MapProjection? map, string displayName)
     {
@@ -384,6 +410,16 @@ internal sealed class MapCanvas : Control
         {
             DrawBtrStops(g, s, origin);
         }
+        // 门锁和闸点画在撤离点之后、玩家之前：它们也是"去哪儿"的信息，
+        // 但优先级低于撤离点和自己
+        if (ShowDoors && Doors.Count > 0)
+        {
+            DrawDoors(g, s, origin);
+        }
+        if (ShowSwitches && Switches.Count > 0)
+        {
+            DrawSwitchPoints(g, s, origin);
+        }
         DrawPlayer(g, s, origin);
         DrawFloors(g);
         DrawZoom(g);
@@ -439,17 +475,21 @@ internal sealed class MapCanvas : Control
             }
         }
 
-        // 散落物资：琥珀色小圆点
+        // 散落物资：按分类上色（钥匙金、药品绿、食物橙、海报紫、收纳蓝、杂物琥珀、文件灰）
         if (ShowLoot)
         {
-            using var fill = new SolidBrush(Color.FromArgb(200, 255, 186, 88));
-            foreach (var point in layer.Loose)
+            foreach (var loot in layer.Loose)
             {
-                var p = At(point);
+                if (!LootKinds.Visible(loot.Mask, HiddenLootKinds))
+                {
+                    continue;
+                }
+                var p = At(loot.Point);
                 if (!visible.Contains(p))
                 {
                     continue;
                 }
+                using var fill = new SolidBrush(LootKinds.Dominant(loot.Mask).Color);
                 g.FillEllipse(fill, p.X - 2.1f, p.Y - 2.1f, 4.2f, 4.2f);
             }
         }
@@ -733,6 +773,120 @@ internal sealed class MapCanvas : Control
         }
     }
 
+    /// <summary>
+    /// 需要钥匙的门：琥珀色小锁 + 钥匙名。名字只在放大或门不多的时候画，
+    /// 否则海关 34 个门全叠上去了。
+    /// </summary>
+    private void DrawDoors(Graphics g, float scale, PointF origin)
+    {
+        using var fill = new SolidBrush(Color.FromArgb(235, 226, 168, 74));
+        using var ring = new Pen(Color.FromArgb(230, 42, 34, 16), 1.2f);
+        using var hole = new SolidBrush(Color.FromArgb(235, 40, 32, 14));
+        using var font = new Font("Microsoft YaHei UI", 7.5f);
+        using var ink = new SolidBrush(Color.FromArgb(238, 255, 243, 214));
+        using var halo = new SolidBrush(Color.FromArgb(205, 0, 0, 0));
+        var visible = new RectangleF(-40, -40, ClientSize.Width + 80, ClientSize.Height + 80);
+        // 先数一下屏幕上有几个，再决定要不要画名字
+        var onScreen = 0;
+        foreach (var door in Doors)
+        {
+            var p = new PointF(origin.X + door.Screen.X * scale, origin.Y + door.Screen.Y * scale);
+            if (visible.Contains(p))
+            {
+                onScreen++;
+            }
+        }
+        var showNames = _zoom >= 1.6 || onScreen <= 12;
+        var placed = new List<RectangleF>();
+        foreach (var door in Doors)
+        {
+            var p = new PointF(origin.X + door.Screen.X * scale, origin.Y + door.Screen.Y * scale);
+            if (!visible.Contains(p))
+            {
+                continue;
+            }
+            // 锁的形状：方底 + 锁孔
+            g.FillRectangle(fill, p.X - 4.5f, p.Y - 4.5f, 9, 9);
+            g.DrawRectangle(ring, p.X - 4.5f, p.Y - 4.5f, 9, 9);
+            g.FillEllipse(hole, p.X - 1.4f, p.Y - 2.2f, 2.8f, 2.8f);
+            g.FillRectangle(hole, p.X - 0.6f, p.Y + 0.2f, 1.2f, 2.6f);
+            if (door.NeedsPower)
+            {
+                // 还要通电才开的门，右上角点一个小黄点
+                using var dot = new SolidBrush(Color.FromArgb(240, 255, 214, 90));
+                g.FillEllipse(dot, p.X + 3f, p.Y - 7f, 3.4f, 3.4f);
+            }
+            if (!showNames || door.KeyName.Length == 0)
+            {
+                continue;
+            }
+            var size = g.MeasureString(door.KeyName, font);
+            var tx = p.X + 7;
+            var ty = p.Y - size.Height / 2;
+            if (tx + size.Width > ClientSize.Width)
+            {
+                tx = p.X - size.Width - 7;
+            }
+            var box = new RectangleF(tx - 2, ty - 1, size.Width + 4, size.Height + 2);
+            if (placed.Any(other => other.IntersectsWith(box)))
+            {
+                continue;
+            }
+            placed.Add(box);
+            g.FillRectangle(halo, box);
+            g.DrawString(door.KeyName, font, ink, tx, ty);
+        }
+    }
+
+    /// <summary>闸点：黄色闪电 + 名字（拉杆/按钮/控制台）。数量少，名字一直画。</summary>
+    private void DrawSwitchPoints(Graphics g, float scale, PointF origin)
+    {
+        using var fill = new SolidBrush(Color.FromArgb(240, 255, 208, 64));
+        using var ring = new Pen(Color.FromArgb(235, 60, 40, 0), 1.1f);
+        using var font = new Font("Microsoft YaHei UI", 7.5f, FontStyle.Bold);
+        using var ink = new SolidBrush(Color.FromArgb(240, 255, 232, 170));
+        using var halo = new SolidBrush(Color.FromArgb(210, 0, 0, 0));
+        var visible = new RectangleF(-40, -40, ClientSize.Width + 80, ClientSize.Height + 80);
+        var placed = new List<RectangleF>();
+        foreach (var sw in Switches)
+        {
+            var p = new PointF(origin.X + sw.Screen.X * scale, origin.Y + sw.Screen.Y * scale);
+            if (!visible.Contains(p))
+            {
+                continue;
+            }
+            // 闪电符号（自己画，不依赖字体里有没有这个字符）
+            var bolt = new[]
+            {
+                new PointF(p.X - 1.6f, p.Y - 6f),
+                new PointF(p.X + 2.4f, p.Y - 6f),
+                new PointF(p.X - 0.4f, p.Y - 0.6f),
+                new PointF(p.X + 2.6f, p.Y - 0.6f),
+                new PointF(p.X - 2.2f, p.Y + 6f),
+                new PointF(p.X - 0.2f, p.Y + 0.4f),
+                new PointF(p.X - 2.6f, p.Y + 0.4f),
+            };
+            g.FillPolygon(fill, bolt);
+            g.DrawPolygon(ring, bolt);
+
+            var size = g.MeasureString(sw.Label, font);
+            var tx = p.X + 6;
+            var ty = p.Y - size.Height / 2;
+            if (tx + size.Width > ClientSize.Width)
+            {
+                tx = p.X - size.Width - 6;
+            }
+            var box = new RectangleF(tx - 2, ty - 1, size.Width + 4, size.Height + 2);
+            if (placed.Any(other => other.IntersectsWith(box)))
+            {
+                continue;
+            }
+            placed.Add(box);
+            g.FillRectangle(halo, box);
+            g.DrawString(sw.Label, font, ink, tx, ty);
+        }
+    }
+
     private void DrawZones(Graphics g, float scale, PointF origin)
     {
         var log = Log;
@@ -744,13 +898,18 @@ internal sealed class MapCanvas : Control
                 continue;
             }
             var dim = state is TaskState.Finished or TaskState.Failed;
-            var color = ColorOf(state);
+            // 手动标过"已完成"的区域：灰绿 + 虚线边，和任务本身的状态区分开
+            var done = DoneZones.IsDone(zone);
+            var color = done ? Color.FromArgb(120, 200, 160) : ColorOf(state);
             using var path = new GraphicsPath();
             var pts = zone.Points.Select(p => new PointF(origin.X + p.X * scale, origin.Y + p.Y * scale)).ToArray();
             path.AddPolygon(pts);
-            using var fill = new SolidBrush(Color.FromArgb(dim ? 26 : 56, color));
+            using var fill = new SolidBrush(Color.FromArgb(dim ? 26 : done ? 30 : 56, color));
             g.FillPath(fill, path);
-            using var stroke = new Pen(Color.FromArgb(dim ? 128 : 255, 255, 255), 1.6f);
+            using var stroke = new Pen(Color.FromArgb(dim ? 128 : 255, 255, 255), 1.6f)
+            {
+                DashStyle = done ? DashStyle.Dash : DashStyle.Solid,
+            };
             g.DrawPath(stroke, path);
             using var inner = new Pen(Color.FromArgb(dim ? 140 : 255, color), 1f);
             g.DrawPath(inner, path);

@@ -31,6 +31,32 @@ Write-Host "reading $Source"
 $json = Get-Content $Source -Raw -Encoding UTF8 | ConvertFrom-Json
 $maps = $json.data.maps
 
+# ---- loose loot categories ----------------------------------------------
+# Every loose loot point lists the items that may spawn there; item types
+# decide the category. Bit values MUST match LootKinds.cs:
+#   keys 1 / meds+injectors 2 / provisions 4 / poster 8 / container 16 /
+#   barter 32 / anything else 64
+# Order matters: a barter container (the ammunition case) counts as a
+# container, not as junk. There is deliberately NO ammo category: tarkov.dev
+# has no ammo in lootLoose at all (0 of 350 items), ammo lives in containers.
+$itemsSource = Join-Path $PSScriptRoot 'pve-items.tmp.json'
+Write-Host 'downloading /pve/items ...'
+& curl.exe -s --max-time 300 -o $itemsSource 'https://json.tarkov.dev/pve/items'
+$itemsJson = Get-Content $itemsSource -Raw -Encoding UTF8 | ConvertFrom-Json
+$maskOf = @{}
+foreach ($prop in $itemsJson.data.items.PSObject.Properties) {
+    $types = @($prop.Value.types)
+    if ($types -contains 'keys') { $mask = 1 }
+    elseif ($types -contains 'meds' -or $types -contains 'injectors') { $mask = 2 }
+    elseif ($types -contains 'provisions') { $mask = 4 }
+    elseif ($types -contains 'poster') { $mask = 8 }
+    elseif ($types -contains 'container') { $mask = 16 }
+    elseif ($types -contains 'barter') { $mask = 32 }
+    else { $mask = 64 }
+    $maskOf[$prop.Name] = $mask
+}
+Write-Host ("  loose loot categories resolved: {0}" -f $maskOf.Count)
+
 
 $wanted = @(
     'factory','customs','woods','lighthouse','shoreline','reserve',
@@ -55,7 +81,15 @@ foreach ($prop in $maps.PSObject.Properties) {
     $loose = @()
     foreach ($point in $m.lootLoose) {
         if ($null -eq $point.position) { continue }
-        $loose += ,@((Round1 $point.position.x), (Round1 $point.position.z))
+        # third column = category bitmask: one point may hold both a key and
+        # junk, so OR the bits together
+        $mask = 0
+        foreach ($itemId in @($point.items)) {
+            $bit = $maskOf["$itemId"]
+            if ($bit) { $mask = $mask -bor $bit }
+        }
+        if ($mask -eq 0) { $mask = 64 }
+        $loose += ,@((Round1 $point.position.x), (Round1 $point.position.z), $mask)
     }
     if ($loose.Count -gt 0) { $entry['loose'] = $loose }
 

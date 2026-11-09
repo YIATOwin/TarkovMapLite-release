@@ -16,7 +16,7 @@ namespace TarkovMapLite;
 /// <summary>一张地图上的静态标记（容器、散落物资、出生点、危险区）。</summary>
 internal sealed class MarkerLayer
 {
-    public List<PointF> Loose { get; } = new();
+    public List<LootPoint> Loose { get; } = new();
     /// <summary>容器点：位置 + 类型（drawer / jacket / medbag ...）。</summary>
     public List<(PointF Point, string Kind)> Containers { get; } = new();
     public List<PointF> Statics { get; } = new();
@@ -90,7 +90,11 @@ internal static class MapMarkers
                     to.Add(new PointF((float)u, (float)v));
                 }
             }
-            Project(source.Loose, layer.Loose);
+            foreach (var loot in source.Loose)
+            {
+                var (u, v) = MapPack.ToImage(map, loot.Point.X, loot.Point.Y);
+                layer.Loose.Add(new LootPoint(new PointF((float)u, (float)v), loot.Mask));
+            }
             foreach (var (point, kind) in source.Containers)
             {
                 var (u, v) = MapPack.ToImage(map, point.X, point.Y);
@@ -143,7 +147,7 @@ internal static class MapMarkers
                     continue;
                 }
                 var layer = new MarkerLayer();
-                ReadPoints(entry["loose"], layer.Loose);
+                ReadLootPoints(entry["loose"], layer.Loose);
                 ReadContainerPoints(entry["containers"], layer.Containers);
                 ReadPoints(entry["statics"], layer.Statics);
                 if (entry["hazards"] is JsonArray hazards)
@@ -227,6 +231,30 @@ internal static class MapMarkers
                     (float)(row[0]?.GetValue<double>() ?? 0),
                     (float)(row[1]?.GetValue<double>() ?? 0)),
                 kind));
+        }
+    }
+
+    /// <summary>
+    /// 散落物资：[x, z, 分类掩码]。第三列是 tools/build-markers.ps1 算好的
+    /// （老文件没有第三列时按「文件/其他」处理，不会崩）。
+    /// </summary>
+    private static void ReadLootPoints(JsonNode? node, List<LootPoint> target)
+    {
+        if (node is not JsonArray array)
+        {
+            return;
+        }
+        foreach (var item in array)
+        {
+            if (item is JsonArray row && row.Count >= 2)
+            {
+                var mask = row.Count > 2 ? row[2]?.GetValue<int>() ?? LootKinds.Docs : LootKinds.Docs;
+                target.Add(new LootPoint(
+                    new PointF(
+                        (float)(row[0]?.GetValue<double>() ?? 0),
+                        (float)(row[1]?.GetValue<double>() ?? 0)),
+                    mask));
+            }
         }
     }
 

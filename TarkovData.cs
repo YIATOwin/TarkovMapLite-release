@@ -93,6 +93,8 @@ public sealed class ZoneShape
     public required string TaskId { get; init; }
     public required string TaskName { get; init; }
     public required string Type { get; init; }
+    /// <summary>接口里这条 objective 的 id（手动标记"已完成"用它当 key，比坐标稳）。</summary>
+    public string ObjectiveId { get; init; } = "";
     /// <summary>世界坐标（x,z）。同一份数据被多张图共享时只有这一份。</summary>
     public required PointF[] WorldPoints { get; init; }
     /// <summary>投影到某张图的像素坐标；由 <see cref="Project"/> 填好，供绘制用。</summary>
@@ -118,6 +120,7 @@ public sealed class ZoneShape
             TaskId = TaskId,
             TaskName = TaskName,
             Type = Type,
+            ObjectiveId = ObjectiveId,
             WorldPoints = WorldPoints,
             Points = points,
             Center = new PointF(points.Average(p => p.X), points.Average(p => p.Y)),
@@ -381,6 +384,8 @@ public static class TarkovData
                         {
                             m = mapKey,
                             t = type,
+                            // objective id：手动标记"已完成"靠它做稳定 key
+                            o = objective?["id"]?.GetValue<string>() ?? "",
                             p = pts,
                             f = FloorFromZone(zone),
                         });
@@ -543,6 +548,7 @@ public static class TarkovData
                     TaskId = id,
                     TaskName = name,
                     Type = zone?["t"]?.GetValue<string>() ?? "",
+                    ObjectiveId = zone?["o"]?.GetValue<string>() ?? "",
                     WorldPoints = world.ToArray(),
                     Floor = zone?["f"]?.GetValue<int?>() ?? 0,
                 };

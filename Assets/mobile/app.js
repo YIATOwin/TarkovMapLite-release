@@ -11,11 +11,13 @@
 //   状态 applyState()      收状态 → 换图就 fit/跟随 → 重画
 //   视图 fit/centerOn      纯 2D 仿射：屏幕 = 图片 * S.scale + (S.tx, S.ty)
 //   图片 image()           /img/{目录}/{名字}，按需加载，加载完自己重画
-//   绘制 draw()            底图 → 楼层 → 区域 → 撤离点 → 玩家（和电脑端同序）
+//   绘制 draw()            底图 → 楼层 → 区域 → 多地点连线 → 撤离点 → 玩家 → 坐标轴 → 坐标
 //   顶栏 renderChips()     楼层 chip（点了 POST setFloor）+ 图层开关（本地）
 //   抽屉 renderTasks()     任务列表（点了 POST selectTask + 地图框过去）
 //   动作 sendAction()      POST /api/action
 //   触摸 pointer 事件      单指拖动 / 双指缩放 / 双击复位
+//   全屏 / 防熄屏          两个都有浏览器限制，见文件末尾的注释
+//   动画                   ~11fps 重画：玩家脉冲、虚线流动（识别度优先，性能可以让）
 //
 // 改接口时必须和 LocalServer.cs 头部的路由表、MobileState.cs 头部的字段表对齐。
 // 调试：直接改这个文件不生效，它是嵌进 exe 的；要么重新打包，
@@ -32,6 +34,7 @@ const ui = {
   layers: document.getElementById('layers'),
   follow: document.getElementById('follow'),
   fit: document.getElementById('fit'),
+  fullscreen: document.getElementById('fullscreen'),
   drawer: document.getElementById('drawer'),
   handle: document.getElementById('handle'),
   drawerCount: document.getElementById('drawerCount'),
@@ -60,6 +63,10 @@ const S = {
   w: 0,
   h: 0,
   dpr: 1,
+  // 动画：玩家脉冲、虚线流动（用户要求手机端以识别度优先，性能可以让步）
+  pulse: 0,
+  dash: 0,
+  wake: null,
 };
 
 // ---------------------------------------------------------------- 轮询
@@ -283,11 +290,14 @@ function draw() {
 
   if (S.showZones) {
     drawZones(data);
+    drawConnectors(data);
   }
   if (S.showMarks) {
     drawMarks(data);
   }
   drawPlayer(data.player);
+  drawAxes(data.map);
+  drawCoords(data.player);
 }
 
 function drawZones(data) {
@@ -428,10 +438,16 @@ function drawPlayer(player) {
     return;
   }
 
-  ctx.beginPath();
-  ctx.arc(x, y, 10, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(77,224,224,.16)';
-  ctx.fill();
+  // 声呐脉冲：两圈往外扩散，暗处也能一眼找到自己
+  const phase = S.pulse % 1;
+  for (let k = 0; k < 2; k++) {
+    const t = (phase + k * 0.5) % 1;
+    ctx.beginPath();
+    ctx.arc(x, y, 6 + t * 17, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(77,224,224,${((1 - t) * 0.55).toFixed(3)})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
   ctx.beginPath();
   ctx.arc(x, y, 4.6, 0, Math.PI * 2);
@@ -455,6 +471,162 @@ function drawPlayer(player) {
   ctx.strokeStyle = 'rgba(255,255,255,.85)';
   ctx.lineWidth = 1.1;
   ctx.stroke();
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- 多地点连线
+
+// 同一个任务分散在多处时，用虚线连起来并编号（和电脑端同一个做法）。
+// 屏幕上挨得很近的几块（同一个房间里的 5 个 zone）先合并成一处，否则线会绕成一团。
+function drawConnectors(data) {
+  const selected = S.sel || data.sel || null;
+  const groups = new Map();
+  for (const zone of data.zones) {
+    if (selected && zone.i !== selected) {
+      continue;
+    }
+    const state = S.taskIndex[zone.i] || 0;
+    if (S.onlyActive && state !== 1) {
+      continue;
+    }
+    const count = zone.p.length / 2;
+    if (!count) {
+      continue;
+    }
+    let cx = 0;
+    let cy = 0;
+    for (let i = 0; i < zone.p.length; i += 2) {
+      cx += zone.p[i];
+      cy += zone.p[i + 1];
+    }
+    if (!groups.has(zone.i)) {
+      groups.set(zone.i, { state, points: [] });
+    }
+    groups.get(zone.i).points.push({ x: toX(cx / count), y: toY(cy / count) });
+  }
+  if (groups.size === 0) {
+    return;
+  }
+
+  ctx.save();
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const group of groups.values()) {
+    const places = [];
+    for (const point of group.points) {
+      const near = places.find(q => Math.hypot(q.x - point.x, q.y - point.y) < 18);
+      if (near) {
+        near.w += 1;
+      } else {
+        places.push({ x: point.x, y: point.y, w: 1 });
+      }
+    }
+    if (places.length < 2) {
+      continue;
+    }
+    // 只在选中这个任务、或同时没几个任务时画，否则满屏虚线
+    if (!selected && groups.size > 4) {
+      continue;
+    }
+    const color = stateColor(group.state, 0.9);
+    ctx.setLineDash([6, 5]);
+    ctx.lineDashOffset = -S.dash;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    places.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    places.forEach((p, i) => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(12,16,22,.85)';
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.fillText(String(i + 1), p.x, p.y + 0.5);
+    });
+  }
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- 坐标轴 / 坐标
+
+// 参考坐标轴：电脑端把世界 +X/+Z 投影成两个方向向量发过来，这里只负责画箭头。
+// 地图旋转 90/180 度时方向会自动跟着变，所以不用在这边判断朝向。
+function drawAxes(map) {
+  const axes = map && map.axes;
+  if (!axes) {
+    return;
+  }
+  const cx = 34;
+  const cy = S.h - 108;
+  const len = 20;
+  ctx.save();
+  ctx.font = 'bold 10px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const arrow = (vector, color, text) => {
+    if (!vector) {
+      return;
+    }
+    const norm = Math.hypot(vector[0], vector[1]);
+    if (norm < 1e-6) {
+      return;
+    }
+    const ux = vector[0] / norm;
+    const uy = vector[1] / norm;
+    const tipX = cx + ux * len;
+    const tipY = cy + uy * len;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(tipX, tipY);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // 箭头三角
+    const angle = Math.atan2(uy, ux);
+    ctx.beginPath();
+    ctx.moveTo(tipX + Math.cos(angle) * 5, tipY + Math.sin(angle) * 5);
+    ctx.lineTo(tipX + Math.cos(angle + 2.5) * 6, tipY + Math.sin(angle + 2.5) * 6);
+    ctx.lineTo(tipX + Math.cos(angle - 2.5) * 6, tipY + Math.sin(angle - 2.5) * 6);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    // 字母
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,.8)';
+    const tx = cx + ux * (len + 9);
+    const ty = cy + uy * (len + 9);
+    ctx.strokeText(text, tx, ty);
+    ctx.fillStyle = color;
+    ctx.fillText(text, tx, ty);
+  };
+
+  arrow(axes.x, '#f5f06262', 'X');
+  arrow(axes.z, '#f570b4f4', 'Z');
+  ctx.restore();
+}
+
+// 玩家的世界坐标（多人报点用），画在坐标轴上方
+function drawCoords(player) {
+  if (!player || player.wx === undefined) {
+    return;
+  }
+  const text = `X ${player.wx.toFixed(1)}   Z ${player.wz.toFixed(1)}`;
+  ctx.save();
+  ctx.font = 'bold 11px ui-monospace, Consolas, monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const width = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(10,14,18,.62)';
+  ctx.fillRect(12, S.h - 140, width + 12, 20);
+  ctx.fillStyle = 'rgba(180,240,255,.95)';
+  ctx.fillText(text, 18, S.h - 130);
   ctx.restore();
 }
 
@@ -789,6 +961,68 @@ ui.handle.addEventListener('click', () => {
   document.body.classList.toggle('drawer-open', ui.drawer.classList.contains('open'));
 });
 
+// ---------------------------------------------------------------- 全屏 / 防熄屏
+
+ui.fullscreen.addEventListener('click', async () => {
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    }
+  } catch (error) {
+    // iOS Safari 没有网页全屏，只能走「分享 → 添加到主屏幕」
+    toast('这个浏览器不支持网页全屏：iOS 请用「分享 → 添加到主屏幕」');
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  const on = !!document.fullscreenElement;
+  ui.fullscreen.classList.toggle('on', on);
+  ui.fullscreen.textContent = on ? '退出' : '全屏';
+  setTimeout(draw, 80);
+});
+
+// Screen Wake Lock 只在安全上下文（https / localhost）里存在。
+// 局域网 http://192.168.x.x 下 navigator.wakeLock 根本不存在，
+// 所以只能"试一下"，失败提醒一次就够，别反复骚扰。
+async function keepAwake() {
+  if (!('wakeLock' in navigator)) {
+    return false;
+  }
+  try {
+    S.wake = await navigator.wakeLock.request('screen');
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+let awakeWarned = false;
+
+function tryKeepAwake() {
+  keepAwake().then(ok => {
+    if (!ok && !awakeWarned) {
+      awakeWarned = true;
+      toast('这个浏览器不允许屏幕常亮（局域网 http 不支持），建议把页面加到主屏幕');
+    }
+  });
+}
+
+// 必须由用户手势触发；第一次按屏幕时试一次
+canvas.addEventListener('pointerdown', () => tryKeepAwake(), { once: true });
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    return;
+  }
+  // 从后台回来：立刻取一次状态（后台里定时器会被系统压到很慢）
+  clearTimeout(pollTimer);
+  pollTimer = 0;
+  poll();
+  keepAwake();
+});
+
 // ---------------------------------------------------------------- 启动
 
 window.addEventListener('resize', () => draw());
@@ -803,3 +1037,14 @@ window.addEventListener('keydown', event => {
 fit();
 draw();
 poll();
+
+// 动画循环：约 11fps 重画，够看出脉冲和虚线在动，又不至于把手机烤了。
+// 页面在后台时直接跳过（浏览器本来也会节流定时器）。
+setInterval(() => {
+  if (document.hidden || !S.data) {
+    return;
+  }
+  S.pulse = (S.pulse + 0.11) % 1;
+  S.dash = (S.dash + 1.1) % 22;
+  draw();
+}, 90);

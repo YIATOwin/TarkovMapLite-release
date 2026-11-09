@@ -96,6 +96,14 @@ internal sealed class MapForm : Form
         _canvas.OnlyActive = _onlyActive.Active;
         _canvas.FloorRequested += layer => _canvas.SetLayer(layer);
         _canvas.ViewChanged += () => UpdateStatus();
+        // 右键任务区域 = 标记/取消"这块我做完了"（子目标级进度只能手动记，见 DoneZones）
+        _canvas.MouseDown += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                ToggleZoneDone(e.Location);
+            }
+        };
         // 面板上「停止服务」后按钮文字要跟着回去（那时候 PumpMobile 已经不跑了）
         _mobile.StateChanged += () =>
         {
@@ -496,14 +504,96 @@ internal sealed class MapForm : Form
             value => _canvas.ShowLabels = value, Color.FromArgb(236, 228, 198));
         Add("BTR 站点", _canvas.ShowBtr, () => _canvas.ShowBtr,
             value => _canvas.ShowBtr = value, Color.FromArgb(120, 210, 218));
-        Add("散落物资", _canvas.ShowLoot, () => _canvas.ShowLoot,
-            value => _canvas.ShowLoot = value, Color.FromArgb(255, 186, 88));
+        // 散落物资带子菜单：7 个分类分别开关（分类位值见 LootKinds）。
+        // 一个点位可能同时"能出钥匙也能出杂物"，只要有一类没被关掉就还会显示。
+        var lootItem = new ToolStripMenuItem("散落物资")
+        {
+            ForeColor = Color.FromArgb(255, 186, 88),
+            CheckState = _canvas.ShowLoot ? CheckState.Checked : CheckState.Unchecked,
+        };
+        _layerMenu.Items.Add(lootItem);
+        var lootAll = new ToolStripMenuItem("全部显示") { ForeColor = TextMain };
+        var lootNone = new ToolStripMenuItem("全部隐藏") { ForeColor = TextMain };
+        lootItem.DropDownItems.Add(lootAll);
+        lootItem.DropDownItems.Add(lootNone);
+        lootItem.DropDownItems.Add(new ToolStripSeparator());
+        var lootRows = new List<(int Bit, ToolStripMenuItem Item)>();
+        void SyncLoot()
+        {
+            _canvas.ShowLoot = lootRows.Any(row => row.Item.CheckState == CheckState.Checked);
+            var hidden = lootRows.Count(row => row.Item.CheckState != CheckState.Checked);
+            lootItem.CheckState = hidden == 0 ? CheckState.Checked
+                : hidden == lootRows.Count ? CheckState.Unchecked
+                : CheckState.Indeterminate;
+            lootItem.DropDown.Invalidate(true);
+            UpdateLayerButtonText();
+            _canvas.Invalidate();
+        }
+        foreach (var lootKind in LootKinds.All)
+        {
+            var sub = new ToolStripMenuItem(lootKind.Name)
+            {
+                ForeColor = lootKind.Color,
+                CheckState = CheckState.Checked,
+            };
+            var bit = lootKind.Bit;
+            sub.Click += (_, _) =>
+            {
+                var on = sub.CheckState != CheckState.Checked;
+                sub.CheckState = on ? CheckState.Checked : CheckState.Unchecked;
+                if (on)
+                {
+                    _canvas.HiddenLootKinds.Remove(bit);
+                }
+                else
+                {
+                    _canvas.HiddenLootKinds.Add(bit);
+                }
+                SyncLoot();
+            };
+            lootItem.DropDownItems.Add(sub);
+            lootRows.Add((bit, sub));
+        }
+        void SetAllLoot(bool on)
+        {
+            foreach (var (bit, sub) in lootRows)
+            {
+                sub.CheckState = on ? CheckState.Checked : CheckState.Unchecked;
+                if (on)
+                {
+                    _canvas.HiddenLootKinds.Remove(bit);
+                }
+                else
+                {
+                    _canvas.HiddenLootKinds.Add(bit);
+                }
+            }
+            SyncLoot();
+        }
+        lootAll.Click += (_, _) => SetAllLoot(true);
+        lootNone.Click += (_, _) => SetAllLoot(false);
+        lootItem.DropDown.Closing += (_, e) =>
+        {
+            if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
+            {
+                e.Cancel = true;
+            }
+        };
+
+        // 手动标记：清空（换赛季/重做任务时用）
+        Add("清空已完成标记", false, () => false, _ => ClearDoneMarks(),
+            Color.FromArgb(150, 210, 175));
         Add("出生点", _canvas.ShowSpawns, () => _canvas.ShowSpawns,
             value => _canvas.ShowSpawns = value, Color.FromArgb(150, 200, 240));
         Add("危险区", _canvas.ShowHazards, () => _canvas.ShowHazards,
             value => _canvas.ShowHazards = value, Color.FromArgb(235, 120, 110));
         Add("固定武器", _canvas.ShowStatics, () => _canvas.ShowStatics,
             value => _canvas.ShowStatics = value, Color.FromArgb(180, 190, 205));
+        // 门锁和闸点：数据来自 tools/build-doors.ps1 的快照（Assets/doors.json）
+        Add("门锁（要钥匙）", _canvas.ShowDoors, () => _canvas.ShowDoors,
+            value => _canvas.ShowDoors = value, Color.FromArgb(226, 168, 74));
+        Add("闸点（拉闸）", _canvas.ShowSwitches, () => _canvas.ShowSwitches,
+            value => _canvas.ShowSwitches = value, Color.FromArgb(255, 208, 64));
         _layerMenu.Items.Add(new ToolStripSeparator());
 
         // 容器带子菜单：点父项整体开/关，点子项父项跟着变半选
@@ -569,6 +659,29 @@ internal sealed class MapForm : Form
         };
 
         UpdateLayerButtonText();
+    }
+
+    /// <summary>清空所有手动"已完成"标记（换赛季/重做任务时用）。</summary>
+    private void ClearDoneMarks()
+    {
+        var count = DoneZones.Count;
+        if (count == 0)
+        {
+            _status.Text = "没有手动标记";
+            return;
+        }
+        var answer = MessageBox.Show(this,
+            $"清空 {count} 个「已完成」标记？\n只影响手动标记，不动任务状态。",
+            "清空标记", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+        if (answer != DialogResult.OK)
+        {
+            return;
+        }
+        DoneZones.ClearAll();
+        _canvas.Invalidate();
+        RefreshTaskList();
+        UpdateStatus();
+        _status.Text = $"已清空 {count} 个手动标记";
     }
 
     private void ApplyKindState(string slug, bool visible)
@@ -820,6 +933,10 @@ internal sealed class MapForm : Form
         _canvas.BtrStops = TarkovData.BtrStops.TryGetValue(map.Data, out var btrStops)
             ? btrStops.Select(m => m.Project(map)).ToList()
             : new List<MapMarker>();
+        // 门锁/闸点：离线快照，按当前地图投影（缓存 key 是 map.Key）
+        var (doors, switches) = MapDoors.For(map);
+        _canvas.Doors = doors;
+        _canvas.Switches = switches;
         _canvas.SelectedTaskId = null;
         UpdateVariantChip(map);
         _canvas.Invalidate();
@@ -830,6 +947,23 @@ internal sealed class MapForm : Form
     }
 
     // ------------------------------------------------------------------ 手机端
+
+    /// <summary>右键区域：切换"已完成"标记（存在 %LOCALAPPDATA%\TarkovMapLite\done.json）。</summary>
+    private void ToggleZoneDone(Point location)
+    {
+        var zone = _canvas.ZoneAt(location);
+        if (zone == null)
+        {
+            return;
+        }
+        var now = DoneZones.Toggle(zone);
+        _canvas.Invalidate();
+        RefreshTaskList();
+        UpdateStatus();
+        _status.Text = now
+            ? $"已标记完成：{zone.TaskName}（右键再点一次可取消）"
+            : $"已取消标记：{zone.TaskName}";
+    }
 
     /// <summary>点「手机端」：第一次点顺便把服务起起来，然后弹面板。</summary>
     private void ShowMobilePanel()
@@ -890,6 +1024,10 @@ internal sealed class MapForm : Form
         state.Transits = _canvas.Transits;
         state.Player = _canvas.PlayerPosition;
         state.PlayerForward = _canvas.PlayerForward;
+        // 世界坐标给手机报点用（和底栏显示的是同一份数据）
+        state.PlayerWorld = _player.Current is { } fix
+            ? new PointF((float)fix.X, (float)fix.Z)
+            : null;
         state.PlayerMapKey = _canvas.PlayerMapKey;
         state.SelectedTaskId = _canvas.SelectedTaskId;
         state.OnlyActive = _onlyActive.Active;
@@ -1432,6 +1570,14 @@ internal sealed class MapForm : Form
                     TaskState.Failed => "已失败",
                     _ => "未开始 · " + zone.Type,
                 };
+                // 手动标记的进度：右键标过的区域算"本图已做"
+                var (doneCount, totalCount) = DoneZones.Progress(zones, zone.TaskId);
+                if (totalCount > 0)
+                {
+                    subtitle += doneCount >= totalCount
+                        ? " · 本图已标完"
+                        : $" · 本图 {doneCount}/{totalCount}";
+                }
                 _taskList.Items.Add(new TaskRow(zone.TaskId, zone.TaskName, subtitle, state));
             }
         }

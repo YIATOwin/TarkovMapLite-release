@@ -63,6 +63,8 @@ internal sealed class MobileState
     public IReadOnlyList<MapMarker> Transits { get; set; } = Array.Empty<MapMarker>();
     public PointF? Player { get; set; }
     public PointF? PlayerForward { get; set; }
+    /// <summary>玩家的世界坐标 (x, z)：手机上要直接念出来（多人报点用）。</summary>
+    public PointF? PlayerWorld { get; set; }
     public string PlayerMapKey { get; set; } = "";
     public IReadOnlyList<MobileTask> Tasks { get; set; } = Array.Empty<MobileTask>();
     public string? SelectedTaskId { get; set; }
@@ -120,6 +122,10 @@ internal sealed class MobileState
         {
             sb.Append((int)Math.Round(p.X * 2)).Append(',').Append((int)Math.Round(p.Y * 2)).Append(',');
         }
+        if (PlayerWorld is { } w)
+        {
+            sb.Append((int)Math.Round(w.X * 10)).Append(',').Append((int)Math.Round(w.Y * 10)).Append(',');
+        }
         if (PlayerForward is { } f)
         {
             sb.Append((int)Math.Round(f.X * 20)).Append(',').Append((int)Math.Round(f.Y * 20));
@@ -158,7 +164,18 @@ internal sealed class MobileState
                 }
                 AppendFloor(sb, layer.SvgLayer, MapCanvas.FloorLabel(layer.Name), ref first);
             }
-            sb.Append("]}");
+            sb.Append(']');
+            // 参考坐标轴：把世界 +X / +Z 投影到这张图上，得到两个方向向量。
+            // 手机端不用懂投影，照着画箭头就行（地图旋转 180° 时方向自然反过来）。
+            var origin = MapPack.ToImage(map, 0, 0);
+            var plusX = MapPack.ToImage(map, 10, 0);
+            var plusZ = MapPack.ToImage(map, 0, 10);
+            sb.Append(",\"axes\":{\"x\":[")
+              .Append(Num(plusX.X - origin.X)).Append(',').Append(Num(plusX.Y - origin.Y))
+              .Append("],\"z\":[")
+              .Append(Num(plusZ.X - origin.X)).Append(',').Append(Num(plusZ.Y - origin.Y))
+              .Append("]}");
+            sb.Append('}');
         }
         else
         {
@@ -175,8 +192,12 @@ internal sealed class MobileState
             sb.Append(",\"player\":{\"x\":").Append(Num(player.X))
               .Append(",\"y\":").Append(Num(player.Y))
               .Append(",\"dx\":").Append(Num(forward.X))
-              .Append(",\"dy\":").Append(Num(forward.Y))
-              .Append('}');
+              .Append(",\"dy\":").Append(Num(forward.Y));
+            if (PlayerWorld is { } world)
+            {
+                sb.Append(",\"wx\":").Append(Num(world.X)).Append(",\"wz\":").Append(Num(world.Y));
+            }
+            sb.Append('}');
         }
 
         sb.Append(",\"zones\":[");
