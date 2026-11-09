@@ -1,0 +1,112 @@
+﻿[
+    {
+        "key":  "customs",
+        "svg":  "Customs.svg",
+        "width":  4000,
+        "height":  2015,
+        "variants":  [
+                         "base",
+                         "Second_Floor",
+                         "Third_Floor",
+                         "Underground_Level"
+                     ]
+    },
+    {
+        "key":  "factory",
+        "svg":  "Factory.svg",
+        "width":  3140,
+        "height":  3390,
+        "variants":  [
+                         "base",
+                         "Second_Floor",
+                         "Third_Floor",
+                         "Basement"
+                     ]
+    },
+    {
+        "key":  "ground-zero",
+        "svg":  "GroundZero.svg",
+        "width":  2857,
+        "height":  4000,
+        "variants":  [
+                         "base",
+                         "Second_Floor",
+                         "Third_Floor",
+                         "Underground_Level"
+                     ]
+    },
+    {
+        "key":  "interchange",
+        "svg":  "Interchange.svg",
+        "width":  4000,
+        "height":  3359,
+        "variants":  [
+                         "base",
+                         "First_Floor",
+                         "Second_Floor"
+                     ]
+    },
+    {
+        "key":  "lighthouse",
+        "svg":  "Lighthouse.svg",
+        "width":  2459,
+        "height":  4000,
+        "variants":  [
+                         "base"
+                     ]
+    },
+    {
+        "key":  "reserve",
+        "svg":  "Reserve.svg",
+        "width":  4000,
+        "height":  3680,
+        "variants":  [
+                         "base",
+                         "Bunkers"
+                     ]
+    },
+    {
+        "key":  "shoreline",
+        "svg":  "Shoreline.svg",
+        "width":  4000,
+        "height":  2648,
+        "variants":  [
+                         "base",
+                         "Second_Floor",
+                         "Third_Floor",
+                         "Underground_Level"
+                     ]
+    },
+    {
+        "key":  "streets-of-tarkov",
+        "svg":  "StreetsOfTarkov.svg",
+        "width":  2912,
+        "height":  4000,
+        "variants":  [
+                         "base",
+                         "Second_Floor",
+                         "Third_Floor",
+                         "Fourth_Floor",
+                         "Fifth_Floor",
+                         "Underground_Level"
+                     ]
+    },
+    {
+        "key":  "terminal",
+        "svg":  "Terminal.svg",
+        "width":  3401,
+        "height":  4000,
+        "variants":  [
+                         "base"
+                     ]
+    },
+    {
+        "key":  "woods",
+        "svg":  "Woods.svg",
+        "width":  4000,
+        "height":  3858,
+        "variants":  [
+                         "base"
+                     ]
+    }
+]
