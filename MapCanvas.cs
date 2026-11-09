@@ -1,3 +1,22 @@
+// ============================================================================
+// MapCanvas.cs — 画布（本项目最大的绘制文件）
+//
+// 负责：底图/楼层合成、地名、静态标记、任务区域+编号连线、撤离点/转移点、BTR、
+//       玩家箭头、左下角参考坐标轴、缩放拖动、楼层按钮。
+//
+// 绘制顺序写在 OnPaint 里，顺序本身就是设计（改顺序会互相遮挡）：
+//   底图 → 楼层 → 地名 → 静态标记 → 任务区域 → 撤离点 → BTR → 玩家 → 角标
+//   地名必须最早（否则会盖住任务标签），缩放/楼层角标必须最后。
+//
+// 改动须知：
+//  · 区域数据（Zones）是世界坐标，SetMap() 里统一投影一次存进 _projected；
+//    直接改 _map 而不重算投影 → 区域整体跑到图外（踩过一次）。
+//  · 图片缓存上限 120 MB（ImageCacheBudget）：4000px 的图解码后一张 40~76 MB，
+//    这个软件的立身之本就是省内存，别随手调大。
+//  · 只画屏幕内的东西，culling 一律用**屏幕坐标**判断；用图片坐标判断会在缩放时漏画。
+//  · 楼层图不存在时（很多图只有地面）自动回落到底图，不重复解码一份一样的大图。
+//  · 拖动手感：OnMouseDown 先判断是否点中左上角楼层按钮，再进入拖动。
+// ============================================================================
 using System.Drawing.Drawing2D;
 
 namespace TarkovMapLite;
@@ -112,6 +131,12 @@ internal sealed class MapCanvas : Control
 
     public MapProjection? Map => _map;
 
+    /// <summary>当前楼层（空串 = 地面）；手机端快照要带过去。</summary>
+    public string CurrentLayer => _layer;
+
+    /// <summary>已经按当前地图投影好的区域（手机端直接拿去发，不用再算一遍）。</summary>
+    public IReadOnlyList<ZoneShape> ProjectedZones => _projected;
+
     public void SetMap(MapProjection? map, string displayName)
     {
         _map = map;
@@ -195,7 +220,8 @@ internal sealed class MapCanvas : Control
     }
 
     public double Zoom => _zoom;
-    public double Scale => _fitScale * _zoom;
+    /// <summary>缩放倍数（1 = 适配窗口）。名字和 Control.Scale(float) 撞车，所以标 new。</summary>
+    public new double Scale => _fitScale * _zoom;
 
     private PointF Origin
     {
@@ -1115,7 +1141,7 @@ internal sealed class MapCanvas : Control
         return true;
     }
 
-    private static string FloorLabel(string name) => name switch
+    public static string FloorLabel(string name) => name switch
     {
         "2nd Floor" => "2 层",
         "3rd Floor" => "3 层",

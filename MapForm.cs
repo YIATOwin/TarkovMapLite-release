@@ -1,3 +1,25 @@
+// ============================================================================
+// MapForm.cs — 主窗口：顶栏 + 画布 + 右侧任务栏 + 状态栏（+ 手机端服务的宿主）
+//
+// 界面结构（BuildLayout）：
+//   顶栏：地图下拉 / 撤离点 / 图层 / 刷新数据 / 复位 / 瓦片版 / 手机端
+//   右侧：筛选（仅进行中、任意地区）+ 任务列表 + 目标 + 所需物品
+//   底部：状态栏（本图进行中、区域数、数据来源、玩家坐标）
+//
+// 事件流（记住这条就不容易改错）：
+//   TaskLog（游戏日志）  → Changed/MapLoading → 自动切图 + RefreshTaskList
+//   PlayerLocator（截图）→ Changed           → UpdatePlayerMarker → 画布
+//   两个 Timer：_timer 3s（读日志/读截图）、_mobileTimer 250ms（推手机端状态）
+//
+// 改动须知：
+//  · 任务选中态的唯一真相是画布的 SelectedTaskId；改选中一般走
+//    _taskList.SelectedIndex（会顺带刷新目标、自动切楼层）。手机端也走这条路。
+//  · ShowTaskDetail 必须从 _detail.Clear() 开始：AppendDetail 只追加，
+//    不清空的话新任务的目标会接在上一个后面（踩过）。
+//  · 顶栏按钮是绝对坐标，加按钮要自己挪位置；窄窗口会被裁掉。
+//  · 手机端：PumpMobile() 每 250ms 把画布状态塞进 MobileState 并取出手机的动作；
+//    服务没启动时它直接返回，不产生任何开销。
+// ============================================================================
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -28,6 +50,16 @@ internal sealed class MapForm : Form
     private readonly Label _detailHeader = new();
     private readonly Button _wikiButton = new();
     private readonly Button _layerButton = new();
+    /// <summary>手机端：顶栏那一颗按钮（文字随连接状态变）。</summary>
+    private readonly Button _mobileButton = new();
+    /// <summary>局域网 HTTP 服务 + 手机要的状态快照。</summary>
+    private readonly LocalServer _mobile = new();
+    /// <summary>250ms 一次：把画布状态推给手机、把手机的动作取回来。</summary>
+    private readonly System.Windows.Forms.Timer _mobileTimer = new() { Interval = 250 };
+    private MobileForm? _mobilePanel;
+    private IReadOnlyList<MobileTask> _mobileTasks = Array.Empty<MobileTask>();
+    private IReadOnlyList<string> _mobileObjectives = Array.Empty<string>();
+    private IReadOnlyList<MobileItem> _mobileItems = Array.Empty<MobileItem>();
     private readonly ContextMenuStrip _layerMenu = new();
     /// <summary>当前选中任务的 wiki 链接（没有就是空串）。</summary>
     private string _currentWiki = "";
@@ -64,6 +96,14 @@ internal sealed class MapForm : Form
         _canvas.OnlyActive = _onlyActive.Active;
         _canvas.FloorRequested += layer => _canvas.SetLayer(layer);
         _canvas.ViewChanged += () => UpdateStatus();
+        // 面板上「停止服务」后按钮文字要跟着回去（那时候 PumpMobile 已经不跑了）
+        _mobile.StateChanged += () =>
+        {
+            if (IsHandleCreated && !IsDisposed)
+            {
+                UpdateMobileButton();
+            }
+        };
 
         _log.Changed += () => { RefreshTaskList(); FillMapCombo(); _canvas.Invalidate(); UpdateStatus(); };
         _log.MapLoading += key => BeginInvoke(() =>
@@ -82,7 +122,12 @@ internal sealed class MapForm : Form
         });
 
         Load += async (_, _) => await StartAsync();
-        FormClosed += (_, _) => _timer.Stop();
+        FormClosed += (_, _) =>
+        {
+            _timer.Stop();
+            _mobileTimer.Stop();
+            _mobile.Dispose();
+        };
     }
 
     private void BuildLayout()
@@ -222,7 +267,18 @@ internal sealed class MapForm : Form
         fit.FlatAppearance.BorderColor = PanelLine;
         fit.Click += (_, _) => _canvas.Fit();
 
-        top.Controls.AddRange(new Control[] { title, _mapSelect, _showExtracts, _layerButton, refresh, fit, _variant });
+        // 手机端：点开面板，里面有地址和二维码
+        _mobileButton.Text = "手机端";
+        _mobileButton.FlatStyle = FlatStyle.Flat;
+        _mobileButton.BackColor = Color.FromArgb(34, 39, 46);
+        _mobileButton.ForeColor = TextMain;
+        _mobileButton.Location = new Point(696, 9);
+        _mobileButton.Size = new Size(64, 26);
+        _mobileButton.Font = new Font("Microsoft YaHei UI", 8.5f);
+        _mobileButton.FlatAppearance.BorderColor = PanelLine;
+        _mobileButton.Click += (_, _) => ShowMobilePanel();
+
+        top.Controls.AddRange(new Control[] { title, _mapSelect, _showExtracts, _layerButton, refresh, fit, _variant, _mobileButton });
 
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 26, BackColor = PanelBack };
         _status.AutoSize = false;
@@ -663,6 +719,9 @@ internal sealed class MapForm : Form
             UpdateStatus();
         });
         _timer.Start();
+        // 手机端：状态推送和动作回收都走这个 250ms 的计时器（打开面板前它什么也不做）
+        _mobileTimer.Tick += (_, _) => PumpMobile();
+        _mobileTimer.Start();
         UpdateStatus();
     }
 
@@ -768,6 +827,134 @@ internal sealed class MapForm : Form
         UpdateSpawnPoints(null);
         UpdateStatus();
         GC.KeepAlive(keepView);
+    }
+
+    // ------------------------------------------------------------------ 手机端
+
+    /// <summary>点「手机端」：第一次点顺便把服务起起来，然后弹面板。</summary>
+    private void ShowMobilePanel()
+    {
+        if (_mobilePanel is { IsDisposed: false })
+        {
+            _mobilePanel.Activate();
+            return;
+        }
+        if (!_mobile.Running)
+        {
+            _mobile.Start();
+            UpdateMobileButton();
+        }
+        _mobilePanel = new MobileForm(_mobile);
+        _mobilePanel.FormClosed += (_, _) => _mobilePanel = null;
+        // 不用 CenterParent：非模态窗口有时会被算到屏幕外（试过跑到负坐标），自己算最稳
+        _mobilePanel.StartPosition = FormStartPosition.Manual;
+        var area = Screen.FromControl(this).WorkingArea;
+        _mobilePanel.Location = new Point(
+            Math.Clamp(Left + (Width - _mobilePanel.Width) / 2, area.Left + 8, area.Right - _mobilePanel.Width - 8),
+            Math.Clamp(Top + 80, area.Top + 8, area.Bottom - _mobilePanel.Height - 8));
+        _mobilePanel.Show(this);
+    }
+
+    private void UpdateMobileButton()
+    {
+        if (!_mobile.Running)
+        {
+            _mobileButton.Text = "手机端";
+            _mobileButton.ForeColor = TextMain;
+            return;
+        }
+        var clients = _mobile.Clients;
+        _mobileButton.Text = clients > 0 ? $"手机端 {clients}" : "手机端 ●";
+        _mobileButton.ForeColor = clients > 0 ? Color.FromArgb(120, 200, 140) : TextMain;
+    }
+
+    /// <summary>
+    /// 每 250ms：先把手机发来的动作做掉，再把当前状态快照推过去。
+    /// 服务没开就什么都不用做。
+    /// </summary>
+    private void PumpMobile()
+    {
+        if (!_mobile.Running)
+        {
+            return;
+        }
+        while (_mobile.Actions.TryDequeue(out var action))
+        {
+            ApplyMobileAction(action);
+        }
+        var state = _mobile.State;
+        state.Map = _canvas.Map;
+        state.Layer = _canvas.CurrentLayer;
+        state.Zones = _canvas.ProjectedZones;
+        state.Extracts = _canvas.Extracts;
+        state.Transits = _canvas.Transits;
+        state.Player = _canvas.PlayerPosition;
+        state.PlayerForward = _canvas.PlayerForward;
+        state.PlayerMapKey = _canvas.PlayerMapKey;
+        state.SelectedTaskId = _canvas.SelectedTaskId;
+        state.OnlyActive = _onlyActive.Active;
+        state.Tasks = _mobileTasks;
+        state.Objectives = _mobileObjectives;
+        state.Items = _mobileItems;
+        state.Flush();
+        UpdateMobileButton();
+    }
+
+    private void ApplyMobileAction(MobileAction action)
+    {
+        switch (action.Type)
+        {
+            case MobileAction.SetFloor:
+                _canvas.SetLayer(action.Value);
+                _canvas.Invalidate();
+                break;
+            case MobileAction.SelectTask:
+                SelectTaskFromMobile(action.Value);
+                break;
+            case MobileAction.SetMap:
+                SelectMap(action.Value);
+                break;
+        }
+    }
+
+    /// <summary>手机点了任务：在电脑端的列表里选中同一行（会顺便切楼层、刷新目标）。</summary>
+    private void SelectTaskFromMobile(string taskId)
+    {
+        if (string.IsNullOrEmpty(taskId))
+        {
+            _lastClickedRow = -1;
+            _taskList.ClearSelected();
+            _canvas.SelectedTaskId = null;
+            ShowTaskDetail(null);
+            _canvas.Invalidate();
+            return;
+        }
+        for (var i = 0; i < _taskList.Items.Count; i++)
+        {
+            if (_taskList.Items[i] is TaskRow row
+                && string.Equals(row.Id, taskId, StringComparison.OrdinalIgnoreCase))
+            {
+                if (i != _taskList.SelectedIndex)
+                {
+                    _taskList.SelectedIndex = i;
+                }
+                return;
+            }
+        }
+    }
+
+    /// <summary>任务列表变了就同步一份给手机（手机不自己拼标题和状态文案）。</summary>
+    private void SyncMobileTasks()
+    {
+        var tasks = new List<MobileTask>(_taskList.Items.Count);
+        foreach (var item in _taskList.Items)
+        {
+            if (item is TaskRow row)
+            {
+                tasks.Add(new MobileTask(row.Id, row.Name, row.Subtitle, row.State));
+            }
+        }
+        _mobileTasks = tasks;
     }
 
     /// <summary>所需物品列表：点一下就把名字复制到剪贴板，方便去跳蚤市场搜索。</summary>
@@ -975,6 +1162,8 @@ internal sealed class MapForm : Form
             _currentSlug = "";
             _currentTaskId = "";
             _wikiButton.Visible = false;
+            _mobileObjectives = Array.Empty<string>();
+            _mobileItems = Array.Empty<MobileItem>();
             return;
         }
         // 换任务必须先清空：AppendDetail 只追加，不清空的话新任务的目标会接在上一个
@@ -987,12 +1176,15 @@ internal sealed class MapForm : Form
         _currentSlug = TarkovData.TaskSlug.TryGetValue(row.Id, out var taskSlug) ? taskSlug : "";
         _wikiButton.Visible = _currentSlug.Length > 0 || _currentWiki.Length > 0;
         var needed = new List<(string Id, string Name)>();
+        // 手机抽屉里的目标文字：和左栏同一份，只是不带颜色
+        var mobileObjectives = new List<string>();
         if (TarkovData.TaskObjectives.TryGetValue(row.Id, out var objectives))
         {
             foreach (var objective in objectives)
             {
                 var count = objective.Count is > 0 ? $" ×{objective.Count}" : "";
                 AppendDetail("• " + objective.Description + count, Color.FromArgb(226, 232, 240));
+                mobileObjectives.Add(objective.Description + count);
                 if (objective.Items.Count > 0)
                 {
                     var names = objective.Items.Select(ItemName).ToList();
@@ -1023,6 +1215,7 @@ internal sealed class MapForm : Form
         {
             AppendDetail("（这个任务没有可显示的目标文本）", TextDim);
         }
+        _mobileObjectives = mobileObjectives;
         _detail.SelectionStart = 0;
         _detail.ScrollToCaret();
 
@@ -1067,6 +1260,7 @@ internal sealed class MapForm : Form
         }
         _itemList.EndUpdate();
 
+        _mobileItems = distinct.Select(item => new MobileItem(item.Id, item.Name)).ToList();
         UpdateSpawnPoints(row);
     }
 
@@ -1213,6 +1407,7 @@ internal sealed class MapForm : Form
                 _taskList.Items.Add(new TaskRow(taskId, name, subtitle, state));
             }
             _taskList.EndUpdate();
+            SyncMobileTasks();
             _header.Text = $"任意地区任务 · {_taskList.Items.Count}";
             return;
         }
@@ -1241,6 +1436,7 @@ internal sealed class MapForm : Form
             }
         }
         _taskList.EndUpdate();
+        SyncMobileTasks();
         _header.Text = $"任务 · {_taskList.Items.Count}";
     }
 

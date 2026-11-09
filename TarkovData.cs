@@ -1,3 +1,26 @@
+// ============================================================================
+// TarkovData.cs — 数据层：任务 / 物品 / 撤离点 / 转移点 / BTR / 刷新点
+//
+// 数据来源：json.tarkov.dev（/pve/tasks、/pve/maps、中文名走 *_zh 接口）。
+// 24 小时内只读本地缓存 %LOCALAPPDATA%\TarkovMapLite\data-v8.json；
+// 缓存里的 schema 和 CurrentSchema 不一致会强制重拉——所以升级数据结构时
+// **只改 CurrentSchema，不用改文件名**（文件名一直叫 v8，别被它骗了）。
+// 首次运行没网时用内嵌的 Assets/data-seed.json 兜底（离线可用）。
+//
+// 填好的静态表（全在文件后半段的 Apply/Parse 里赋值）：
+//   ZonesByMap    地图 data key → 任务区域（**世界坐标**，画之前才投影）
+//   Extracts / Transits / BtrStops   同样按 data key 分组、世界坐标
+//   TaskObjectives / TaskNames / ItemNames / TaskWiki / TaskSlug / TaskTrader  按任务 id
+//   SpawnPoints   地图 data key → 物品 id → 世界坐标点（"要带的物品刷在哪"）
+//   SceneToMap    游戏场景名 → 地图 key（TaskLog 靠它判断进的是哪张图）
+//
+// 改动须知：
+//  · 坐标一律存世界坐标，投影延后到 MapCanvas / MapForm 按**当前展示的地图**做。
+//    以前这里直接存像素坐标，共享数据的第二张图（海关瓦片版）就整体错位了。
+//  · 加字段要同时改四处：CurrentSchema、RefreshAsync 的解析、ApplyCache 的回填、
+//    Assets/data-seed.json。少改一处就会出现"在线正常、离线全空"。
+//  · JSON 字段名是接口的英文驼峰，中文名有单独的接口，别自己翻译。
+// ============================================================================
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;

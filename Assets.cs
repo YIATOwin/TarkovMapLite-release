@@ -1,3 +1,15 @@
+// ============================================================================
+// Assets.cs — 嵌入资源读取（地图图片、maps.json、labels.json、markers.json、手机页面）
+//
+// 资源全部以 EmbeddedResource 编进 exe，单文件分发，玩家不用带 Assets 目录。
+//
+// 两个必须知道的坑：
+//  1. MSBuild 会把资源名里的 '-' 换成 '_'（ground-zero → ground_zero），
+//     所以查表前必须先 Normalize()，不能拿路径直接当资源名。
+//  2. Open() 优先读 exe 旁边的 Assets/ 散文件 —— 这是"改资源不重新打包"的后门：
+//     把 Assets\maps\customs\base.png 放到 exe 同目录就能覆盖内嵌的那份。
+//     调试手机页面也靠它（见 MobileAssets.cs），但内存里的缓存要重启才失效。
+// ============================================================================
 namespace TarkovMapLite;
 
 /// <summary>

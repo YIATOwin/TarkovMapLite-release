@@ -1,0 +1,61 @@
+<!doctype html>
+<!--
+  ==========================================================================
+  手机端页面骨架。全部内容由 MiniServer 从 exe 里发出去，没有构建步骤。
+
+  元素树（app.js 里按 id 找）：
+    #map       唯一的画布，全屏，负责一切绘制 + 触摸
+    #topbar    地图名/连接状态、楼层 chip、图层 chip（都是浮在画布上方）
+    #hud       右下角「跟随 / 复位」
+    #drawer    底部任务抽屉：#handle 点了展开，#taskList 任务，#taskDetail 目标+物品
+    #toast     一句话提示
+
+  样式在 app.css，逻辑在 app.js。
+  viewport 设了 user-scalable=no：不然浏览器自己的双指缩放会和画布的捏合打架。
+  ==========================================================================
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f11">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="塔科夫地图">
+<title>塔科夫地图</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+
+<div id="topbar">
+  <div class="head">
+    <div id="title">连接中…</div>
+    <div id="net" class="badge wait">…</div>
+  </div>
+  <div id="floors" class="chips"></div>
+  <div id="layers" class="chips"></div>
+</div>
+
+<div id="hud">
+  <button id="follow" class="hudbtn on" type="button">跟随</button>
+  <button id="fit" class="hudbtn" type="button">复位</button>
+</div>
+
+<div id="drawer" class="collapsed">
+  <div id="handle">
+    <span id="drawerTitle">任务</span>
+    <span id="drawerCount"></span>
+    <span id="chevron">▴</span>
+  </div>
+  <div id="drawerBody">
+    <div id="taskList"></div>
+    <div id="taskDetail"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="/app.js"></script>
+</body>
+</html>

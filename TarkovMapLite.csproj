@@ -41,6 +41,13 @@
     <EmbeddedResource Include="Assets\markers.json" />
     <!-- 地名（Big Red / Dorms …）：接口里没有，由 tools/build-labels.ps1 从站点配置导出 -->
     <EmbeddedResource Include="Assets\labels.json" />
+    <!-- 手机端页面：index.html / app.css / app.js，由内置的迷你 HTTP 服务发给手机 -->
+    <EmbeddedResource Include="Assets\mobile\**\*.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 二维码：手机扫一下就连上，不用手打 IP（纯托管，PngByteQRCode 不依赖 GDI+） -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
   </ItemGroup>
 
   <ItemGroup>

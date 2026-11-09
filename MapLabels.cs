@@ -1,3 +1,15 @@
+// ============================================================================
+// MapLabels.cs — 地名（Big Red / Dorms / Sawmill / 医疗楼 …）
+//
+// 数据不在接口里：来源是 tarkov-dev 站点的 maps[].labels，
+// 由 tools/build-labels.ps1 导出成 Assets/labels.json（约 12 KB、303 个）打进 exe。
+//
+// 存世界坐标，按 map.Key 缓存投影结果——和任务区域是同一个坑：
+// 缓存 key 必须是 map.Key（每张图投影不同），取数据才用 map.Data。
+// 用错的话，瓦片版海关会拿到 SVG 版算出来的像素，地名整体飘走。
+//
+// 想更新地名：重跑 tools/build-labels.ps1 → 重新打包。这个文件不用改。
+// ============================================================================
 using System.Drawing;
 using System.Text.Json.Nodes;
 

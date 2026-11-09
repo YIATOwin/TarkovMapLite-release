@@ -1,3 +1,12 @@
+// ============================================================================
+// ContainerKinds.cs — 容器类型 → 中文名 + 颜色 + 象形记号（只是张查表）
+//
+// 被 MapCanvas.DrawStaticMarkers（画点）和 MapForm.BuildLayerMenu（图例）使用。
+//
+// 加一种容器：Table 里加一行，slug 就是接口里的容器类型串（drawer / jacket …）。
+// 加一种记号：Icon 枚举加值 **并且** 在 MapCanvas.DrawContainer 里补一个
+//   switch 分支——两处都要改，只改一处会画成空白。
+// ============================================================================
 using System.Drawing;
 
 namespace TarkovMapLite;
