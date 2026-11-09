@@ -36,6 +36,8 @@
     <EmbeddedResource Include="Assets\data-seed.json" />
     <!-- 地图静态标记：容器/散落物资/出生点/危险区，由 tools/build-markers.ps1 生成 -->
     <EmbeddedResource Include="Assets\markers.json" />
+    <!-- 地名（Big Red / Dorms …）：接口里没有，由 tools/build-labels.ps1 从站点配置导出 -->
+    <EmbeddedResource Include="Assets\labels.json" />
   </ItemGroup>
 
   <ItemGroup>

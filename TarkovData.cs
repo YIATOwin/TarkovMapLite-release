@@ -44,6 +44,8 @@ public sealed class MapExtras
     /// <summary>场景名（streets_preset）→ 地图 key。</summary>
     public Dictionary<string, string> Scenes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, List<MapMarker>> Extracts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>BTR 停车点（森林 / 塔科夫街区）。</summary>
+    public Dictionary<string, List<MapMarker>> BtrStops { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, List<MapMarker>> Transits { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -146,6 +148,8 @@ public static class TarkovData
     public static Dictionary<string, string> SceneToMap { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     public static Dictionary<string, List<MapMarker>> Extracts { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     public static Dictionary<string, List<MapMarker>> Transits { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>BTR 停车点（只有森林和塔科夫街区有）。</summary>
+    public static Dictionary<string, List<MapMarker>> BtrStops { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     public static Dictionary<string, string> TaskTrader { get; private set; } = new();
     /// <summary>任务 id → wiki 链接（地点照片都在 wiki 页上）。</summary>
     public static Dictionary<string, string> TaskWiki { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -158,7 +162,7 @@ public static class TarkovData
     /// <summary>当前用的是打包进 exe 的静态数据（没有缓存、也没联网时）。</summary>
     public static bool FromSeed { get; private set; }
     /// <summary>缓存格式版本：老的内置数据升到这里就要强制刷新一次。</summary>
-    public const int CurrentSchema = 8;
+    public const int CurrentSchema = 9;
     public static int Schema { get; private set; }
 
     private static string CachePath
@@ -233,6 +237,7 @@ public static class TarkovData
         SceneToMap = ReadScenes(root["scenes"]);
         Extracts = ProjectMarkers(ReadMarkers(root["extracts"]));
         Transits = ProjectMarkers(ReadMarkers(root["transits"]));
+        BtrStops = ProjectMarkers(ReadMarkers(root["btrStops"]));
         FromSeed = seed;
         Status = seed
             ? $"内置数据 {FetchedAt:MM-dd}（未联网）"
@@ -401,6 +406,7 @@ public static class TarkovData
                 ["scenes"] = JsonSerializer.SerializeToNode(extras.Scenes),
                 ["extracts"] = SerializeMarkers(extras.Extracts),
                 ["transits"] = SerializeMarkers(extras.Transits),
+                ["btrStops"] = SerializeMarkers(extras.BtrStops),
             };
             File.WriteAllText(CachePath, cache.ToJsonString());
 
@@ -411,6 +417,7 @@ public static class TarkovData
             SceneToMap = extras.Scenes;
             Extracts = ProjectMarkers(extras.Extracts);
             Transits = ProjectMarkers(extras.Transits);
+            BtrStops = ProjectMarkers(extras.BtrStops);
             // 物品表有 16.5MB，解析成 JsonNode 后是几百 MB 的临时对象；
             // 这里手动回收一次，否则要等到下次分配压力才会释放。
             data = null;
@@ -694,6 +701,26 @@ public static class TarkovData
                 extras.Transits[key] = transits;
             }
 
+            // BTR 停车点：名字是本地化 key（Trading/Dialog/PlayerTaxi/Woods/p5/Name）
+            var btrStops = new List<MapMarker>();
+            foreach (var stop in ArrayOf(map, "btrStops"))
+            {
+                var rawName = stop.TryGetProperty("name", out var stopName)
+                    ? stopName.GetString() ?? ""
+                    : "";
+                btrStops.Add(new MapMarker
+                {
+                    Name = BtrStopLabel(rawName, zh),
+                    X = stop.TryGetProperty("x", out var bx) ? bx.GetDouble() : 0,
+                    Z = stop.TryGetProperty("z", out var bz) ? bz.GetDouble() : 0,
+                    Kind = "btr",
+                });
+            }
+            if (btrStops.Count > 0)
+            {
+                extras.BtrStops[key] = btrStops;
+            }
+
             if (!map.TryGetProperty("lootLoose", out var loose) || loose.ValueKind != JsonValueKind.Array)
             {
                 continue;
@@ -736,6 +763,25 @@ public static class TarkovData
         map.TryGetProperty(name, out var array) && array.ValueKind == JsonValueKind.Array
             ? array.EnumerateArray()
             : Enumerable.Empty<JsonElement>();
+
+    /// <summary>
+    /// BTR 站点的名字是本地化 key（Trading/Dialog/PlayerTaxi/Woods/p5/Name）。
+    /// 翻译表里有就用中文，没有就退化成 "BTR p5"，至少不会显示一长串路径。
+    /// </summary>
+    private static string BtrStopLabel(string raw, Dictionary<string, string> zh)
+    {
+        if (string.IsNullOrEmpty(raw))
+        {
+            return "BTR";
+        }
+        if (zh.TryGetValue(raw, out var text) && !string.IsNullOrWhiteSpace(text))
+        {
+            return text;
+        }
+        var parts = raw.Split('/');
+        var tail = parts.Length >= 2 ? parts[^2] : raw;
+        return tail.Length > 0 ? "BTR " + tail : "BTR";
+    }
 
     private static MapMarker? ReadMarker(JsonElement element, string kind, Dictionary<string, string> zh)
     {

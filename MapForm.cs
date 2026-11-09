@@ -140,6 +140,9 @@ internal sealed class MapForm : Form
         _showExtracts.Text = "撤离点";
         _showExtracts.Location = new Point(310, 9);
         _showExtracts.Size = new Size(62, 26);
+        // 默认打开：开图第一眼要能看见撤离点
+        _showExtracts.Active = true;
+        _canvas.ShowExtracts = true;
         _showExtracts.Click += (_, _) =>
         {
             _showExtracts.Active = !_showExtracts.Active;
@@ -433,6 +436,10 @@ internal sealed class MapForm : Form
             }
         };
 
+        Add("地名", _canvas.ShowLabels, () => _canvas.ShowLabels,
+            value => _canvas.ShowLabels = value, Color.FromArgb(236, 228, 198));
+        Add("BTR 站点", _canvas.ShowBtr, () => _canvas.ShowBtr,
+            value => _canvas.ShowBtr = value, Color.FromArgb(120, 210, 218));
         Add("散落物资", _canvas.ShowLoot, () => _canvas.ShowLoot,
             value => _canvas.ShowLoot = value, Color.FromArgb(255, 186, 88));
         Add("出生点", _canvas.ShowSpawns, () => _canvas.ShowSpawns,
@@ -750,6 +757,9 @@ internal sealed class MapForm : Form
             : new List<MapMarker>();
         _canvas.Transits = TarkovData.Transits.TryGetValue(map.Data, out var transits)
             ? transits.Select(m => m.Project(map)).ToList()
+            : new List<MapMarker>();
+        _canvas.BtrStops = TarkovData.BtrStops.TryGetValue(map.Data, out var btrStops)
+            ? btrStops.Select(m => m.Project(map)).ToList()
             : new List<MapMarker>();
         _canvas.SelectedTaskId = null;
         UpdateVariantChip(map);

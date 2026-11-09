@@ -65,19 +65,31 @@ internal sealed class MapCanvas : Control
     public string? SelectedTaskId { get; set; }
 
     /// <summary>是否显示撤离点 / 转移点。</summary>
-    public bool ShowExtracts { get; set; }
+    public bool ShowExtracts { get; set; } = true;
+
+    /// <summary>是否显示地名（Big Red / Dorms / Sawmill …）。</summary>
+    public bool ShowLabels { get; set; }
+
+    /// <summary>
+    /// 是否显示 BTR 停车点。默认关：它和地名大量重叠（森林的「锯木厂」就是 Sawmill），
+    /// 只有在真的在坐 BTR 时才需要打开。
+    /// </summary>
+    public bool ShowBtr { get; set; }
 
     /// <summary>静态图层开关：容器 / 散落物资 / 出生点 / 危险区 / 固定武器。</summary>
-    public bool ShowContainers { get; set; } = true;
+    public bool ShowContainers { get; set; }
     /// <summary>被隐藏的容器类型（在「图层」菜单里取消勾选）。</summary>
     public HashSet<string> HiddenContainerKinds { get; } = new(StringComparer.OrdinalIgnoreCase);
-    public bool ShowLoot { get; set; } = true;
+    public bool ShowLoot { get; set; }
     public bool ShowSpawns { get; set; }
-    public bool ShowHazards { get; set; } = true;
+    public bool ShowHazards { get; set; }
     public bool ShowStatics { get; set; }
 
     public List<MapMarker> Extracts { get; set; } = new();
     public List<MapMarker> Transits { get; set; } = new();
+
+    /// <summary>BTR 停车点（图片像素坐标，由 MapForm 按当前地图投影）。</summary>
+    public List<MapMarker> BtrStops { get; set; } = new();
 
     /// <summary>玩家位置（图片像素坐标）与朝向；只有 PlayerMapKey 和当前地图一致时才画。</summary>
     public PointF? PlayerPosition { get; set; }
@@ -301,6 +313,11 @@ internal sealed class MapCanvas : Control
         }
 
         g.SmoothingMode = SmoothingMode.AntiAlias;
+        // 地名压在最底层：它只是背景参照，任务标记、点位、撤离点都要盖在它上面
+        if (ShowLabels)
+        {
+            DrawLabels(g, s, origin);
+        }
         // 静态标记（容器/散落物资/出生点/危险区）压在地图上面、任务区域下面，
         // 这样任务的多边形和点位不会被物资点盖住
         if (ShowContainers || ShowLoot || ShowSpawns || ShowHazards || ShowStatics)
@@ -316,9 +333,14 @@ internal sealed class MapCanvas : Control
             DrawZones(g, s, origin);
             DrawOffscreenArrows(g, s, origin);
         }
+        // 地名压在最底层：它只是背景参照，任务标记、点位、撤离点都要盖在它上面
         if (ShowExtracts)
         {
             DrawMarkers(g, s, origin);
+        }
+        if (ShowBtr && BtrStops.Count > 0)
+        {
+            DrawBtrStops(g, s, origin);
         }
         DrawPlayer(g, s, origin);
         DrawFloors(g);
@@ -560,6 +582,83 @@ internal sealed class MapCanvas : Control
                 g.FillRectangle(halo, tx - 1, ty, size.Width + 2, size.Height);
                 g.DrawString(text, font, textBrush, tx, ty);
             }
+        }
+    }
+
+    /// <summary>
+    /// 地名：站点底图上写着的那些名字。屏幕上会重叠的直接跳过——立交桥有 77 个
+    /// 店铺名，全画出来糊成一片，所以按站点字号从大到小去抢位置。
+    /// </summary>
+    private void DrawLabels(Graphics g, float scale, PointF origin)
+    {
+        var labels = MapLabels.For(_map);
+        if (labels.Count == 0)
+        {
+            return;
+        }
+        using var font = new Font("Microsoft YaHei UI", 8.5f, FontStyle.Bold);
+        using var halo = new SolidBrush(Color.FromArgb(205, 0, 0, 0));
+        using var ink = new SolidBrush(Color.FromArgb(240, 236, 228, 198));
+        var placed = new List<RectangleF>();
+        foreach (var (point, label) in labels
+                     .OrderByDescending(entry => entry.Label.Size)
+                     .ThenBy(entry => entry.Label.Text, StringComparer.Ordinal))
+        {
+            if (placed.Count >= 90)
+            {
+                break;
+            }
+            var x = origin.X + point.X * scale;
+            var y = origin.Y + point.Y * scale;
+            if (x < -80 || y < -20 || x > ClientSize.Width + 80 || y > ClientSize.Height + 20)
+            {
+                continue;
+            }
+            var size = g.MeasureString(label.Text, font);
+            var box = new RectangleF(x - size.Width / 2 - 3, y - size.Height / 2 - 2,
+                size.Width + 6, size.Height + 4);
+            if (placed.Any(other => other.IntersectsWith(box)))
+            {
+                continue;
+            }
+            placed.Add(box);
+            var left = x - size.Width / 2;
+            var top = y - size.Height / 2;
+            foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
+            {
+                g.DrawString(label.Text, font, halo, left + dx, top + dy);
+            }
+            g.DrawString(label.Text, font, ink, left, top);
+        }
+    }
+
+    /// <summary>BTR 停车点：青色小方块 + 名字（只有森林和塔科夫街区有）。</summary>
+    private void DrawBtrStops(Graphics g, float scale, PointF origin)
+    {
+        using var font = new Font("Microsoft YaHei UI", 7.5f);
+        using var fill = new SolidBrush(Color.FromArgb(235, 90, 200, 210));
+        using var ring = new Pen(Color.FromArgb(235, 15, 40, 45), 1.2f);
+        using var ink = new SolidBrush(Color.FromArgb(235, 235, 250, 252));
+        using var halo = new SolidBrush(Color.FromArgb(205, 0, 0, 0));
+        foreach (var stop in BtrStops)
+        {
+            var x = origin.X + stop.Screen.X * scale;
+            var y = origin.Y + stop.Screen.Y * scale;
+            if (x < -20 || y < -20 || x > ClientSize.Width + 20 || y > ClientSize.Height + 20)
+            {
+                continue;
+            }
+            g.FillRectangle(fill, x - 4f, y - 4f, 8, 8);
+            g.DrawRectangle(ring, x - 4f, y - 4f, 8, 8);
+            var size = g.MeasureString(stop.Name, font);
+            var tx = x + 7;
+            var ty = y - size.Height / 2;
+            if (tx + size.Width > ClientSize.Width)
+            {
+                tx = x - size.Width - 7;
+            }
+            g.FillRectangle(halo, tx - 1, ty, size.Width + 2, size.Height);
+            g.DrawString(stop.Name, font, ink, tx, ty);
         }
     }
 
