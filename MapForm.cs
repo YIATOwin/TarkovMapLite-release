@@ -1252,11 +1252,13 @@ internal sealed class MapForm : Form
             ? 0
             : zones.Select(z => z.TaskId).Distinct()
                    .Count(id => _log.StateOf(id) == TaskState.Started);
-        var playerNote = _player.Current == null
+        // 多人在同一张图上要靠坐标报点，所以标到玩家之后直接把世界坐标念出来
+        var fix = _player.Current;
+        var playerNote = fix == null
             ? _player.Status
             : string.Equals(_canvas.PlayerMapKey, map?.Key, StringComparison.OrdinalIgnoreCase)
-                ? "玩家位置：已标注"
-                : $"玩家位置属于 {MapPack.Find(_canvas.PlayerMapKey)?.DisplayName ?? "?"}，切回该图可见";
+                ? $"玩家：X {fix.X:0.0}　Z {fix.Z:0.0}"
+                : $"{MapPack.Find(_canvas.PlayerMapKey)?.DisplayName ?? "?"} 的玩家：X {fix.X:0.0} Z {fix.Z:0.0}（切回该图可见）";
         var parts = new List<string>
         {
             $"本图进行中 {activeOnMap}",

@@ -345,6 +345,7 @@ internal sealed class MapCanvas : Control
         DrawPlayer(g, s, origin);
         DrawFloors(g);
         DrawZoom(g);
+        DrawAxes(g);
     }
 
     /// <summary>容器 / 散落物资 / 出生点 / 危险区 / 固定武器。</summary>
@@ -1083,6 +1084,68 @@ internal sealed class MapCanvas : Control
         "Ground Level" => "地面",
         _ => name,
     };
+
+    /// <summary>
+    /// 左下角的参考坐标轴：把世界 +X / +Z 两个方向投影到当前这张图上，
+    /// 于是不管地图旋转了 90/180/270 度，都能看出坐标往哪边长。
+    /// 多人游玩报坐标全靠它。
+    /// </summary>
+    private void DrawAxes(Graphics g)
+    {
+        if (_map == null)
+        {
+            return;
+        }
+        var origin = MapPack.ToImage(_map, 0, 0);
+        var plusX = MapPack.ToImage(_map, 10, 0);
+        var plusZ = MapPack.ToImage(_map, 0, 10);
+        var dx = new PointF((float)(plusX.X - origin.X), (float)(plusX.Y - origin.Y));
+        var dz = new PointF((float)(plusZ.X - origin.X), (float)(plusZ.Y - origin.Y));
+        if (Math.Abs(dx.X) + Math.Abs(dx.Y) < 1e-6 || Math.Abs(dz.X) + Math.Abs(dz.Y) < 1e-6)
+        {
+            return;
+        }
+
+        var box = new RectangleF(10, ClientSize.Height - 104, 108, 72);
+        using var back = new SolidBrush(Color.FromArgb(158, 15, 18, 22));
+        using var edge = new Pen(Color.FromArgb(95, 120, 132, 146));
+        g.FillRectangle(back, box);
+        g.DrawRectangle(edge, box.X, box.Y, box.Width, box.Height);
+
+        var centre = new PointF(box.X + 54, box.Y + 38);
+        const float length = 26f;
+        var xColor = Color.FromArgb(240, 235, 108, 96);
+        var zColor = Color.FromArgb(240, 108, 176, 240);
+        using var xPen = new Pen(xColor, 2f) { EndCap = LineCap.ArrowAnchor };
+        using var zPen = new Pen(zColor, 2f) { EndCap = LineCap.ArrowAnchor };
+        using var font = new Font("Segoe UI", 7.5f, FontStyle.Bold);
+
+        void Arrow(PointF direction, Pen pen, Color color, string label)
+        {
+            var norm = (float)Math.Sqrt(direction.X * direction.X + direction.Y * direction.Y);
+            if (norm < 1e-6f)
+            {
+                return;
+            }
+            var ux = direction.X / norm;
+            var uy = direction.Y / norm;
+            var tip = new PointF(centre.X + ux * length, centre.Y + uy * length);
+            g.DrawLine(pen, centre, tip);
+            using var brush = new SolidBrush(color);
+            var size = g.MeasureString(label, font);
+            g.DrawString(label, font, brush,
+                tip.X + ux * 7 - size.Width / 2,
+                tip.Y + uy * 7 - size.Height / 2);
+        }
+
+        Arrow(dx, xPen, xColor, "X");
+        Arrow(dz, zPen, zColor, "Z");
+        using var caption = new Font("Microsoft YaHei UI", 7f);
+        TextRenderer.DrawText(g, "坐标轴", caption,
+            new Rectangle((int)box.X + 6, (int)box.Y + 3, 60, 13),
+            Color.FromArgb(150, 170, 182, 196));
+    }
+
 
     private void DrawZoom(Graphics g)
     {
