@@ -58,7 +58,7 @@ items they need, and shows every extract.
 ### 数据来源与联网
 
 - 任务/物品/商场：`https://json.tarkov.dev`（tarkov.dev 的公开接口，含中文翻译）
-- 缓存写在 `%LOCALAPPDATA%\TarkovMapLite\data-v5.json`，超过 24 小时才刷新
+- 缓存写在 `%LOCALAPPDATA%\TarkovMapLite\data-v8.json`，超过 24 小时才刷新
 - 断网也能用：exe 里打包了一份数据快照（`Assets/data-seed.json`）
 - 右下角会显示 `在线 · 12:03` / `缓存 · 11-07 11:47` / `内置数据 · 11-07` / `无数据`
 
@@ -70,7 +70,20 @@ items they need, and shows every extract.
 dotnet publish -c Release -r win-x64 --self-contained true
 ```
 
-产物是 `bin\Release\net10.0-windows\win-x64\publish\TarkovMapLite.exe`，单文件、约 79 MB。
+产物是 `bin\Release\net10.0-windows\win-x64\publish\TarkovMapLite.exe`，单文件、约 126 MB。
+
+### 开发文档
+
+| 文件 | 内容 |
+| --- | --- |
+| **[docs/CODE-MAP.md](docs/CODE-MAP.md)** | **先看这个**：调用关系、四条数据链、改一件事要动哪几处、出问题查哪里、11 条历史坑 |
+| [docs/DATA-RULES.md](docs/DATA-RULES.md) | tarkov.dev 接口字段与本地数据格式 |
+| [docs/UI-RULES.md](docs/UI-RULES.md) | WinForms 的坑（菜单、ListBox、滚动条……） |
+
+每个 `.cs` 文件顶部还有一段头注释：这个文件负责什么、谁在用、改它会牵连什么。
+
+> 注：源码里的**手机端（局域网第二屏）**从 `v0.3.0` 起提供（`LocalServer.cs` /
+> `MobileState.cs` / `Assets/mobile/`）。如果 `main` 比最新 Release 新，就是这个原因。
 
 ### 重新生成地图
 
@@ -119,6 +132,10 @@ resident memory from cache, single-file exe.
 Nothing to install; .NET is bundled.
 
 **Build**: `dotnet publish -c Release -r win-x64 --self-contained true` (.NET 10 SDK).
+
+**Hacking on it**: read [docs/CODE-MAP.md](docs/CODE-MAP.md) first — call graph, the four
+data pipelines, "change A also touch B" table, and a troubleshooting table. Every source
+file also starts with a header comment (owner, callers, what breaks if you change it).
 
 **Data**: task/item/map data comes from `json.tarkov.dev` and is cached for 24 h; a
 snapshot is embedded so the tool works offline on first run.
