@@ -17,6 +17,8 @@ internal sealed class MapCanvas : Control
     /// </summary>
     private const long ImageCacheBudget = 120L * 1024 * 1024;
     private const int ImageCacheMinimum = 2;
+    /// <summary>图片扩展名，按顺序尝试：瓦片底图压缩成了 jpg，楼层和矢量图还是 png。</summary>
+    private static readonly string[] ImageExtensions = { ".jpg", ".png" };
     private MapProjection? _map;
     private string _layer = "";
     private Image? _image;
@@ -216,19 +218,33 @@ internal sealed class MapCanvas : Control
         {
             return null;
         }
-        var path = _map.ImageFor(layer);
-        if (_images.TryGetValue(path, out var cached))
+        // 瓦片底图是 .jpg（裁边+压缩过），楼层和 SVG 渲染图是 .png
+        var stem = _map.ImageFor(layer);
+        foreach (var extension in ImageExtensions)
         {
-            Touch(path);
-            return cached;
+            if (_images.TryGetValue(stem + extension, out var hit))
+            {
+                Touch(stem + extension);
+                return hit;
+            }
         }
-        var image = Assets.ReadImage("maps/" + path);
+        string? path = null;
+        Image? image = null;
+        foreach (var extension in ImageExtensions)
+        {
+            image = Assets.ReadImage("maps/" + stem + extension);
+            if (image != null)
+            {
+                path = stem + extension;
+                break;
+            }
+        }
         if (image == null && !string.IsNullOrEmpty(layer))
         {
             // 该楼层没有独立图片：直接复用底图，不要再解码一份一样的图（一张就 40 MB）
             return ImageFor(null);
         }
-        if (image == null)
+        if (image == null || path == null)
         {
             return null;
         }
@@ -1106,19 +1122,20 @@ internal sealed class MapCanvas : Control
             return;
         }
 
-        var box = new RectangleF(10, ClientSize.Height - 104, 108, 72);
-        using var back = new SolidBrush(Color.FromArgb(158, 15, 18, 22));
-        using var edge = new Pen(Color.FromArgb(95, 120, 132, 146));
-        g.FillRectangle(back, box);
-        g.DrawRectangle(edge, box.X, box.Y, box.Width, box.Height);
-
-        var centre = new PointF(box.X + 54, box.Y + 38);
-        const float length = 26f;
-        var xColor = Color.FromArgb(240, 235, 108, 96);
-        var zColor = Color.FromArgb(240, 108, 176, 240);
-        using var xPen = new Pen(xColor, 2f) { EndCap = LineCap.ArrowAnchor };
-        using var zPen = new Pen(zColor, 2f) { EndCap = LineCap.ArrowAnchor };
-        using var font = new Font("Segoe UI", 7.5f, FontStyle.Bold);
+        // 无底板：只在箭头下面描一层深色，保证在地图上也看得清，
+        // 但不占一块方块，免得盖住地图内容
+        var centre = new PointF(28, ClientSize.Height - 76);
+        const float length = 16f;
+        var xColor = Color.FromArgb(245, 240, 112, 98);
+        var zColor = Color.FromArgb(245, 112, 180, 244);
+        using var shadow = new Pen(Color.FromArgb(170, 0, 0, 0), 4.4f)
+        {
+            EndCap = LineCap.ArrowAnchor,
+            LineJoin = LineJoin.Round,
+        };
+        using var xPen = new Pen(xColor, 1.8f) { EndCap = LineCap.ArrowAnchor };
+        using var zPen = new Pen(zColor, 1.8f) { EndCap = LineCap.ArrowAnchor };
+        using var font = new Font("Segoe UI", 7f, FontStyle.Bold);
 
         void Arrow(PointF direction, Pen pen, Color color, string label)
         {
@@ -1130,20 +1147,22 @@ internal sealed class MapCanvas : Control
             var ux = direction.X / norm;
             var uy = direction.Y / norm;
             var tip = new PointF(centre.X + ux * length, centre.Y + uy * length);
+            g.DrawLine(shadow, centre, tip);
             g.DrawLine(pen, centre, tip);
             using var brush = new SolidBrush(color);
+            using var halo = new SolidBrush(Color.FromArgb(190, 0, 0, 0));
             var size = g.MeasureString(label, font);
-            g.DrawString(label, font, brush,
-                tip.X + ux * 7 - size.Width / 2,
-                tip.Y + uy * 7 - size.Height / 2);
+            var tx = tip.X + ux * 6 - size.Width / 2;
+            var ty = tip.Y + uy * 6 - size.Height / 2;
+            foreach (var (ox, oy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
+            {
+                g.DrawString(label, font, halo, tx + ox, ty + oy);
+            }
+            g.DrawString(label, font, brush, tx, ty);
         }
 
         Arrow(dx, xPen, xColor, "X");
         Arrow(dz, zPen, zColor, "Z");
-        using var caption = new Font("Microsoft YaHei UI", 7f);
-        TextRenderer.DrawText(g, "坐标轴", caption,
-            new Rectangle((int)box.X + 6, (int)box.Y + 3, 60, 13),
-            Color.FromArgb(150, 170, 182, 196));
     }
 
 

@@ -33,11 +33,15 @@ public sealed class MapProjection
     public double ViewBoxWidth => ViewBox.Length >= 4 ? ViewBox[2] : 0;
     public double ViewBoxHeight => ViewBox.Length >= 4 ? ViewBox[3] : 0;
 
-    /// <summary>地图图片在 Assets/maps 下的相对路径（按楼层）。</summary>
+    /// <summary>
+    /// 地图图片在 Assets/maps 下的相对路径（按楼层），**不含扩展名**：
+    /// 瓦片底图压缩成 .jpg，其余（SVG 渲染图、楼层图）仍是 .png，
+    /// 由读图的地方依次尝试。
+    /// </summary>
     public string ImageFor(string? svgLayer)
     {
         var folder = string.IsNullOrEmpty(ImageKey) ? Key : ImageKey;
-        return string.IsNullOrEmpty(svgLayer) ? $"{folder}/base.png" : $"{folder}/{svgLayer}.png";
+        return string.IsNullOrEmpty(svgLayer) ? $"{folder}/base" : $"{folder}/{svgLayer}";
     }
 }
 

@@ -31,6 +31,8 @@
       Assets.Open 优先读旁边的散文件。
     -->
     <EmbeddedResource Include="Assets\maps\**\*.png" />
+    <!-- 瓦片底图压缩成 jpg（裁掉透明边距后），楼层图仍是 png -->
+    <EmbeddedResource Include="Assets\maps\**\*.jpg" />
     <EmbeddedResource Include="Assets\maps\maps.json" />
     <!-- 我这边抓取时的任务/物品数据快照：没网或第一次运行时直接可用 -->
     <EmbeddedResource Include="Assets\data-seed.json" />
