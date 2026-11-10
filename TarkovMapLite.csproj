@@ -41,6 +41,8 @@
     <EmbeddedResource Include="Assets\markers.json" />
     <!-- 地名（Big Red / Dorms …）：接口里没有，由 tools/build-labels.ps1 从站点配置导出 -->
     <EmbeddedResource Include="Assets\labels.json" />
+    <!-- 地名的中文对照（人工整理，站点配置里只有英文） -->
+    <EmbeddedResource Include="Assets\labels-zh.json" />
     <!-- 门锁 / 闸点：由 tools/build-doors.ps1 从 /pve/maps 导出（含钥匙中文名） -->
     <EmbeddedResource Include="Assets\doors.json" />
     <!-- 闸点 → 撤离点 的手写对应表（接口里没有这个关系） -->

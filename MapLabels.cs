@@ -36,6 +36,54 @@ internal static class MapLabels
     private static readonly Dictionary<string, List<(PointF Point, MapLabel Label)>> Image = new(StringComparer.OrdinalIgnoreCase);
     private static bool _loaded;
 
+    /// <summary>原文 → 中文（Assets/labels-zh.json，人工整理，见文件头注释）。</summary>
+    private static readonly Dictionary<string, string> Chinese = new(StringComparer.OrdinalIgnoreCase);
+    private static bool _chineseLoaded;
+
+    /// <summary>
+    /// 地名转中文：先查表，再处理「Warehouse N」这类带数字的，最后保留原文。
+    /// 站点配置里的地名只有英文，官方没有中文对照，所以这张表是手工维护的。
+    /// </summary>
+    private static string Translate(string text)
+    {
+        if (!_chineseLoaded)
+        {
+            _chineseLoaded = true;
+            try
+            {
+                var raw = Assets.ReadText("labels-zh.json");
+                if (!string.IsNullOrWhiteSpace(raw) && JsonNode.Parse(raw) is JsonObject table)
+                {
+                    foreach (var (key, node) in table)
+                    {
+                        if (key.StartsWith('_'))
+                        {
+                            continue;
+                        }
+                        if (node is JsonValue value && value.TryGetValue<string>(out var translated))
+                        {
+                            Chinese[key] = translated;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // 表坏了就全部显示英文，不影响地图
+            }
+        }
+        if (Chinese.TryGetValue(text, out var hit))
+        {
+            return hit;
+        }
+        var warehouse = System.Text.RegularExpressions.Regex.Match(text, @"^Warehouse (\d+)$");
+        if (warehouse.Success)
+        {
+            return warehouse.Groups[1].Value + " 号仓库";
+        }
+        return text;
+    }
+
     /// <summary>标定改了之后要把投影缓存清掉。</summary>
     public static void ClearCache() => Image.Clear();
 
@@ -101,7 +149,7 @@ internal static class MapLabels
                     }
                     list.Add(new MapLabel
                     {
-                        Text = name,
+                        Text = Translate(name),
                         World = new PointF(
                             (float)(entry["x"]?.GetValue<double>() ?? 0),
                             (float)(entry["z"]?.GetValue<double>() ?? 0)),
