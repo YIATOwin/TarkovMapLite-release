@@ -33,6 +33,7 @@ internal sealed class MapForm : Form
     private static readonly Color TextDim = UiTokens.TextDim;
 
     private readonly MapCanvas _canvas = new() { Dock = DockStyle.Fill };
+    /// <summary>只当状态用（隐藏）：索引对应 MapPack.Maps，界面由 _mapButton 呈现。</summary>
     private readonly ComboBox _mapSelect = new();
     private readonly Chip _onlyActive = new();
     private readonly Chip _showExtracts = new();
@@ -49,9 +50,10 @@ internal sealed class MapForm : Form
     private readonly System.Windows.Forms.Timer _toastTimer = new() { Interval = 1600 };
     private readonly Label _detailHeader = new();
     private readonly Button _wikiButton = new();
-    private readonly Button _layerButton = new();
     /// <summary>手机端：顶栏那一颗按钮（文字随连接状态变）。</summary>
-    private readonly Button _mobileButton = new();
+    private readonly UiButton _mobileButton = new();
+    private readonly UiButton _layerButton = new();
+    private readonly UiButton _mapButton = new();
     /// <summary>局域网 HTTP 服务 + 手机要的状态快照。</summary>
     private readonly LocalServer _mobile = new();
     /// <summary>250ms 一次：把画布状态推给手机、把手机的动作取回来。</summary>
@@ -154,36 +156,28 @@ internal sealed class MapForm : Form
             Location = new Point(10, 14),
             Font = new Font("Microsoft YaHei UI", 9f),
         };
-        _mapSelect.DropDownStyle = ComboBoxStyle.DropDownList;
-        _mapSelect.FlatStyle = FlatStyle.Flat;
-        _mapSelect.BackColor = UiTokens.ButtonBack;
-        _mapSelect.ForeColor = TextMain;
+        // ---- 地图下拉 --------------------------------------------------------
+        // ComboBox 自带一条白边框、也画不出圆角（FlatStyle 去不掉），所以把它
+        // 藏起来只当"状态"用，界面上是自绘的 _mapButton + 菜单。
+        _mapSelect.Visible = false;
         _mapSelect.Width = 250;
         _mapSelect.Location = new Point(50, 11);
         _mapSelect.Font = new Font("Microsoft YaHei UI", 9f);
-        _mapSelect.DrawMode = DrawMode.OwnerDrawFixed;
-        _mapSelect.ItemHeight = 22;
-        _mapSelect.DrawItem += (_, e) =>
-        {
-            var selected = (e.State & DrawItemState.Selected) != 0 && e.Index >= 0;
-            using var back = new SolidBrush(selected ? Color.FromArgb(46, 96, 170) : UiTokens.ButtonBack);
-            e.Graphics.FillRectangle(back, e.Bounds);
-            if (e.Index >= 0 && e.Index < _mapSelect.Items.Count)
-            {
-                TextRenderer.DrawText(e.Graphics, _mapSelect.Items[e.Index]?.ToString() ?? "",
-                    _mapSelect.Font,
-                    new Rectangle(e.Bounds.X + 4, e.Bounds.Y + 3, e.Bounds.Width - 6, e.Bounds.Height - 4),
-                    selected ? Color.White : TextMain,
-                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
-            }
-        };
         _mapSelect.SelectedIndexChanged += (_, _) =>
         {
+            SyncMapButtonText();
             if (!_suppressMapChange)
             {
                 ApplyMap();
             }
         };
+
+        _mapButton.Text = "加载中…";
+        _mapButton.ShowArrow = true;
+        _mapButton.Location = new Point(50, 8);
+        _mapButton.Size = new Size(252, 30);
+        _mapButton.Font = new Font("Microsoft YaHei UI", 9f);
+        _mapButton.Click += (_, _) => ShowMapMenu();
 
         _onlyActive.Active = true;
         _onlyActive.Text = "仅进行中";
@@ -196,8 +190,8 @@ internal sealed class MapForm : Form
         };
 
         _showExtracts.Text = "撤离点";
-        _showExtracts.Location = new Point(310, 9);
-        _showExtracts.Size = new Size(62, 26);
+        _showExtracts.Location = new Point(312, 10);
+        _showExtracts.Size = new Size(64, 26);
         // 默认打开：开图第一眼要能看见撤离点
         _showExtracts.Active = true;
         _canvas.ShowExtracts = true;
@@ -210,7 +204,7 @@ internal sealed class MapForm : Form
 
         // 同一张图的另一种画法：默认隐藏，ApplyMap 里按当前地图决定要不要显示
         _variant.Text = "瓦片版";
-        _variant.Location = new Point(616, 9);
+        _variant.Location = new Point(618, 10);
         _variant.Size = new Size(72, 26);
         _variant.Visible = false;
         _variant.Click += (_, _) =>
@@ -236,31 +230,18 @@ internal sealed class MapForm : Form
 
         // 图层下拉：多选，勾哪个画哪个
         _layerButton.Text = "图层";
-        _layerButton.FlatStyle = FlatStyle.Flat;
-        // 顶栏是一个操作区，规范要求最多一个主操作（UI-SPEC §7.1）。
-        // 这里没有"提交"那种真正的主动作，所以把**最常用**的「图层」给强调色，
-        // 其余（刷新数据 / 复位 / 瓦片版 / 手机端）全部保持中性次级。
-        _layerButton.BackColor = UiTokens.AccentTint;
-        _layerButton.ForeColor = UiTokens.Accent;
-        _layerButton.Location = new Point(380, 9);
-        _layerButton.Size = new Size(64, 26);
-        _layerButton.Font = new Font("Microsoft YaHei UI", 8.5f);
-        _layerButton.FlatAppearance.BorderColor = PanelLine;
+        _layerButton.Location = new Point(382, 8);
+        _layerButton.Size = new Size(66, 30);
         _layerButton.Click += (_, _) =>
             _layerMenu.Show(_layerButton, new Point(0, _layerButton.Height));
         BuildLayerMenu();
 
-        var refresh = new Button
+        var refresh = new UiButton
         {
             Text = "刷新数据",
-            FlatStyle = FlatStyle.Flat,
-            BackColor = UiTokens.ButtonBack,
-            ForeColor = TextMain,
-            Location = new Point(452, 9),
-            Size = new Size(84, 26),
-            Font = new Font("Microsoft YaHei UI", 8.5f),
+            Location = new Point(456, 8),
+            Size = new Size(86, 30),
         };
-        refresh.FlatAppearance.BorderColor = PanelLine;
         refresh.Click += async (_, _) =>
         {
             refresh.Enabled = false;
@@ -270,31 +251,24 @@ internal sealed class MapForm : Form
             refresh.Enabled = true;
         };
 
-        var fit = new Button
+        var fit = new UiButton
         {
             Text = "复位",
-            FlatStyle = FlatStyle.Flat,
-            BackColor = UiTokens.ButtonBack,
-            ForeColor = TextMain,
-            Location = new Point(544, 9),
-            Size = new Size(56, 26),
-            Font = new Font("Microsoft YaHei UI", 8.5f),
+            Location = new Point(550, 8),
+            Size = new Size(58, 30),
         };
-        fit.FlatAppearance.BorderColor = PanelLine;
         fit.Click += (_, _) => _canvas.Fit();
 
         // 手机端：点开面板，里面有地址和二维码
         _mobileButton.Text = "手机端";
-        _mobileButton.FlatStyle = FlatStyle.Flat;
-        _mobileButton.BackColor = UiTokens.ButtonBack;
-        _mobileButton.ForeColor = TextMain;
-        _mobileButton.Location = new Point(696, 9);
-        _mobileButton.Size = new Size(64, 26);
-        _mobileButton.Font = new Font("Microsoft YaHei UI", 8.5f);
-        _mobileButton.FlatAppearance.BorderColor = PanelLine;
+        _mobileButton.Location = new Point(698, 8);
+        _mobileButton.Size = new Size(66, 30);
         _mobileButton.Click += (_, _) => ShowMobilePanel();
 
-        top.Controls.AddRange(new Control[] { title, _mapSelect, _showExtracts, _layerButton, refresh, fit, _variant, _mobileButton });
+        top.Controls.AddRange(new Control[]
+        {
+            title, _mapButton, _showExtracts, _layerButton, refresh, fit, _variant, _mobileButton,
+        });
 
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 26, BackColor = PanelBack };
         _status.AutoSize = false;
@@ -883,6 +857,48 @@ internal sealed class MapForm : Form
     }
 
     /// <summary>下拉框：每张地图后面带上这张图上"进行中"的任务数。</summary>
+    /// <summary>把隐藏 ComboBox 的当前项同步到自绘按钮上。</summary>
+    private void SyncMapButtonText()
+    {
+        var index = _mapSelect.SelectedIndex;
+        _mapButton.Text = index >= 0 && index < _mapSelect.Items.Count
+            ? _mapSelect.Items[index]?.ToString() ?? ""
+            : "选择地图";
+    }
+
+    /// <summary>地图菜单：每次打开按当前条目重建（条目少，重建比同步状态省心）。</summary>
+    private void ShowMapMenu()
+    {
+        var menu = new ContextMenuStrip
+        {
+            Font = new Font("Microsoft YaHei UI", 9f),
+            BackColor = UiTokens.Raised,
+            ForeColor = UiTokens.TextMain,
+            Renderer = new LayerMenuRenderer(),
+            ShowImageMargin = false,
+            ShowCheckMargin = false,
+        };
+        for (var i = 0; i < _mapSelect.Items.Count; i++)
+        {
+            var index = i;
+            var item = new ToolStripMenuItem(_mapSelect.Items[i]?.ToString() ?? "")
+            {
+                Checked = i == _mapSelect.SelectedIndex,
+                Padding = new Padding(12, 4, 16, 4),
+            };
+            item.Click += (_, _) =>
+            {
+                menu.Close();
+                if (index != _mapSelect.SelectedIndex)
+                {
+                    _mapSelect.SelectedIndex = index;
+                }
+            };
+            menu.Items.Add(item);
+        }
+        menu.Closed += (_, _) => BeginInvoke(new Action(menu.Dispose));
+        menu.Show(_mapButton, new Point(0, _mapButton.Height));
+    }
     private void FillMapCombo()
     {
         var active = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -1928,17 +1944,17 @@ internal sealed class MapForm : Form
             var g = e.Graphics;
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);
-            using var path = Rounded(rect, 7);
-            using (var fill = new SolidBrush(Active ? Color.FromArgb(52, 112, 200) : Color.FromArgb(30, 34, 41)))
+            using var path = UiTokens.RoundedRect(rect, UiTokens.RadiusControl);
+            using (var fill = new SolidBrush(Active ? UiTokens.AccentTint : UiTokens.ButtonBack))
             {
                 g.FillPath(fill, path);
             }
-            using (var border = new Pen(Active ? Color.FromArgb(96, 160, 255) : Color.FromArgb(50, 56, 65)))
+            using (var border = new Pen(Active ? UiTokens.Accent : UiTokens.Line))
             {
                 g.DrawPath(border, path);
             }
             TextRenderer.DrawText(g, Text, Font, rect,
-                Active ? Color.White : Color.FromArgb(190, 198, 208),
+                Active ? UiTokens.Accent : UiTokens.TextDim,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         }
 
