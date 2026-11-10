@@ -1142,6 +1142,9 @@ internal sealed class MapCanvas : Control
         _ => Color.FromArgb(150, 150, 160),
     };
 
+    /// <summary>地图上玩家标记的颜色（青色）；楼层按钮旁的小人标记也用它，保证是同一个语义。</summary>
+    private static readonly Color PlayerMarkerColor = Color.FromArgb(40, 210, 235);
+
     private void DrawFloors(Graphics g)
     {
         if (_map == null || _map.Layers.Count == 0)
@@ -1158,30 +1161,61 @@ internal sealed class MapCanvas : Control
         }
         var y = 10;
         using var font = new Font("Microsoft YaHei UI", 8.5f);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         foreach (var (key, label) in entries)
         {
-            var rect = new Rectangle(10, y, 84, 24);
+            var rect = new Rectangle(10, y, 84, 26);
             var active = string.Equals(key, _layer, StringComparison.OrdinalIgnoreCase);
-            using var back = new SolidBrush(active ? Color.FromArgb(46, 96, 170) : UiTokens.ButtonBack);
-            using var border = new Pen(Color.FromArgb(74, 82, 92));
-            g.FillRectangle(back, rect);
-            g.DrawRectangle(border, rect);
-            TextRenderer.DrawText(g, label, font, rect, Color.White,
+            var hover = rect.Contains(_mousePoint);
+            // 和顶栏同一套规则（UI-SPEC）：**边框色=底色**，不画对比线，靠明度分层；
+            // 激活用沙色，悬浮亮一档，常态是控件底。
+            var background = active ? UiTokens.AccentTint
+                : hover ? UiTokens.ButtonHover
+                : UiTokens.ButtonBack;
+            using var path = UiTokens.RoundedRect(rect, UiTokens.RadiusControl);
+            using (var fill = new SolidBrush(background))
+            {
+                g.FillPath(fill, path);
+            }
+            using (var edge = new Pen(active ? UiTokens.Accent : background))
+            {
+                g.DrawPath(edge, path);
+            }
+            TextRenderer.DrawText(g, label, font, rect,
+                active ? UiTokens.Accent : hover ? UiTokens.TextMain : UiTokens.TextDim,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-            // 玩家所在楼层：按钮右边点一个青点（楼层由世界高度推算）
+
+            // 玩家所在楼层：按钮右边画一个小人（圆 + 倒三角）。
+            // 以前这里是一个 7px 的青色圆点，和地图上的玩家标记语义不连贯，换成人形更好认。
             var entryFloor = string.IsNullOrEmpty(key)
                 ? 0
                 : FloorOfLayerName(_map?.Layers.FirstOrDefault(l =>
                     string.Equals(l.SvgLayer, key, StringComparison.OrdinalIgnoreCase))?.Name ?? "");
-            if (PlayerFloor.HasValue && PlayerFloor.Value == entryFloor)
+            // 玩家截图所属地图 == 当前显示地图，且推算楼层等于这一层，才标这个小人
+            var sameMap = string.Equals(PlayerMapKey, _map?.Key, StringComparison.OrdinalIgnoreCase);
+            if (sameMap && PlayerFloor.HasValue && PlayerFloor.Value == entryFloor)
             {
-                using var dot = new SolidBrush(Color.FromArgb(235, 90, 240, 255));
-                g.FillEllipse(dot, rect.Right + 6, rect.Top + rect.Height / 2f - 3.5f, 7, 7);
+                DrawPlayerGlyph(g, rect.Right + 9, rect.Top + rect.Height / 2f);
             }
-            y += 28;
+            y += 30;
         }
     }
 
+    /// <summary>
+    /// 楼层按钮右侧的「玩家在这一层」标记：上面一个圆（头），下面一个倒三角（指针）。
+    /// 用和地图上玩家标记同一个青色，一眼能对应起来。
+    /// </summary>
+    private static void DrawPlayerGlyph(Graphics g, float cx, float cy)
+    {
+        using var brush = new SolidBrush(PlayerMarkerColor);
+        g.FillEllipse(brush, cx - 3.2f, cy - 8.4f, 6.4f, 6.4f);
+        g.FillPolygon(brush, new[]
+        {
+            new PointF(cx - 4.2f, cy - 1.4f),
+            new PointF(cx + 4.2f, cy - 1.4f),
+            new PointF(cx, cy + 6.4f),
+        });
+    }
     /// <summary>
     /// 玩家位置：青色圆点 + 指向朝向的三角。只有「截图所属地图」和当前显示的地图
     /// 一致时才画——玩家手动切到别的地图时，位置就不会被错误地标上去。
@@ -1506,6 +1540,11 @@ internal sealed class MapCanvas : Control
     {
         base.OnMouseMove(e);
         _mousePoint = e.Location;
+        // 楼层按钮在左上角 10..94 x 10..200：悬停要重绘，否则没有悬浮反馈
+        if (e.X <= 110 && e.Y <= 220)
+        {
+            Invalidate();
+        }
         if (_dragging)
         {
             if (Math.Abs(e.X - _dragStart.X) + Math.Abs(e.Y - _dragStart.Y) > 3)
