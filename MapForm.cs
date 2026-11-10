@@ -479,23 +479,55 @@ internal sealed class MapForm : Form
     }
 
     /// <summary>"图层"下拉：多选，勾哪个画哪个。</summary>
+    /// <summary>
+    /// 按勾选状态刷新菜单文字颜色：勾选=强调色、半选=预警色、未勾选=常态色。
+    /// 为什么不用渲染器里的 e.TextColor：实测被系统的 item.ForeColor 盖掉了（截图验证），
+    /// 直接设 ForeColor 才可靠。放在 UpdateLayerButtonText 里调，所有开关都会经过这里。
+    /// </summary>
+    private static void StyleLayerItems(ToolStripItemCollection items)
+    {
+        foreach (ToolStripItem entry in items)
+        {
+            if (entry is not ToolStripMenuItem item)
+            {
+                continue;
+            }
+            item.ForeColor = item.CheckState switch
+            {
+                CheckState.Checked => UiTokens.Accent,
+                CheckState.Indeterminate => UiTokens.Warn,
+                _ => UiTokens.TextMain,
+            };
+            StyleLayerItems(item.DropDownItems);
+        }
+    }
     private void BuildLayerMenu()
     {
         _layerMenu.Font = new Font("Microsoft YaHei UI", 9f);
-        // 深色菜单：默认是白底，和整体风格不搭
         _layerMenu.BackColor = UiTokens.Raised;
         _layerMenu.ForeColor = TextMain;
-        _layerMenu.Renderer = new ToolStripProfessionalRenderer(new DarkMenuColors());
 
-        void Add(string text, bool initial, Func<bool> get, Action<bool> set, Color color)
+        // 自定义渲染（见 LayerMenuRenderer 顶部三条规则）：
+        //   悬浮只描边不铺底色、文字颜色固定、勾选另用一套底色 + 强调色文字
+        var renderer = new LayerMenuRenderer();
+        _layerMenu.Renderer = renderer;
+
+        // 统一造项：分类颜色只画在 16×16 图标上，文字颜色交给渲染器决定
+        ToolStripMenuItem Create(string text, LayerIcon kind, Color color, CheckState check)
         {
-            var item = new ToolStripMenuItem(text)
-            {
-                // 不用 CheckOnClick：它会连带把菜单关掉，这里自己处理
-                CheckState = initial ? CheckState.Checked : CheckState.Unchecked,
-                // 勾选标记跟着文字颜色走，深色背景下才看得见
-                ForeColor = color,
-            };
+            var item = new ToolStripMenuItem(text) { CheckState = check };
+            item.Image = LayerMenuArt.Create(kind, color);
+            item.ImageScaling = ToolStripItemImageScaling.None;
+            item.ImageAlign = ContentAlignment.MiddleLeft;
+            // 左内边距留 0：图标由系统的图片边距列负责，加了反而挤掉图标
+            item.Padding = new Padding(0, 4, 10, 4);
+            item.Margin = Padding.Empty;
+            return item;
+        }
+
+        void AddToggle(string text, LayerIcon kind, Color color, bool initial, Action<bool> set)
+        {
+            var item = Create(text, kind, color, initial ? CheckState.Checked : CheckState.Unchecked);
             item.Click += (_, _) =>
             {
                 var on = item.CheckState != CheckState.Checked;
@@ -504,6 +536,13 @@ internal sealed class MapForm : Form
                 UpdateLayerButtonText();
                 _canvas.Invalidate();
             };
+            _layerMenu.Items.Add(item);
+        }
+
+        void AddCommand(string text, LayerIcon kind, Color color, Action run)
+        {
+            var item = Create(text, kind, color, CheckState.Unchecked);
+            item.Click += (_, _) => run();
             _layerMenu.Items.Add(item);
         }
 
@@ -516,20 +555,20 @@ internal sealed class MapForm : Form
             }
         };
 
-        Add("地名", _canvas.ShowLabels, () => _canvas.ShowLabels,
-            value => _canvas.ShowLabels = value, Color.FromArgb(236, 228, 198));
-        Add("BTR 站点", _canvas.ShowBtr, () => _canvas.ShowBtr,
-            value => _canvas.ShowBtr = value, Color.FromArgb(120, 210, 218));
+        AddToggle("地名", LayerIcon.Label, Color.FromArgb(236, 228, 198), _canvas.ShowLabels,
+            value => _canvas.ShowLabels = value);
+        AddToggle("BTR 站点", LayerIcon.Btr, Color.FromArgb(120, 210, 218), _canvas.ShowBtr,
+            value => _canvas.ShowBtr = value);
+
         // 散落物资带子菜单：7 个分类分别开关（分类位值见 LootKinds）。
         // 一个点位可能同时"能出钥匙也能出杂物"，只要有一类没被关掉就还会显示。
-        var lootItem = new ToolStripMenuItem("散落物资")
-        {
-            ForeColor = Color.FromArgb(255, 186, 88),
-            CheckState = _canvas.ShowLoot ? CheckState.Checked : CheckState.Unchecked,
-        };
+        var lootItem = Create("散落物资", LayerIcon.Loot, Color.FromArgb(255, 186, 88),
+            _canvas.ShowLoot ? CheckState.Checked : CheckState.Unchecked);
         _layerMenu.Items.Add(lootItem);
-        var lootAll = new ToolStripMenuItem("全部显示") { ForeColor = TextMain };
-        var lootNone = new ToolStripMenuItem("全部隐藏") { ForeColor = TextMain };
+        lootItem.DropDown.Renderer = renderer;
+
+        var lootAll = Create("全部显示", LayerIcon.Dot, UiTokens.Ok, CheckState.Unchecked);
+        var lootNone = Create("全部隐藏", LayerIcon.Dot, UiTokens.TextFaint, CheckState.Unchecked);
         lootItem.DropDownItems.Add(lootAll);
         lootItem.DropDownItems.Add(lootNone);
         lootItem.DropDownItems.Add(new ToolStripSeparator());
@@ -547,11 +586,7 @@ internal sealed class MapForm : Form
         }
         foreach (var lootKind in LootKinds.All)
         {
-            var sub = new ToolStripMenuItem(lootKind.Name)
-            {
-                ForeColor = lootKind.Color,
-                CheckState = CheckState.Checked,
-            };
+            var sub = Create(lootKind.Name, LayerIcon.Dot, lootKind.Color, CheckState.Checked);
             var bit = lootKind.Bit;
             sub.Click += (_, _) =>
             {
@@ -597,33 +632,30 @@ internal sealed class MapForm : Form
         };
 
         // 手动标记：清空（换赛季/重做任务时用）
-        Add("清空已完成标记", false, () => false, _ => ClearDoneMarks(),
-            Color.FromArgb(150, 210, 175));
-        Add("出生点", _canvas.ShowSpawns, () => _canvas.ShowSpawns,
-            value => _canvas.ShowSpawns = value, Color.FromArgb(150, 200, 240));
-        Add("危险区", _canvas.ShowHazards, () => _canvas.ShowHazards,
-            value => _canvas.ShowHazards = value, Color.FromArgb(235, 120, 110));
-        Add("固定武器", _canvas.ShowStatics, () => _canvas.ShowStatics,
-            value => _canvas.ShowStatics = value, Color.FromArgb(180, 190, 205));
+        AddCommand("清空已完成标记", LayerIcon.ClearMarks, Color.FromArgb(150, 210, 175), ClearDoneMarks);
+        AddToggle("出生点", LayerIcon.Spawn, Color.FromArgb(150, 200, 240), _canvas.ShowSpawns,
+            value => _canvas.ShowSpawns = value);
+        AddToggle("危险区", LayerIcon.Hazard, Color.FromArgb(235, 120, 110), _canvas.ShowHazards,
+            value => _canvas.ShowHazards = value);
+        AddToggle("固定武器", LayerIcon.Weapon, Color.FromArgb(180, 190, 205), _canvas.ShowStatics,
+            value => _canvas.ShowStatics = value);
         // 门锁和闸点：数据来自 tools/build-doors.ps1 的快照（Assets/doors.json）
-        Add("门锁（要钥匙）", _canvas.ShowDoors, () => _canvas.ShowDoors,
-            value => _canvas.ShowDoors = value, UiTokens.Warn);
-        Add("闸点（拉闸）", _canvas.ShowSwitches, () => _canvas.ShowSwitches,
-            value => _canvas.ShowSwitches = value, Color.FromArgb(255, 208, 64));
+        AddToggle("门锁（要钥匙）", LayerIcon.Door, UiTokens.Warn, _canvas.ShowDoors,
+            value => _canvas.ShowDoors = value);
+        AddToggle("闸点（拉闸）", LayerIcon.Switch, Color.FromArgb(255, 208, 64), _canvas.ShowSwitches,
+            value => _canvas.ShowSwitches = value);
         _layerMenu.Items.Add(new ToolStripSeparator());
 
         // 容器带子菜单：点父项整体开/关，点子项父项跟着变半选
-        var containerItem = new ToolStripMenuItem("容器")
-        {
-            ForeColor = Color.FromArgb(214, 176, 96),
-            CheckState = _canvas.ShowContainers ? CheckState.Checked : CheckState.Unchecked,
-        };
+        var containerItem = Create("容器", LayerIcon.Container, Color.FromArgb(214, 176, 96),
+            _canvas.ShowContainers ? CheckState.Checked : CheckState.Unchecked);
         _layerMenu.Items.Add(containerItem);
+        containerItem.DropDown.Renderer = renderer;
 
         var kinds = new List<(string Slug, ToolStripMenuItem Item)>();
         // 父项带子菜单时点父项只会展开，所以整体开关放两条独立命令
-        var showAll = new ToolStripMenuItem("全部显示") { ForeColor = TextMain };
-        var hideAll = new ToolStripMenuItem("全部隐藏") { ForeColor = TextMain };
+        var showAll = Create("全部显示", LayerIcon.Dot, UiTokens.Ok, CheckState.Unchecked);
+        var hideAll = Create("全部隐藏", LayerIcon.Dot, UiTokens.TextFaint, CheckState.Unchecked);
         containerItem.DropDownItems.Add(showAll);
         containerItem.DropDownItems.Add(hideAll);
         containerItem.DropDownItems.Add(new ToolStripSeparator());
@@ -648,11 +680,7 @@ internal sealed class MapForm : Form
         {
             var info = ContainerKinds.Resolve(kind);
             var slug = kind;
-            var sub = new ToolStripMenuItem($"{info.Name}（{count}）")
-            {
-                ForeColor = info.Color,
-                CheckState = CheckState.Checked,
-            };
+            var sub = Create($"{info.Name}（{count}）", LayerIcon.Dot, info.Color, CheckState.Checked);
             sub.Click += (_, _) =>
             {
                 var on = sub.CheckState != CheckState.Checked;
@@ -676,8 +704,6 @@ internal sealed class MapForm : Form
 
         UpdateLayerButtonText();
     }
-
-    /// <summary>清空所有手动"已完成"标记（换赛季/重做任务时用）。</summary>
     private void ClearDoneMarks()
     {
         var count = DoneZones.Count;
@@ -745,6 +771,7 @@ internal sealed class MapForm : Form
 
     private void UpdateLayerButtonText()
     {
+        StyleLayerItems(_layerMenu.Items);
         var count = 0;
         foreach (ToolStripItem item in _layerMenu.Items)
         {

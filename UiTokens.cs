@@ -67,6 +67,12 @@ internal static class UiTokens
     /// </summary>
     public static readonly Color AccentTint = Color.FromArgb(39, 48, 61);
 
+    /// <summary>
+    /// 选中行的底色（比 AccentTint 更实一档）。
+    /// 菜单里"勾选"必须一眼看出来，AccentTint 那种差异在深色底上太弱（实测截图几乎看不出）。
+    /// </summary>
+    public static readonly Color AccentSelection = Color.FromArgb(53, 67, 86);
+
     /// <summary>成功 / 已完成 / 可撤离。</summary>
     public static readonly Color Ok = Color.FromArgb(120, 200, 140);
 
