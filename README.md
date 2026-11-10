@@ -33,6 +33,11 @@ items they need, and shows every extract.
 | 候选刷新点 | 选中任务后，地图上用琥珀色点标出该物品在本图的可能生成位置 |
 | 撤离点 / 转移点 | 开关一键显示，绿色方块=撤离点、紫色菱形=转移点，名字走中文翻译表 |
 | 玩家位置 | 读截图文件名里的坐标与朝向，在地图上画一个带方向的箭头；换图后旧位置自动隐藏 |
+| **玩家楼层** | 截图文件名里还有高度：楼层按钮旁标青点，玩家不在当前层时标记半透明，状态栏写「（2 层）」 |
+| **手机端** | 顶栏「手机端」弹二维码，手机浏览器扫一下当第二屏；电脑算投影、手机只画，位置永远一致 |
+| **门锁 / 闸点** | 237 个需要钥匙的门 + 39 个闸；门悬停显示钥匙名、点一下复制，闸标出它开哪个撤离点 |
+| **散落物资分类** | 钥匙 / 药品 / 食物 / 海报 / 收纳 / 杂物 / 文件，按类上色、单独开关 |
+| **本图已完成** | 任务列表右键标记：跨图任务在别的图做完后，这张图上不再显示 |
 | 离线可用 | 首次运行内置了一份任务/物品/地图数据快照；联网时自动更新，右下角常显数据来源 |
 
 <table>
@@ -48,7 +53,7 @@ items they need, and shows every extract.
 
 ### 下载与使用
 
-1. 到 [Releases](../../releases) 下载 `TarkovMapLite.exe`（单文件，约 79 MB，自带运行时）
+1. 到 [Releases](../../releases) 下载 `TarkovMapLite.exe`（单文件，约 126 MB，自带运行时）
 2. 双击运行，不需要安装，不需要 .NET
 3. 工具会自动找日志目录：`<游戏安装目录>\Logs`、`%LOCALAPPDATA%\Battlestate Games\...\Logs` 都会尝试
 4. 截图目录默认 `<文档>\Escape From Tarkov\Screenshots`，可用环境变量 `TARKOVMAPLITE_SHOTS` 覆盖
@@ -82,8 +87,7 @@ dotnet publish -c Release -r win-x64 --self-contained true
 
 每个 `.cs` 文件顶部还有一段头注释：这个文件负责什么、谁在用、改它会牵连什么。
 
-> 注：源码里的**手机端（局域网第二屏）**从 `v0.3.0` 起提供（`LocalServer.cs` /
-> `MobileState.cs` / `Assets/mobile/`）。如果 `main` 比最新 Release 新，就是这个原因。
+> 手机端在 `v0.3.0` 起提供：`LocalServer.cs` / `MobileState.cs` / `Assets/mobile/`。
 
 ### 重新生成地图
 
