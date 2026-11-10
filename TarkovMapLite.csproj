@@ -43,6 +43,8 @@
     <EmbeddedResource Include="Assets\labels.json" />
     <!-- 门锁 / 闸点：由 tools/build-doors.ps1 从 /pve/maps 导出（含钥匙中文名） -->
     <EmbeddedResource Include="Assets\doors.json" />
+    <!-- 闸点 → 撤离点 的手写对应表（接口里没有这个关系） -->
+    <EmbeddedResource Include="Assets\switch-links.json" />
     <!-- 手机端页面：index.html / app.css / app.js，由内置的迷你 HTTP 服务发给手机 -->
     <EmbeddedResource Include="Assets\mobile\**\*.*" />
   </ItemGroup>

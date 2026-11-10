@@ -41,6 +41,8 @@ internal sealed class SwitchMarker
     /// <summary>接口里的内部名，例如 switch_00409_power。</summary>
     public required string RawName { get; init; }
     public required string Label { get; init; }
+    /// <summary>这个闸开哪个撤离点（来自手写的 switch-links.json，没有就是空串）。</summary>
+    public string Opens { get; init; } = "";
     public required PointF World { get; init; }
     public PointF Screen { get; set; }
 }
@@ -76,6 +78,65 @@ internal static class MapDoors
 
     private static readonly Dictionary<string, (List<DoorMarker> Doors, List<SwitchMarker> Switches)> Cache =
         new(StringComparer.OrdinalIgnoreCase);
+
+    // 闸点 → 撤离点 的手写对应表（Assets/switch-links.json）。
+    // 接口里没有这个关系（海关 28 个撤离点全指向同一个闸），只能人工整理。
+    private static readonly Dictionary<string, List<(string Fragment, string Opens)>> Links =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static bool _linksLoaded;
+
+    private static string LinkFor(string mapKey, string rawName)
+    {
+        if (!_linksLoaded)
+        {
+            _linksLoaded = true;
+            try
+            {
+                var text = Assets.ReadText("switch-links.json");
+                if (!string.IsNullOrWhiteSpace(text) && JsonNode.Parse(text) is JsonObject root)
+                {
+                    foreach (var (key, node) in root)
+                    {
+                        if (key.StartsWith('_') || node is not JsonArray array)
+                        {
+                            continue;
+                        }
+                        var rows = new List<(string, string)>();
+                        foreach (var item in array)
+                        {
+                            if (item is not JsonObject entry)
+                            {
+                                continue;
+                            }
+                            var fragment = entry["switch"]?.GetValue<string>() ?? "";
+                            var opens = entry["opens"]?.GetValue<string>() ?? "";
+                            if (fragment.Length > 0)
+                            {
+                                rows.Add((fragment, opens));
+                            }
+                        }
+                        Links[key] = rows;
+                    }
+                }
+            }
+            catch
+            {
+                // 表坏了就当没有对应关系，不影响闸点本身
+            }
+        }
+        if (!Links.TryGetValue(mapKey, out var list))
+        {
+            return "";
+        }
+        foreach (var (fragment, opens) in list)
+        {
+            if (rawName.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+            {
+                return opens;
+            }
+        }
+        return "";
+    }
     private static JsonObject? _document;
     private static bool _loaded;
 
@@ -123,11 +184,13 @@ internal static class MapDoors
                 var world = new PointF((float)(item[0]?.GetValue<double>() ?? 0),
                     (float)(item[1]?.GetValue<double>() ?? 0));
                 var raw = item.Count > 2 ? item[2]?.GetValue<string>() ?? "" : "";
+                var opens = LinkFor(map.Data, raw);
                 var (u, v) = MapPack.ToImage(map, world.X, world.Y);
                 switches.Add(new SwitchMarker
                 {
                     RawName = raw,
-                    Label = SwitchLabel(raw),
+                    Label = opens.Length > 0 ? $"{SwitchLabel(raw)} · 开 {opens}" : SwitchLabel(raw),
+                    Opens = opens,
                     World = world,
                     Screen = new PointF((float)u, (float)v),
                 });
