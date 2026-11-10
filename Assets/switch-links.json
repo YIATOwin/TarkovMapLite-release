@@ -1,32 +1,39 @@
 {
-  "_doc": "闸点 → 撤离点 的手写对应表（接口里没有这个关系，见 STATE.md 第二十五节）。 switch 是内部名里的一段（大小写不敏感，取第一个匹配）；opens 会显示在闸点标签后面，例如「拉杆 00034 · 开 ZB-013」。来源：thetarkovhandbook.com 各图页面的撤离点条件说明（2026-11-10 整理）。不确定的留空/不写，改完重新打包即可。",
+  "_doc": "闸点 → 撤离点 的手写对应表（接口里没有这个关系，见 STATE.md 第二十六节）。 switch 是内部名里的一段（大小写不敏感，取第一个匹配）；opens 直接拼在闸点标签后面，例如「拉杆 00034 · 开 ZB-013」。来源：thetarkovhandbook.com 各图页面（2026-11-10 整理）。不对就改这里，重新打包即可，不用动代码。",
   "customs": [
-    {
-      "switch": "00034",
-      "opens": "ZB-013",
-      "note": "4 号仓库（起重机区）的拉杆，ZB-013 撤离还要工厂钥匙"
-    }
+    { "switch": "00034", "opens": "开 ZB-013（4 号仓库拉杆，还需工厂钥匙）" }
   ],
   "interchange": [
-    { "switch": "00055", "opens": "安全屋：电源" },
-    { "switch": "00061", "opens": "安全屋：电源 2" },
-    { "switch": "00064", "opens": "安全屋：尿斗" },
-    { "switch": "00060", "opens": "安全屋：撤离台" },
-    { "switch": "00058", "opens": "警报台（非撤离）" },
-    { "switch": "00059", "opens": "KIBA 警报（非撤离）" }
+    { "switch": "00055", "opens": "开 安全屋（电源）" },
+    { "switch": "00061", "opens": "开 安全屋（电源 2）" },
+    { "switch": "00064", "opens": "开 安全屋（尿斗）" },
+    { "switch": "00060", "opens": "开 安全屋（撤离台）" },
+    { "switch": "00058", "opens": "关警报（非撤离）" },
+    { "switch": "00059", "opens": "关 KIBA 警报（非撤离）" }
   ],
   "reserve": [
-    { "switch": "00632", "opens": "地堡密封门" },
-    { "switch": "D2_LEVER", "opens": "D-2 电源" },
-    { "switch": "GatesButton", "opens": "D-2 闸门按钮" }
+    { "switch": "00632", "opens": "开 地堡密封门" },
+    { "switch": "D2_LEVER", "opens": "开 D-2（电源）" },
+    { "switch": "GatesButton", "opens": "开 D-2（闸门按钮）" }
   ],
   "the-lab": [
-    { "switch": "00414_Water_plane", "opens": "排污管道：排水" },
-    { "switch": "00415_Pump_button", "opens": "排污管道：抽水" },
+    { "switch": "00414_Water_plane", "opens": "排污管道（B1 排水）" },
+    { "switch": "00415_Pump_button", "opens": "排污管道（抽水）" },
     { "switch": "EXFIL_Power", "opens": "撤离电源" },
     { "switch": "EXFIL_Console", "opens": "撤离控制台" },
-    { "switch": "00418_Disable_alarm", "opens": "关闭警报" },
+    { "switch": "00418_Disable_alarm", "opens": "关警报（非撤离）" },
     { "switch": "call_button", "opens": "电梯呼叫" },
     { "switch": "floor_button", "opens": "楼层按钮" }
+  ],
+  "lighthouse": [
+    { "switch": "OuterSwitcher", "opens": "缓冲区触发器（非撤离）" },
+    { "switch": "InnerSwitcher", "opens": "缓冲区触发器（非撤离）" }
+  ],
+  "the-labyrinth": [
+    { "switch": "Interactive_button", "opens": "解除警报（非撤离）" },
+    { "switch": "disable_traps", "opens": "关闭陷阱（非撤离）" },
+    { "switch": "Toggle_Trap", "opens": "关闭陷阱（非撤离）" },
+    { "switch": "Gaz_cutter", "opens": "燃气切割（非撤离）" },
+    { "switch": "Valve", "opens": "阀门（非撤离）" }
   ]
 }

@@ -189,7 +189,7 @@ internal static class MapDoors
                 switches.Add(new SwitchMarker
                 {
                     RawName = raw,
-                    Label = opens.Length > 0 ? $"{SwitchLabel(raw)} · 开 {opens}" : SwitchLabel(raw),
+                    Label = opens.Length > 0 ? $"{SwitchLabel(raw)} · {opens}" : SwitchLabel(raw),
                     Opens = opens,
                     World = world,
                     Screen = new PointF((float)u, (float)v),
