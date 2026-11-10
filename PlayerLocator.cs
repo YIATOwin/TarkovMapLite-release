@@ -34,7 +34,7 @@ public sealed class PlayerLocator
 
     private string _lastFile = "";
 
-    public sealed record Fix(double X, double Z, double ForwardX, double ForwardZ, DateTime CapturedAt, string File);
+    public sealed record Fix(double X, double Y, double Z, double ForwardX, double ForwardZ, DateTime CapturedAt, string File);
 
     /// <summary>最新一次定位；没有就是 null。</summary>
     public Fix? Current { get; private set; }
@@ -107,6 +107,8 @@ public sealed class PlayerLocator
         }
 
         var x = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+        // 第二个数是高度（世界 y）：判断玩家在哪一层要用它
+        var y = double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
         var z = double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
         var (forwardX, forwardZ) = Forward(
             double.Parse(match.Groups[4].Value, CultureInfo.InvariantCulture),
@@ -114,7 +116,7 @@ public sealed class PlayerLocator
             double.Parse(match.Groups[6].Value, CultureInfo.InvariantCulture),
             double.Parse(match.Groups[7].Value, CultureInfo.InvariantCulture));
 
-        Current = new Fix(x, z, forwardX, forwardZ, newest.LastWriteTime, newest.Name);
+        Current = new Fix(x, y, z, forwardX, forwardZ, newest.LastWriteTime, newest.Name);
         Status = $"已定位：{newest.Name}";
         Changed?.Invoke();
     }

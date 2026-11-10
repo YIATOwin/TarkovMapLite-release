@@ -1512,9 +1512,26 @@ internal sealed class MapForm : Form
         _canvas.PlayerPosition = new PointF((float)x, (float)y);
         _canvas.PlayerForward = new PointF((float)(fx - x), (float)(fy - y));
         _canvas.PlayerMapKey = map.Key;
+        // 世界高度 → 楼层（近似：用这张图各层区域的高度中位数判断）
+        _canvas.PlayerFloor = TarkovData.FloorOfHeight(map.Data, fix.X, fix.Z, fix.Y);
         _canvas.Invalidate();
     }
 
+    /// <summary>状态栏用的楼层提示：能判定就写「（2 层）」，判定不了留空。</summary>
+    private static string FloorHint(string mapData, double x, double z, double y)
+    {
+        if (TarkovData.FloorOfHeight(mapData, x, z, y) is not { } floor)
+        {
+            return "";
+        }
+        var name = floor switch
+        {
+            -1 => "地下",
+            0 => "地面",
+            _ => $"{floor + 1} 层",
+        };
+        return $"（{name}）";
+    }
     /// <summary>把选中任务所需物品在本图的候选刷新点交给画布。</summary>
     private void UpdateSpawnPoints(TaskRow? row)
     {
@@ -1680,7 +1697,7 @@ internal sealed class MapForm : Form
         var playerNote = fix == null
             ? _player.Status
             : string.Equals(_canvas.PlayerMapKey, map?.Key, StringComparison.OrdinalIgnoreCase)
-                ? $"玩家：X {fix.X:0.0}　Z {fix.Z:0.0}"
+                ? $"玩家：X {fix.X:0.0}　Z {fix.Z:0.0}{FloorHint(map?.Data ?? "", fix.X, fix.Z, fix.Y)}"
                 : $"{MapPack.Find(_canvas.PlayerMapKey)?.DisplayName ?? "?"} 的玩家：X {fix.X:0.0} Z {fix.Z:0.0}（切回该图可见）";
         var parts = new List<string>
         {

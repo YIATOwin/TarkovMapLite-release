@@ -142,6 +142,9 @@ internal sealed class MapCanvas : Control
     public PointF? PlayerForward { get; set; }
     public string PlayerMapKey { get; set; } = "";
 
+    /// <summary>玩家所在楼层（由世界高度推算，null = 判定不出来）。和 CurrentFloor 不同就半透明画。</summary>
+    public int? PlayerFloor { get; set; }
+
     private static readonly (string Key, string Label)[] FloorButtons = Array.Empty<(string, string)>();
 
     public event Action? ViewChanged;
@@ -1165,6 +1168,16 @@ internal sealed class MapCanvas : Control
             g.DrawRectangle(border, rect);
             TextRenderer.DrawText(g, label, font, rect, Color.White,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            // 玩家所在楼层：按钮右边点一个青点（楼层由世界高度推算）
+            var entryFloor = string.IsNullOrEmpty(key)
+                ? 0
+                : FloorOfLayerName(_map?.Layers.FirstOrDefault(l =>
+                    string.Equals(l.SvgLayer, key, StringComparison.OrdinalIgnoreCase))?.Name ?? "");
+            if (PlayerFloor.HasValue && PlayerFloor.Value == entryFloor)
+            {
+                using var dot = new SolidBrush(Color.FromArgb(235, 90, 240, 255));
+                g.FillEllipse(dot, rect.Right + 6, rect.Top + rect.Height / 2f - 3.5f, 7, 7);
+            }
             y += 28;
         }
     }
@@ -1179,6 +1192,9 @@ internal sealed class MapCanvas : Control
         {
             return;
         }
+        // 玩家不在当前浏览的楼层：画成半透明（楼层由 MapForm 用世界高度推算）
+        var offFloor = PlayerFloor.HasValue && PlayerFloor.Value != CurrentFloor;
+        var playerAlpha = offFloor ? 90 : 255;
         if (!string.Equals(PlayerMapKey, _map.Key, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -1207,7 +1223,7 @@ internal sealed class MapCanvas : Control
         var leftY = y + forward.X * 6 + forward.Y * 4;
         var rightX = x + forward.Y * 6 + forward.X * 4;
         var rightY = y + (-forward.X) * 6 + forward.Y * 4;
-        using var arrow = new SolidBrush(Color.FromArgb(230, 90, 240, 255));
+        using var arrow = new SolidBrush(Color.FromArgb(Math.Min(playerAlpha, 230), 90, 240, 255));
         g.FillPolygon(arrow, new[]
         {
             new PointF(tipX, tipY),
@@ -1216,8 +1232,8 @@ internal sealed class MapCanvas : Control
         });
 
         // 位置点
-        using var fill = new SolidBrush(Color.FromArgb(240, 40, 210, 235));
-        using var ring = new Pen(Color.FromArgb(235, 255, 255, 255), 2f);
+        using var fill = new SolidBrush(Color.FromArgb(Math.Min(playerAlpha, 240), 40, 210, 235));
+        using var ring = new Pen(Color.FromArgb(Math.Min(playerAlpha, 235), 255, 255, 255), 2f);
         g.FillEllipse(fill, x - 7, y - 7, 14, 14);
         g.DrawEllipse(ring, x - 7, y - 7, 14, 14);
     }

@@ -188,7 +188,7 @@ public static class TarkovData
     /// <summary>当前用的是打包进 exe 的静态数据（没有缓存、也没联网时）。</summary>
     public static bool FromSeed { get; private set; }
     /// <summary>缓存格式版本：老的内置数据升到这里就要强制刷新一次。</summary>
-    public const int CurrentSchema = 10;   // 10: 转移点改用 description 翻译键取名，旧缓存要重拉
+    public const int CurrentSchema = 11;   // 11: 区域带上中心高度（判断玩家楼层），旧缓存要重拉
     public static int Schema { get; private set; }
 
     private static string CachePath
@@ -388,6 +388,8 @@ public static class TarkovData
                             o = objective?["id"]?.GetValue<string>() ?? "",
                             p = pts,
                             f = FloorFromZone(zone),
+                            // 区域中心的世界高度：用来建"高度 → 楼层"对照，判断玩家在几层
+                            y = ZoneHeight(zone),
                         });
                     }
                 }
@@ -543,6 +545,11 @@ public static class TarkovData
                     continue;
                 }
                 // 这里只存世界坐标；投影留到切图时按当前地图做（见 ZoneShape.Project）
+                var zoneFloor = zone?["f"]?.GetValue<int?>() ?? 0;
+                var zoneHeight = zone?["y"]?.GetValue<double?>() ?? 0;
+                var cx = 0f; var cz = 0f;
+                foreach (var pt in world) { cx += pt.X; cz += pt.Y; }
+                FloorSamples.Add((mapKey, cx / world.Count, cz / world.Count, zoneHeight, zoneFloor));
                 var shape = new ZoneShape
                 {
                     TaskId = id,
@@ -560,6 +567,18 @@ public static class TarkovData
                 list.Add(shape);
             }
         }
+        // 区域样本表：判断玩家楼层时取最近的一条当参照
+        var samplesByMap = new Dictionary<string, List<(float X, float Z, double Height, int Floor)>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sample in FloorSamples)
+        {
+            if (!samplesByMap.TryGetValue(sample.MapKey, out var sampleList))
+            {
+                sampleList = new List<(float, float, double, int)>();
+                samplesByMap[sample.MapKey] = sampleList;
+            }
+            sampleList.Add((sample.X, sample.Z, sample.Height, sample.Floor));
+        }
+        ZoneSamples = samplesByMap;
         ZonesByMap = zones;
         TaskObjectives = objectivesByTask;
         TaskNames = names;
@@ -574,6 +593,65 @@ public static class TarkovData
     /// 用底板高度会出错——室外区域的底板常在地形以下，会被误判成地下；
     /// 同理 |偏移| 小于 1.8 米时按地面处理。
     /// </summary>
+    /// <summary>区域中心的世界高度 (bottom+top)/2；没有就返回 0。</summary>
+    private static double ZoneHeight(JsonNode? zone)
+    {
+        if (zone == null)
+        {
+            return 0;
+        }
+        var bottom = zone["bottom"]?.GetValue<double?>();
+        var top = zone["top"]?.GetValue<double?>();
+        if (bottom is not { } low && top is not { } high)
+        {
+            return 0;
+        }
+        return ((bottom ?? top!.Value) + (top ?? bottom!.Value)) / 2.0;
+    }
+
+    /// <summary>
+    /// 地图 data key → 区域样本（世界中心 x,z、中心高度、楼层）。
+    /// 判断玩家楼层时取离他最近的一条区域当参照：用它的楼层 + 高度差折算，
+    /// 这样连地面起伏（不同区域地形高度不同）都能吸收。
+    /// </summary>
+    public static Dictionary<string, List<(float X, float Z, double Height, int Floor)>> ZoneSamples { get; private set; }
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>解析缓存时临时收集的（地图, 中心 x, 中心 z, 高度, 楼层）样本。</summary>
+    private static readonly List<(string MapKey, float X, float Z, double Height, int Floor)> FloorSamples = new();
+
+    /// <summary>
+    /// 世界坐标 (x,y,z) → 楼层号；附近没有区域样本时返回 null（宁可不说，也不乱猜）。
+    /// 这是近似：楼层间距按 3 米折算，站在两层之间时会归到最近的一层。
+    /// </summary>
+    public static int? FloorOfHeight(string mapData, double x, double z, double y)
+    {
+        if (string.IsNullOrEmpty(mapData) || !ZoneSamples.TryGetValue(mapData, out var samples) || samples.Count == 0)
+        {
+            return null;
+        }
+        var best = samples[0];
+        var bestDistance = float.MaxValue;
+        foreach (var sample in samples)
+        {
+            var dx = sample.X - (float)x;
+            var dz = sample.Z - (float)z;
+            var distance = dx * dx + dz * dz;
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = sample;
+            }
+        }
+        // 最近的区域都在 60 米以外，说明这张图的区域数据覆盖不到他，别硬判
+        if (bestDistance > 3600f)
+        {
+            return null;
+        }
+        var delta = (int)Math.Round((y - best.Height) / 3.0, MidpointRounding.AwayFromZero);
+        return Math.Clamp(best.Floor + delta, -2, 5);
+    }
+
     private static int FloorFromZone(JsonNode? zone)
     {
         if (zone == null)
