@@ -188,7 +188,7 @@ public static class TarkovData
     /// <summary>当前用的是打包进 exe 的静态数据（没有缓存、也没联网时）。</summary>
     public static bool FromSeed { get; private set; }
     /// <summary>缓存格式版本：老的内置数据升到这里就要强制刷新一次。</summary>
-    public const int CurrentSchema = 9;
+    public const int CurrentSchema = 10;   // 10: 转移点改用 description 翻译键取名，旧缓存要重拉
     public static int Schema { get; private set; }
 
     private static string CachePath
@@ -822,6 +822,14 @@ public static class TarkovData
         var name = element.TryGetProperty("name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String
             ? nameElement.GetString() ?? ""
             : "";
+        // 转移点没有 name，只有 description —— 那是个翻译键（tr_customs_reserve_DESC），
+        // maps_zh 里能查到中文（"前往储备站"）。以前只读 name，所以全显示成"转移点"。
+        if (name.Length == 0
+            && element.TryGetProperty("description", out var description)
+            && description.ValueKind == JsonValueKind.String)
+        {
+            name = description.GetString() ?? "";
+        }
         if (name.Length == 0)
         {
             name = kind == "extract" ? "撤离点" : "转移点";

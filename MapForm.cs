@@ -96,12 +96,17 @@ internal sealed class MapForm : Form
         _canvas.OnlyActive = _onlyActive.Active;
         _canvas.FloorRequested += layer => _canvas.SetLayer(layer);
         _canvas.ViewChanged += () => UpdateStatus();
-        // 右键任务区域 = 标记/取消"这块我做完了"（子目标级进度只能手动记，见 DoneZones）
-        _canvas.MouseDown += (_, e) =>
+        // 点画布上的门锁 = 复制钥匙名（悬浮时画布上会画出「钥匙：xxx」提示）
+        _canvas.CopyRequested += key =>
         {
-            if (e.Button == MouseButtons.Right)
+            try
             {
-                ToggleZoneDone(e.Location);
+                Clipboard.SetText(key);
+                _status.Text = $"已复制钥匙：{key}";
+            }
+            catch (ExternalException)
+            {
+                _status.Text = "剪贴板被占用，复制失败";
             }
         };
         // 面板上「停止服务」后按钮文字要跟着回去（那时候 PumpMobile 已经不跑了）
@@ -327,6 +332,11 @@ internal sealed class MapForm : Form
         // 用"上一次点的是同一行"来判断，才符合直觉。
         _taskList.MouseDown += (_, e) =>
         {
+            if (e.Button == MouseButtons.Right)
+            {
+                OnTaskListRightClick(e);
+                return;
+            }
             var index = _taskList.IndexFromPoint(e.Location);
             if (index >= 0 && index == _lastClickedRow && index == _taskList.SelectedIndex)
             {
@@ -671,7 +681,7 @@ internal sealed class MapForm : Form
             return;
         }
         var answer = MessageBox.Show(this,
-            $"清空 {count} 个「已完成」标记？\n只影响手动标记，不动任务状态。",
+            $"清空 {count} 个「本图已完成」标记？\n只影响手动标记，不动任务状态。",
             "清空标记", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
         if (answer != DialogResult.OK)
         {
@@ -921,6 +931,8 @@ internal sealed class MapForm : Form
             return;
         }
         _canvas.SetMap(map, map.DisplayName);
+        // 本图已做完的任务：画布上直接不画它们
+        _canvas.HiddenTasks = DoneZones.TasksForMap(map.Data);
         _canvas.Zones = TarkovData.ZonesByMap.TryGetValue(map.Data, out var zones)
             ? zones
             : new List<ZoneShape>();
@@ -948,21 +960,38 @@ internal sealed class MapForm : Form
 
     // ------------------------------------------------------------------ 手机端
 
-    /// <summary>右键区域：切换"已完成"标记（存在 %LOCALAPPDATA%\TarkovMapLite\done.json）。</summary>
-    private void ToggleZoneDone(Point location)
+    /// <summary>
+    /// 任务列表右键：切换"这个任务在本图已完成"。
+    /// 标了以后这张图上它的区域/点位全部不画，列表里显示「本图已完成」。
+    /// </summary>
+    private void ToggleTaskDoneOnMap(TaskRow? row)
     {
-        var zone = _canvas.ZoneAt(location);
-        if (zone == null)
+        var map = CurrentMap;
+        if (row == null || map == null)
         {
             return;
         }
-        var now = DoneZones.Toggle(zone);
+        var now = DoneZones.Toggle(row.Id, map.Data);
+        _canvas.HiddenTasks = DoneZones.TasksForMap(map.Data);
         _canvas.Invalidate();
         RefreshTaskList();
         UpdateStatus();
         _status.Text = now
-            ? $"已标记完成：{zone.TaskName}（右键再点一次可取消）"
-            : $"已取消标记：{zone.TaskName}";
+            ? $"{row.Name}：本图已完成（{map.DisplayName} 上不再显示，右键可取消）"
+            : $"{row.Name}：已取消「本图已完成」";
+    }
+
+    /// <summary>任务列表的右键：把点到的行标成"本图已完成"。</summary>
+    private void OnTaskListRightClick(MouseEventArgs e)
+    {
+        var index = _taskList.IndexFromPoint(e.Location);
+        if (index < 0)
+        {
+            return;
+        }
+        _lastClickedRow = index;
+        _taskList.SelectedIndex = index;
+        ToggleTaskDoneOnMap(_taskList.Items[index] as TaskRow);
     }
 
     /// <summary>点「手机端」：第一次点顺便把服务起起来，然后弹面板。</summary>
@@ -1570,13 +1599,10 @@ internal sealed class MapForm : Form
                     TaskState.Failed => "已失败",
                     _ => "未开始 · " + zone.Type,
                 };
-                // 手动标记的进度：右键标过的区域算"本图已做"
-                var (doneCount, totalCount) = DoneZones.Progress(zones, zone.TaskId);
-                if (totalCount > 0)
+                // 手动标记：这个任务在本图已经做完了（右键任务列表切换）
+                if (DoneZones.IsDone(zone.TaskId, CurrentMap?.Data ?? ""))
                 {
-                    subtitle += doneCount >= totalCount
-                        ? " · 本图已标完"
-                        : $" · 本图 {doneCount}/{totalCount}";
+                    subtitle += " · 本图已完成 ✓";
                 }
                 _taskList.Items.Add(new TaskRow(zone.TaskId, zone.TaskName, subtitle, state));
             }

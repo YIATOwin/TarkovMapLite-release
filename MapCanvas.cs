@@ -50,6 +50,15 @@ internal sealed class MapCanvas : Control
     private Point _dragStart;
     private PointF _panStart;
 
+    // 门锁的悬停/点击提示
+    private DoorMarker? _hoverDoor;
+    private DoorMarker? _pressedDoor;
+    private bool _dragMoved;
+    private Point _mousePoint;
+
+    /// <summary>玩家点了门上的"复制钥匙名"（由 MapForm 落到剪贴板 + 状态栏）。</summary>
+    public event Action<string>? CopyRequested;
+
     public bool OnlyActive { get; set; }
     public TaskLog? Log { get; set; }
     public bool ShowZones { get; set; } = true;
@@ -81,6 +90,12 @@ internal sealed class MapCanvas : Control
 
     /// <summary>选中任务所需物品的候选刷新点（图片像素坐标）。</summary>
     public List<PointF> SpawnPoints { get; set; } = new();
+
+    /// <summary>
+    /// 在这张图上"已经做完"的任务：区域和点位都不再画（任务列表右键切换）。
+    /// 由 MapForm 按当前地图从 DoneZones 取。
+    /// </summary>
+    public HashSet<string> HiddenTasks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>只显示这个任务的区域；null 表示显示所有符合条件的任务。</summary>
     public string? SelectedTaskId { get; set; }
@@ -159,8 +174,50 @@ internal sealed class MapCanvas : Control
         }
         var origin = Origin;
         var scale = (float)Scale;
-        return DoneZones.HitTest(_projected, new PointF(screen.X, screen.Y),
-            p => new PointF(origin.X + p.X * scale, origin.Y + p.Y * scale));
+        ZoneShape? best = null;
+        var bestArea = float.MaxValue;
+        foreach (var zone in _projected)
+        {
+            if (zone.Points.Length < 3)
+            {
+                continue;
+            }
+            var polygon = zone.Points
+                .Select(p => new PointF(origin.X + p.X * scale, origin.Y + p.Y * scale))
+                .ToArray();
+            if (!InPolygon(polygon, new PointF(screen.X, screen.Y)))
+            {
+                continue;
+            }
+            var area = Math.Abs(zone.Bounds.Width * zone.Bounds.Height);
+            if (area < bestArea)
+            {
+                bestArea = area;
+                best = zone;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>射线法：点在多边形内。</summary>
+    private static bool InPolygon(PointF[] polygon, PointF point)
+    {
+        var inside = false;
+        for (int i = 0, j = polygon.Length - 1; i < polygon.Length; j = i++)
+        {
+            var yi = polygon[i].Y;
+            var yj = polygon[j].Y;
+            if ((yi > point.Y) == (yj > point.Y))
+            {
+                continue;
+            }
+            var x = (polygon[j].X - polygon[i].X) * (point.Y - yi) / (yj - yi) + polygon[i].X;
+            if (point.X < x)
+            {
+                inside = !inside;
+            }
+        }
+        return inside;
     }
 
     public void SetMap(MapProjection? map, string displayName)
@@ -424,6 +481,7 @@ internal sealed class MapCanvas : Control
         DrawFloors(g);
         DrawZoom(g);
         DrawAxes(g);
+        DrawDoorTip(g);
     }
 
     /// <summary>容器 / 散落物资 / 出生点 / 危险区 / 固定武器。</summary>
@@ -796,7 +854,7 @@ internal sealed class MapCanvas : Control
                 onScreen++;
             }
         }
-        var showNames = _zoom >= 1.6 || onScreen <= 12;
+        var showNames = _zoom >= 1.25 || onScreen <= 12;
         var placed = new List<RectangleF>();
         foreach (var door in Doors)
         {
@@ -816,11 +874,11 @@ internal sealed class MapCanvas : Control
                 using var dot = new SolidBrush(Color.FromArgb(240, 255, 214, 90));
                 g.FillEllipse(dot, p.X + 3f, p.Y - 7f, 3.4f, 3.4f);
             }
-            if (!showNames || door.KeyName.Length == 0)
+            if (!showNames || door.Name.Length == 0)
             {
                 continue;
             }
-            var size = g.MeasureString(door.KeyName, font);
+            var size = g.MeasureString(door.Name, font);
             var tx = p.X + 7;
             var ty = p.Y - size.Height / 2;
             if (tx + size.Width > ClientSize.Width)
@@ -834,7 +892,7 @@ internal sealed class MapCanvas : Control
             }
             placed.Add(box);
             g.FillRectangle(halo, box);
-            g.DrawString(door.KeyName, font, ink, tx, ty);
+            g.DrawString(door.Name, font, ink, tx, ty);
         }
     }
 
@@ -892,24 +950,23 @@ internal sealed class MapCanvas : Control
         var log = Log;
         foreach (var zone in _projected)
         {
+            if (HiddenTasks.Contains(zone.TaskId))
+            {
+                continue;
+            }
             var state = log?.StateOf(zone.TaskId) ?? TaskState.None;
             if (!IsZoneVisible(zone, state))
             {
                 continue;
             }
             var dim = state is TaskState.Finished or TaskState.Failed;
-            // 手动标过"已完成"的区域：灰绿 + 虚线边，和任务本身的状态区分开
-            var done = DoneZones.IsDone(zone);
-            var color = done ? Color.FromArgb(120, 200, 160) : ColorOf(state);
+            var color = ColorOf(state);
             using var path = new GraphicsPath();
             var pts = zone.Points.Select(p => new PointF(origin.X + p.X * scale, origin.Y + p.Y * scale)).ToArray();
             path.AddPolygon(pts);
-            using var fill = new SolidBrush(Color.FromArgb(dim ? 26 : done ? 30 : 56, color));
+            using var fill = new SolidBrush(Color.FromArgb(dim ? 26 : 56, color));
             g.FillPath(fill, path);
-            using var stroke = new Pen(Color.FromArgb(dim ? 128 : 255, 255, 255), 1.6f)
-            {
-                DashStyle = done ? DashStyle.Dash : DashStyle.Solid,
-            };
+            using var stroke = new Pen(Color.FromArgb(dim ? 128 : 255, 255, 255), 1.6f);
             g.DrawPath(stroke, path);
             using var inner = new Pen(Color.FromArgb(dim ? 140 : 255, color), 1f);
             g.DrawPath(inner, path);
@@ -924,6 +981,7 @@ internal sealed class MapCanvas : Control
         using var dotPen = new Pen(Color.White, 2f);
         using var arrowBrush = new SolidBrush(Color.White);
         var visible = _projected
+            .Where(z => !HiddenTasks.Contains(z.TaskId))
             .Where(z => IsZoneVisible(z, log?.StateOf(z.TaskId) ?? TaskState.None))
             .ToList();
         var groups = visible.GroupBy(z => z.TaskId).ToList();
@@ -1413,9 +1471,11 @@ internal sealed class MapCanvas : Control
         }
         if (e.Button is MouseButtons.Left or MouseButtons.Middle)
         {
+            _pressedDoor = e.Button == MouseButtons.Left && ShowDoors ? DoorAt(e.Location) : null;
             _dragging = true;
             _dragStart = e.Location;
             _panStart = _pan;
+            _dragMoved = false;
             Cursor = Cursors.SizeAll;
         }
     }
@@ -1426,19 +1486,115 @@ internal sealed class MapCanvas : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (!_dragging)
+        _mousePoint = e.Location;
+        if (_dragging)
         {
+            if (Math.Abs(e.X - _dragStart.X) + Math.Abs(e.Y - _dragStart.Y) > 3)
+            {
+                _dragMoved = true;
+            }
+            _pan = new PointF(_panStart.X + (e.X - _dragStart.X), _panStart.Y + (e.Y - _dragStart.Y));
+            if (_hoverDoor != null)
+            {
+                _hoverDoor = null;
+            }
+            Invalidate();
             return;
         }
-        _pan = new PointF(_panStart.X + (e.X - _dragStart.X), _panStart.Y + (e.Y - _dragStart.Y));
-        Invalidate();
+        // 没在拖动：看看鼠标是不是停在一扇门上，是就显示提示
+        var door = ShowDoors ? DoorAt(e.Location) : null;
+        if (!ReferenceEquals(door, _hoverDoor))
+        {
+            _hoverDoor = door;
+            Cursor = door != null ? Cursors.Hand : Cursors.Default;
+            Invalidate();
+        }
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        if (_hoverDoor != null)
+        {
+            _hoverDoor = null;
+            Invalidate();
+        }
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
+        var pressed = _pressedDoor;
+        _pressedDoor = null;
         _dragging = false;
         Cursor = Cursors.Default;
+        // 点在门上且没有拖动 = 复制钥匙名（拖动过的算平移，不复制）
+        if (pressed != null && !_dragMoved && !string.IsNullOrEmpty(pressed.KeyName))
+        {
+            CopyRequested?.Invoke(pressed.KeyName);
+        }
+    }
+
+    /// <summary>屏幕点命中的门（12px 以内取最近的一扇）。</summary>
+    private DoorMarker? DoorAt(Point location)
+    {
+        if (_map == null || Doors.Count == 0)
+        {
+            return null;
+        }
+        var origin = Origin;
+        var scale = (float)Scale;
+        DoorMarker? best = null;
+        var bestDistance = 16f;
+        foreach (var door in Doors)
+        {
+            var x = origin.X + door.Screen.X * scale;
+            var y = origin.Y + door.Screen.Y * scale;
+            var distance = (float)Math.Sqrt((x - location.X) * (x - location.X) + (y - location.Y) * (y - location.Y));
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = door;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// 门锁的悬浮提示：门名不画在图上（太挤），悬停时在光标旁边弹出
+    /// 「钥匙：xxx（点击复制）」。直接画在画布上，免得和 WinForms 的 ToolTip 打架。
+    /// </summary>
+    private void DrawDoorTip(Graphics g)
+    {
+        if (_hoverDoor == null)
+        {
+            return;
+        }
+        var text = "钥匙：" + _hoverDoor.KeyName;
+        var sub = "点击复制钥匙名";
+        using var font = new Font("Microsoft YaHei UI", 8.5f);
+        using var small = new Font("Microsoft YaHei UI", 7.5f);
+        var size = g.MeasureString(text, font);
+        var subSize = g.MeasureString(sub, small);
+        var width = Math.Max(size.Width, subSize.Width) + 16;
+        var height = size.Height + subSize.Height + 12;
+        var x = (float)_mousePoint.X + 14;
+        var y = (float)_mousePoint.Y + 14;
+        if (x + width > ClientSize.Width - 6)
+        {
+            x = (float)_mousePoint.X - width - 12;
+        }
+        if (y + height > ClientSize.Height - 6)
+        {
+            y = (float)_mousePoint.Y - height - 12;
+        }
+        using var path = RoundedRect(new RectangleF(x, y, width, height), 6);
+        using var back = new SolidBrush(Color.FromArgb(238, 22, 26, 32));
+        using var border = new Pen(Color.FromArgb(226, 168, 74), 1.2f);
+        g.FillPath(back, path);
+        g.DrawPath(border, path);
+        g.DrawString(text, font, Brushes.White, x + 8, y + 5);
+        g.DrawString(sub, small, new SolidBrush(Color.FromArgb(150, 160, 172)), x + 8, y + 6 + size.Height);
     }
 
     protected override void OnMouseDoubleClick(MouseEventArgs e)

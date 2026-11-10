@@ -1,18 +1,21 @@
 // ============================================================================
-// DoneZones.cs — 手动标记"这块任务区域我已经做完了"
+// DoneZones.cs — 手动标记"这个任务**在这张地图上**已经做完了"
 //
-// 为什么是手动的：游戏日志只给任务级状态（开始/失败/完成），子目标级的进度
-// 在日志和公开接口里都不存在（查过：QuestConditionValueChanged 0 行、
-// completedConditions 0 行、ConditionCounter 全是堆栈帧）。
-// 一个任务要去两张图各做一件事时，只能靠玩家自己标一下。
+// 为什么是手动的：游戏日志只给任务级状态（开始/失败/完成），子目标级进度在
+// 日志和公开接口里都不存在。而一个任务经常横跨好几张图，玩家在森林做完了，
+// 海关那张图上的区域还亮着——只能自己标一下。
 //
-// 存储：%LOCALAPPDATA%\TarkovMapLite\done.json，内容是
-//   { "marks": ["<taskId>|<objectiveId>", ...] }
-// key 用 taskId + objectiveId，**不用坐标**——数据刷新后区域坐标会变。
+// 语义（用户定的）：在任务列表里右键某个任务 = "本图这部分我做完了"：
+//   · 这张图上该任务的所有区域和点位**不再显示**
+//   · 列表里该任务的副标题写「本图已完成」，右键再点一次取消
 //
-// 文件坏了/写不进去都当空处理：这个功能出问题不能影响地图本身。
+// 存储：%LOCALAPPDATA%\TarkovMapLite\done.json
+//   { "marks": ["<taskId>|<地图 data key>", ...] }
+// 用地图的 **Data key**（不是 Key）当维度：海关的 SVG 版和瓦片版共用同一份
+// 任务数据，标了一次两边都算做完。
+//
+// 文件坏了/写不进去都当空处理：这个功能不能影响地图本身。
 // ============================================================================
-using System.Drawing;
 using System.Text.Json.Nodes;
 
 namespace TarkovMapLite;
@@ -44,18 +47,28 @@ internal static class DoneZones
         }
     }
 
-    private static string Key(ZoneShape zone) =>
-        string.IsNullOrEmpty(zone.ObjectiveId)
-            ? $"{zone.TaskId}|{zone.Floor}|{(int)zone.Center.X},{(int)zone.Center.Y}"
-            : $"{zone.TaskId}|{zone.ObjectiveId}";
+    private static string Key(string taskId, string mapData) => $"{taskId}|{mapData}";
 
-    public static bool IsDone(ZoneShape zone) => Marks.Contains(Key(zone));
-
-    /// <summary>返回标记之后的状态（true = 已完成）。</summary>
-    public static bool Toggle(ZoneShape zone)
+    /// <summary>这个任务在这张图上标过"已完成"了吗。</summary>
+    public static bool IsDone(string taskId, string mapData)
     {
+        if (string.IsNullOrEmpty(mapData))
+        {
+            return false;
+        }
         EnsureLoaded();
-        var key = Key(zone);
+        return Marks.Contains(Key(taskId, mapData));
+    }
+
+    /// <summary>切换标记；返回切换后的状态（true = 本图已完成）。</summary>
+    public static bool Toggle(string taskId, string mapData)
+    {
+        if (string.IsNullOrEmpty(mapData))
+        {
+            return false;
+        }
+        EnsureLoaded();
+        var key = Key(taskId, mapData);
         var now = !Marks.Contains(key);
         if (now)
         {
@@ -70,7 +83,34 @@ internal static class DoneZones
         return now;
     }
 
-    public static int Count => Marks.Count;
+    /// <summary>这张图上所有"已完成"的任务 id（画布据此隐藏它们的区域）。</summary>
+    public static HashSet<string> TasksForMap(string mapData)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(mapData))
+        {
+            return result;
+        }
+        EnsureLoaded();
+        var suffix = "|" + mapData;
+        foreach (var key in Marks)
+        {
+            if (key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                result.Add(key[..^suffix.Length]);
+            }
+        }
+        return result;
+    }
+
+    public static int Count
+    {
+        get
+        {
+            EnsureLoaded();
+            return Marks.Count;
+        }
+    }
 
     public static void ClearAll()
     {
@@ -82,27 +122,6 @@ internal static class DoneZones
         Marks.Clear();
         Save();
         Changed?.Invoke();
-    }
-
-    /// <summary>某个任务在这张图上还有几块没做完（用来在列表里写"本图已做完"）。</summary>
-    public static (int Done, int Total) Progress(IEnumerable<ZoneShape> zones, string taskId)
-    {
-        EnsureLoaded();
-        var done = 0;
-        var total = 0;
-        foreach (var zone in zones)
-        {
-            if (!string.Equals(zone.TaskId, taskId, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-            total++;
-            if (IsDone(zone))
-            {
-                done++;
-            }
-        }
-        return (done, total);
     }
 
     private static void EnsureLoaded()
@@ -124,7 +143,9 @@ internal static class DoneZones
                 foreach (var item in marks)
                 {
                     var text = item?.GetValue<string>();
-                    if (!string.IsNullOrWhiteSpace(text))
+                    // 旧格式是 "taskId|objectiveId"，没有地图维度，读进来也没用，
+                    // 直接跳过（它会自然过期，不影响新标记）
+                    if (!string.IsNullOrWhiteSpace(text) && text.Split('|').Length == 2)
                     {
                         Marks.Add(text);
                     }
@@ -153,59 +174,5 @@ internal static class DoneZones
         {
             // 写不进去就只活在内存里
         }
-    }
-
-    /// <summary>
-    /// 屏幕点 → 落在哪块任务区域上（右键标记用）。取面积最小的那个：
-    /// 大区域套小区域时，玩家想点的通常是小块。
-    /// </summary>
-    public static ZoneShape? HitTest(IEnumerable<ZoneShape> zones, PointF screen, Func<PointF, PointF> project)
-    {
-        ZoneShape? best = null;
-        var bestArea = float.MaxValue;
-        foreach (var zone in zones)
-        {
-            if (zone.Points.Length < 3)
-            {
-                continue;
-            }
-            var polygon = new PointF[zone.Points.Length];
-            for (var i = 0; i < zone.Points.Length; i++)
-            {
-                polygon[i] = project(zone.Points[i]);
-            }
-            if (!Contains(polygon, screen))
-            {
-                continue;
-            }
-            var area = Math.Abs(zone.Bounds.Width * zone.Bounds.Height);
-            if (area < bestArea)
-            {
-                bestArea = area;
-                best = zone;
-            }
-        }
-        return best;
-    }
-
-    /// <summary>射线法判断点是否在多边形内（屏幕坐标）。</summary>
-    private static bool Contains(PointF[] polygon, PointF point)
-    {
-        var inside = false;
-        for (int i = 0, j = polygon.Length - 1; i < polygon.Length; j = i++)
-        {
-            var yi = polygon[i].Y;
-            var yj = polygon[j].Y;
-            if ((yi > point.Y) == (yj > point.Y))
-            {
-                continue;
-            }
-            var x = (polygon[j].X - polygon[i].X) * (point.Y - yi) / (yj - yi) + polygon[i].X;
-            if (point.X < x)
-            {
-                inside = !inside;
-            }
-        }
-        return inside;
     }
 }

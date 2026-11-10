@@ -22,9 +22,12 @@ using System.Text.Json.Nodes;
 
 namespace TarkovMapLite;
 
-/// <summary>一扇需要钥匙的门（世界坐标）：位置 + 开它要的钥匙名。</summary>
+/// <summary>一扇需要钥匙的门（世界坐标）：位置 + 门名 + 开它要的钥匙名。</summary>
 internal sealed class DoorMarker
 {
+    /// <summary>门自己的名字：由钥匙名去掉"钥匙"得到（"宿舍 206 房间钥匙" → "宿舍 206 房间"）。</summary>
+    public required string Name { get; init; }
+    /// <summary>开它需要的钥匙（完整名字，悬浮/点击时显示，可复制）。</summary>
     public required string KeyName { get; init; }
     public bool NeedsPower { get; init; }
     public required PointF World { get; init; }
@@ -101,9 +104,11 @@ internal static class MapDoors
                 var world = new PointF((float)(item[0]?.GetValue<double>() ?? 0),
                     (float)(item[1]?.GetValue<double>() ?? 0));
                 var (u, v) = MapPack.ToImage(map, world.X, world.Y);
+                var keyName = item.Count > 2 ? item[2]?.GetValue<string>() ?? "" : "";
                 doors.Add(new DoorMarker
                 {
-                    KeyName = item.Count > 2 ? item[2]?.GetValue<string>() ?? "" : "",
+                    Name = DoorLabel(keyName),
+                    KeyName = keyName,
                     NeedsPower = item.Count > 3 && (item[3]?.GetValue<int>() ?? 0) == 1,
                     World = world,
                     Screen = new PointF((float)u, (float)v),
@@ -131,6 +136,28 @@ internal static class MapDoors
         var result = (doors, switches);
         Cache[map.Key] = result;
         return result;
+    }
+
+    /// <summary>
+    /// 钥匙名 → 门名：砍掉结尾的"钥匙卡 / 钥匙 / key"。
+    /// 塔科夫的钥匙名基本就是"地点 + 门"再加个"钥匙"，所以这个反推很稳；
+    /// 砍完什么都不剩时保留原名，至少不会空白。
+    /// </summary>
+    internal static string DoorLabel(string keyName)
+    {
+        if (string.IsNullOrWhiteSpace(keyName))
+        {
+            return "上锁的门";
+        }
+        foreach (var suffix in new[] { "钥匙卡", "钥匙", " key", " Key", "key" })
+        {
+            if (keyName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                var trimmed = keyName[..^suffix.Length].Trim();
+                return trimmed.Length > 0 ? trimmed : keyName;
+            }
+        }
+        return keyName;
     }
 
     /// <summary>
