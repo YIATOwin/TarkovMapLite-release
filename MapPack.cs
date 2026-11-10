@@ -148,6 +148,8 @@ public static class MapPack
         var height = maxY - minY;
         var u = width == 0 ? 0 : (px - minX) / width * map.ViewBoxWidth;
         var v = height == 0 ? 0 : (py - minY) / height * map.ViewBoxHeight;
-        return (u, v);
+        // 手动标定微调（Ctrl+方向键调整，见 MapCalibration）
+        var (dx, dy) = MapCalibration.Of(map.Key);
+        return (u + dx, v + dy);
     }
 }

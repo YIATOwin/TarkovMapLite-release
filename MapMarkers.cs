@@ -45,6 +45,9 @@ internal static class MapMarkers
 
     public static bool Loaded => _loaded;
 
+    /// <summary>标定改了之后要把投影缓存清掉。</summary>
+    public static void ClearCache() => Image.Clear();
+
     /// <summary>所有出现过的容器类型（按点位数量从多到少），给「图层」菜单当图例。</summary>
     public static List<(string Kind, int Count)> KindsByCount()
     {

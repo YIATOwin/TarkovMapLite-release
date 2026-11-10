@@ -36,6 +36,9 @@ internal static class MapLabels
     private static readonly Dictionary<string, List<(PointF Point, MapLabel Label)>> Image = new(StringComparer.OrdinalIgnoreCase);
     private static bool _loaded;
 
+    /// <summary>标定改了之后要把投影缓存清掉。</summary>
+    public static void ClearCache() => Image.Clear();
+
     /// <summary>
     /// 当前地图的地名，已投影成图片像素坐标。缓存 key 用 <c>map.Key</c>：
     /// 同一份地名要按每张图各自的投影算一遍，不能用 Data 当 key。

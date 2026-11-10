@@ -961,6 +961,61 @@ internal sealed class MapForm : Form
     // ------------------------------------------------------------------ 手机端
 
     /// <summary>
+    /// Ctrl + 方向键：微调当前地图的标定（SVG 版和瓦片版标定对不齐时用）。
+    /// Ctrl+0 清零。改完把各图层的投影缓存清掉并重画。
+    /// </summary>
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if ((keyData & Keys.Control) == Keys.Control && _canvas.Map is { } map)
+        {
+            var key = keyData & Keys.KeyCode;
+            const double step = 2.0;
+            double dx = 0;
+            double dy = 0;
+            if (key == Keys.Left)
+            {
+                dx = -step;
+            }
+            else if (key == Keys.Right)
+            {
+                dx = step;
+            }
+            else if (key == Keys.Up)
+            {
+                dy = -step;
+            }
+            else if (key == Keys.Down)
+            {
+                dy = step;
+            }
+            else if (key is Keys.D0 or Keys.NumPad0)
+            {
+                MapCalibration.Clear(map.Key);
+                RefreshCalibration(map, "已清零");
+                return true;
+            }
+            else
+            {
+                return base.ProcessCmdKey(ref msg, keyData);
+            }
+            var (x, y) = MapCalibration.Nudge(map.Key, dx, dy);
+            RefreshCalibration(map, $"标定偏移 {x:+0.#;-0.#;0}, {y:+0.#;-0.#;0}");
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    /// <summary>标定改完：清投影缓存 → 重新投影 → 重画。</summary>
+    private void RefreshCalibration(MapProjection map, string note)
+    {
+        MapDoors.ClearCache();
+        MapMarkers.ClearCache();
+        MapLabels.ClearCache();
+        ApplyMap();
+        _canvas.Invalidate();
+        _status.Text = $"{map.DisplayName} {note}（Ctrl+方向键继续微调，Ctrl+0 清零）";
+    }
+    /// <summary>
     /// 任务列表右键：切换"这个任务在本图已完成"。
     /// 标了以后这张图上它的区域/点位全部不画，列表里显示「本图已完成」。
     /// </summary>

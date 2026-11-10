@@ -140,6 +140,9 @@ internal static class MapDoors
     private static JsonObject? _document;
     private static bool _loaded;
 
+    /// <summary>标定改了之后要把投影缓存清掉。</summary>
+    public static void ClearCache() => Cache.Clear();
+
     /// <summary>当前地图的门和闸，已投影成图片像素；同一张图只算一次。</summary>
     public static (List<DoorMarker> Doors, List<SwitchMarker> Switches) For(MapProjection? map)
     {
