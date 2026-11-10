@@ -20,9 +20,9 @@ namespace TarkovMapLite;
 /// </summary>
 internal sealed class MobileForm : Form
 {
-    private static readonly Color PanelBack = Color.FromArgb(22, 25, 29);
-    private static readonly Color TextMain = Color.FromArgb(232, 238, 245);
-    private static readonly Color TextDim = Color.FromArgb(150, 160, 172);
+    private static readonly Color PanelBack = UiTokens.PanelBack;
+    private static readonly Color TextMain = UiTokens.TextMain;
+    private static readonly Color TextDim = UiTokens.TextDim;
 
     private readonly LocalServer _server;
     private readonly Label _status = new();
@@ -73,7 +73,7 @@ internal sealed class MobileForm : Form
         _address.ReadOnly = true;
         _address.BorderStyle = BorderStyle.FixedSingle;
         _address.BackColor = Color.FromArgb(30, 34, 41);
-        _address.ForeColor = Color.FromArgb(140, 190, 255);
+        _address.ForeColor = UiTokens.Accent;
         _address.Font = new Font("Consolas", 10f);
         _address.Text = "-";
 
@@ -83,17 +83,17 @@ internal sealed class MobileForm : Form
             Location = new Point(250, 66),
             Size = new Size(62, 26),
             FlatStyle = FlatStyle.Flat,
-            BackColor = Color.FromArgb(34, 39, 46),
+            BackColor = UiTokens.ButtonBack,
             ForeColor = TextMain,
             Font = new Font("Microsoft YaHei UI", 8.5f),
         };
-        copy.FlatAppearance.BorderColor = Color.FromArgb(44, 49, 56);
+        copy.FlatAppearance.BorderColor = UiTokens.Line;
         copy.Click += (_, _) => CopyAddress();
 
         _qr.Location = new Point(56, 104);
         _qr.Size = new Size(220, 220);
         _qr.SizeMode = PictureBoxSizeMode.Zoom;
-        _qr.BackColor = Color.FromArgb(13, 15, 17);
+        _qr.BackColor = UiTokens.Back;
 
         _hint.Location = new Point(16, 334);
         _hint.Size = new Size(300, 62);
@@ -110,9 +110,9 @@ internal sealed class MobileForm : Form
         _toggle.Location = new Point(214, 398);
         _toggle.Size = new Size(102, 28);
         _toggle.FlatStyle = FlatStyle.Flat;
-        _toggle.BackColor = Color.FromArgb(34, 39, 46);
+        _toggle.BackColor = UiTokens.ButtonBack;
         _toggle.ForeColor = TextMain;
-        _toggle.FlatAppearance.BorderColor = Color.FromArgb(44, 49, 56);
+        _toggle.FlatAppearance.BorderColor = UiTokens.Line;
         _toggle.Click += (_, _) => ToggleServer();
 
         Controls.AddRange(new Control[] { title, _status, lead, _address, copy, _qr, _hint, _clients, _toggle });
@@ -144,7 +144,7 @@ internal sealed class MobileForm : Form
         if (_server.Running)
         {
             _status.Text = "运行中";
-            _status.ForeColor = Color.FromArgb(120, 200, 140);
+            _status.ForeColor = UiTokens.Ok;
             _toggle.Text = "停止服务";
             _clients.Text = _server.Clients > 0 ? $"已连接 {_server.Clients} 台" : "等待手机连接…";
             var address = _server.Address;

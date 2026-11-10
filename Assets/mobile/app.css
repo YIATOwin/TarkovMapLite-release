@@ -17,6 +17,17 @@
   --green: #78c88c;
   --purple: #be96f5;
   --red: #dc6e6e;
+  /* 表面再抬一层（列表行、chip 底） */
+  --raised: #171b20;
+  /* 0.5px 微边框：分割线专用，别用 --line（那是"看得见的线"） */
+  --line-subtle: rgba(226, 232, 240, 0.14);
+  /* 三级文字：占位符 / 禁用态 */
+  --text-3: #6b7480;
+  /* 状态四色：只在表达状态时出现，不当装饰 */
+  --ok: #78c88c;
+  --warn: #e0a458;
+  --danger: #dc6e6e;
+  --info: #be96f5;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -131,8 +142,14 @@ html, body {
   flex: none;
   font-size: 12px;
   line-height: 1;
-  padding: 7px 11px;
-  border-radius: 14px;
+  /* 触控目标 ≥44px（UI-SPEC §10）：以前只有 28px 高，站着单手点经常点错。
+     视觉上仍是胶囊，靠 inline-flex 居中把文字放进 44px 里。 */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border-radius: 22px;
   border: 1px solid var(--line);
   background: rgba(30, 34, 40, 0.9);
   color: var(--dim);

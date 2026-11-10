@@ -27,10 +27,10 @@ namespace TarkovMapLite;
 
 internal sealed class MapForm : Form
 {
-    private static readonly Color PanelBack = Color.FromArgb(22, 25, 29);
-    private static readonly Color PanelLine = Color.FromArgb(44, 49, 56);
-    private static readonly Color TextMain = Color.FromArgb(232, 238, 245);
-    private static readonly Color TextDim = Color.FromArgb(150, 160, 172);
+    private static readonly Color PanelBack = UiTokens.PanelBack;
+    private static readonly Color PanelLine = UiTokens.Line;
+    private static readonly Color TextMain = UiTokens.TextMain;
+    private static readonly Color TextDim = UiTokens.TextDim;
 
     private readonly MapCanvas _canvas = new() { Dock = DockStyle.Fill };
     private readonly ComboBox _mapSelect = new();
@@ -83,7 +83,7 @@ internal sealed class MapForm : Form
     public MapForm()
     {
         Text = "Tarkov 地图";
-        BackColor = Color.FromArgb(13, 15, 17);
+        BackColor = UiTokens.Back;
         MinimumSize = new Size(760, 480);
         ClientSize = new Size(1120, 700);
         StartPosition = FormStartPosition.CenterScreen;
@@ -156,7 +156,7 @@ internal sealed class MapForm : Form
         };
         _mapSelect.DropDownStyle = ComboBoxStyle.DropDownList;
         _mapSelect.FlatStyle = FlatStyle.Flat;
-        _mapSelect.BackColor = Color.FromArgb(34, 39, 46);
+        _mapSelect.BackColor = UiTokens.ButtonBack;
         _mapSelect.ForeColor = TextMain;
         _mapSelect.Width = 250;
         _mapSelect.Location = new Point(50, 11);
@@ -166,7 +166,7 @@ internal sealed class MapForm : Form
         _mapSelect.DrawItem += (_, e) =>
         {
             var selected = (e.State & DrawItemState.Selected) != 0 && e.Index >= 0;
-            using var back = new SolidBrush(selected ? Color.FromArgb(46, 96, 170) : Color.FromArgb(34, 39, 46));
+            using var back = new SolidBrush(selected ? Color.FromArgb(46, 96, 170) : UiTokens.ButtonBack);
             e.Graphics.FillRectangle(back, e.Bounds);
             if (e.Index >= 0 && e.Index < _mapSelect.Items.Count)
             {
@@ -237,8 +237,11 @@ internal sealed class MapForm : Form
         // 图层下拉：多选，勾哪个画哪个
         _layerButton.Text = "图层";
         _layerButton.FlatStyle = FlatStyle.Flat;
-        _layerButton.BackColor = Color.FromArgb(34, 39, 46);
-        _layerButton.ForeColor = TextMain;
+        // 顶栏是一个操作区，规范要求最多一个主操作（UI-SPEC §7.1）。
+        // 这里没有"提交"那种真正的主动作，所以把**最常用**的「图层」给强调色，
+        // 其余（刷新数据 / 复位 / 瓦片版 / 手机端）全部保持中性次级。
+        _layerButton.BackColor = UiTokens.AccentTint;
+        _layerButton.ForeColor = UiTokens.Accent;
         _layerButton.Location = new Point(380, 9);
         _layerButton.Size = new Size(64, 26);
         _layerButton.Font = new Font("Microsoft YaHei UI", 8.5f);
@@ -251,7 +254,7 @@ internal sealed class MapForm : Form
         {
             Text = "刷新数据",
             FlatStyle = FlatStyle.Flat,
-            BackColor = Color.FromArgb(34, 39, 46),
+            BackColor = UiTokens.ButtonBack,
             ForeColor = TextMain,
             Location = new Point(452, 9),
             Size = new Size(84, 26),
@@ -271,7 +274,7 @@ internal sealed class MapForm : Form
         {
             Text = "复位",
             FlatStyle = FlatStyle.Flat,
-            BackColor = Color.FromArgb(34, 39, 46),
+            BackColor = UiTokens.ButtonBack,
             ForeColor = TextMain,
             Location = new Point(544, 9),
             Size = new Size(56, 26),
@@ -283,7 +286,7 @@ internal sealed class MapForm : Form
         // 手机端：点开面板，里面有地址和二维码
         _mobileButton.Text = "手机端";
         _mobileButton.FlatStyle = FlatStyle.Flat;
-        _mobileButton.BackColor = Color.FromArgb(34, 39, 46);
+        _mobileButton.BackColor = UiTokens.ButtonBack;
         _mobileButton.ForeColor = TextMain;
         _mobileButton.Location = new Point(696, 9);
         _mobileButton.Size = new Size(64, 26);
@@ -309,23 +312,26 @@ internal sealed class MapForm : Form
         bottom.Controls.Add(_status);
         bottom.Controls.Add(_dataStatus);
 
-        var right = new Panel { Dock = DockStyle.Right, Width = 250, BackColor = Color.FromArgb(17, 19, 23), Padding = new Padding(0) };
+        var right = new Panel { Dock = DockStyle.Right, Width = 250, BackColor = UiTokens.Sunken, Padding = new Padding(0) };
         _header.Dock = DockStyle.Top;
         _header.Height = 32;
         _header.ForeColor = TextMain;
-        _header.BackColor = Color.FromArgb(22, 25, 29);
+        _header.BackColor = UiTokens.PanelBack;
         _header.TextAlign = ContentAlignment.MiddleLeft;
         _header.Padding = new Padding(10, 0, 0, 0);
         _header.Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold);
 
         _taskList.Dock = DockStyle.Fill;
         _taskList.BorderStyle = BorderStyle.None;
-        _taskList.BackColor = Color.FromArgb(17, 19, 23);
+        _taskList.BackColor = UiTokens.Sunken;
         _taskList.ForeColor = TextMain;
         _taskList.DrawMode = DrawMode.OwnerDrawFixed;
         _taskList.ItemHeight = 34;
         _taskList.Font = new Font("Microsoft YaHei UI", 9f);
         _taskList.DrawItem += DrawTaskRow;
+        // 列表为空时画一段说明 + 两个可点出口（规范五态里的"空态要给出口"）
+        _taskList.Paint += PaintEmptyTaskHint;
+        _taskList.MouseClick += ClickEmptyTaskHint;
         // 单击已选中的任务 = 取消选中（恢复显示所有任务的区域）。
         // 注意 WinForms 在 MouseDown 之前就已经改好了 SelectedIndex，所以不能拿它
         // 和当前选中项比较——那样每次点击都会被当成"点的就是已选中的"，立刻取消。
@@ -374,7 +380,7 @@ internal sealed class MapForm : Form
         _detailHeader.Dock = DockStyle.Fill;
         _detailHeader.Text = "目标";
         _detailHeader.ForeColor = TextMain;
-        _detailHeader.BackColor = Color.FromArgb(22, 25, 29);
+        _detailHeader.BackColor = UiTokens.PanelBack;
         _detailHeader.TextAlign = ContentAlignment.MiddleLeft;
         _detailHeader.Padding = new Padding(10, 0, 0, 0);
         _detailHeader.Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold);
@@ -386,8 +392,8 @@ internal sealed class MapForm : Form
         _wikiButton.Width = 56;
         _wikiButton.FlatStyle = FlatStyle.Flat;
         _wikiButton.FlatAppearance.BorderSize = 0;
-        _wikiButton.BackColor = Color.FromArgb(34, 39, 46);
-        _wikiButton.ForeColor = Color.FromArgb(140, 190, 255);
+        _wikiButton.BackColor = UiTokens.ButtonBack;
+        _wikiButton.ForeColor = UiTokens.Accent;
         _wikiButton.Font = new Font("Microsoft YaHei UI", 8f);
         _wikiButton.Cursor = Cursors.Hand;
         _wikiButton.Visible = false;
@@ -404,7 +410,7 @@ internal sealed class MapForm : Form
         {
             Dock = DockStyle.Top,
             Height = 26,
-            BackColor = Color.FromArgb(22, 25, 29),
+            BackColor = UiTokens.PanelBack,
         };
         detailHeaderPanel.Controls.Add(_detailHeader);
         detailHeaderPanel.Controls.Add(_wikiButton);
@@ -412,13 +418,13 @@ internal sealed class MapForm : Form
         _detail.Dock = DockStyle.Fill;
         _detail.ReadOnly = true;
         _detail.BorderStyle = BorderStyle.None;
-        _detail.BackColor = Color.FromArgb(17, 19, 23);
+        _detail.BackColor = UiTokens.Sunken;
         _detail.ForeColor = Color.FromArgb(200, 208, 218);
         _detail.Font = new Font("Microsoft YaHei UI", 9f);
         _detail.ScrollBars = RichTextBoxScrollBars.None;
         _detail.TabStop = false;
 
-        var detailPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(17, 19, 23) };
+        var detailPanel = new Panel { Dock = DockStyle.Fill, BackColor = UiTokens.Sunken };
         var detailHost = ClipScrollbar(_detail);
         detailHost.Dock = DockStyle.Fill;
         detailPanel.Controls.Add(detailHost);
@@ -426,7 +432,7 @@ internal sealed class MapForm : Form
         // 目标与所需物品之间：6px 空隙 + 2px 亮线。
         // Dock 是"后加的先贴边"，所以要按 空隙 → 亮线 → 物品面板 的顺序加，
         // 才会得到 目标 / 空隙 / 亮线 / 物品面板 这样从上到下的层次。
-        var gap = new Panel { Dock = DockStyle.Bottom, Height = 6, BackColor = Color.FromArgb(17, 19, 23) };
+        var gap = new Panel { Dock = DockStyle.Bottom, Height = 6, BackColor = UiTokens.Sunken };
         var separator = new Panel
         {
             Dock = DockStyle.Bottom,
@@ -442,7 +448,7 @@ internal sealed class MapForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
-            BackColor = Color.FromArgb(17, 19, 23),
+            BackColor = UiTokens.Sunken,
             Margin = Padding.Empty,
             Padding = Padding.Empty,
         };
@@ -454,7 +460,7 @@ internal sealed class MapForm : Form
         split.Controls.Add(detailPanel, 0, 1);
 
         // 任务筛选按钮放在任务列表正上方
-        var filters = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.FromArgb(22, 25, 29) };
+        var filters = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = UiTokens.PanelBack };
         _onlyActive.Location = new Point(10, 7);
         _onlyActive.Size = new Size(78, 26);
         _noZone.Location = new Point(96, 7);
@@ -477,7 +483,7 @@ internal sealed class MapForm : Form
     {
         _layerMenu.Font = new Font("Microsoft YaHei UI", 9f);
         // 深色菜单：默认是白底，和整体风格不搭
-        _layerMenu.BackColor = Color.FromArgb(28, 32, 38);
+        _layerMenu.BackColor = UiTokens.Raised;
         _layerMenu.ForeColor = TextMain;
         _layerMenu.Renderer = new ToolStripProfessionalRenderer(new DarkMenuColors());
 
@@ -601,7 +607,7 @@ internal sealed class MapForm : Form
             value => _canvas.ShowStatics = value, Color.FromArgb(180, 190, 205));
         // 门锁和闸点：数据来自 tools/build-doors.ps1 的快照（Assets/doors.json）
         Add("门锁（要钥匙）", _canvas.ShowDoors, () => _canvas.ShowDoors,
-            value => _canvas.ShowDoors = value, Color.FromArgb(226, 168, 74));
+            value => _canvas.ShowDoors = value, UiTokens.Warn);
         Add("闸点（拉闸）", _canvas.ShowSwitches, () => _canvas.ShowSwitches,
             value => _canvas.ShowSwitches = value, Color.FromArgb(255, 208, 64));
         _layerMenu.Items.Add(new ToolStripSeparator());
@@ -680,10 +686,11 @@ internal sealed class MapForm : Form
             _status.Text = "没有手动标记";
             return;
         }
-        var answer = MessageBox.Show(this,
-            $"清空 {count} 个「本图已完成」标记？\n只影响手动标记，不动任务状态。",
-            "清空标记", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
-        if (answer != DialogResult.OK)
+        // 危险操作：确认框交代对象和不可逆后果，按钮用动宾文案（UI-SPEC §7.3）
+        if (!ConfirmDialog.Ask(this,
+                "清空「本图已完成」标记？",
+                $"共 {count} 条手动标记，清空后无法恢复。\n只影响手动标记，不动任务的真实状态。",
+                "彻底清空"))
         {
             return;
         }
@@ -729,10 +736,10 @@ internal sealed class MapForm : Form
     {
         public override Color MenuItemSelected => Color.FromArgb(46, 52, 62);
         public override Color MenuItemBorder => Color.FromArgb(70, 80, 95);
-        public override Color ToolStripDropDownBackground => Color.FromArgb(28, 32, 38);
-        public override Color ImageMarginGradientBegin => Color.FromArgb(28, 32, 38);
-        public override Color ImageMarginGradientMiddle => Color.FromArgb(28, 32, 38);
-        public override Color ImageMarginGradientEnd => Color.FromArgb(28, 32, 38);
+        public override Color ToolStripDropDownBackground => UiTokens.Raised;
+        public override Color ImageMarginGradientBegin => UiTokens.Raised;
+        public override Color ImageMarginGradientMiddle => UiTokens.Raised;
+        public override Color ImageMarginGradientEnd => UiTokens.Raised;
         public override Color MenuBorder => Color.FromArgb(58, 66, 78);
     }
 
@@ -758,13 +765,13 @@ internal sealed class MapForm : Form
         }
         var item = (TaskRow)_taskList.Items[e.Index]!;
         var selected = (e.State & DrawItemState.Selected) != 0;
-        using var back = new SolidBrush(selected ? Color.FromArgb(40, 48, 60) : Color.FromArgb(17, 19, 23));
+        using var back = new SolidBrush(selected ? Color.FromArgb(40, 48, 60) : UiTokens.Sunken);
         e.Graphics.FillRectangle(back, e.Bounds);
 
         var dotColor = item.State switch
         {
             TaskState.Started => Color.FromArgb(76, 154, 255),
-            TaskState.Finished => Color.FromArgb(120, 200, 140),
+            TaskState.Finished => UiTokens.Ok,
             TaskState.Failed => Color.FromArgb(220, 110, 110),
             _ => Color.FromArgb(110, 116, 126),
         };
@@ -1083,7 +1090,7 @@ internal sealed class MapForm : Form
         }
         var clients = _mobile.Clients;
         _mobileButton.Text = clients > 0 ? $"手机端 {clients}" : "手机端 ●";
-        _mobileButton.ForeColor = clients > 0 ? Color.FromArgb(120, 200, 140) : TextMain;
+        _mobileButton.ForeColor = clients > 0 ? UiTokens.Ok : TextMain;
     }
 
     /// <summary>
@@ -1186,7 +1193,7 @@ internal sealed class MapForm : Form
         _itemHeader.Dock = DockStyle.Bottom;
         _itemHeader.Height = 24;
         _itemHeader.ForeColor = TextDim;
-        _itemHeader.BackColor = Color.FromArgb(22, 25, 29);
+        _itemHeader.BackColor = UiTokens.PanelBack;
         _itemHeader.TextAlign = ContentAlignment.MiddleLeft;
         _itemHeader.Padding = new Padding(10, 0, 0, 0);
         _itemHeader.Font = new Font("Microsoft YaHei UI", 8.5f);
@@ -1429,7 +1436,7 @@ internal sealed class MapForm : Form
                             needed.Add((id, ItemName(id)));
                         }
                     }
-                    AppendDetail("     钥匙  " + string.Join(" 或 ", groups), Color.FromArgb(140, 190, 255));
+                    AppendDetail("     钥匙  " + string.Join(" 或 ", groups), UiTokens.Accent);
                 }
             }
         }
@@ -1607,6 +1614,112 @@ internal sealed class MapForm : Form
         _canvas.Invalidate();
     }
 
+    // ------------------------------------------------------------------------
+    // 任务列表的空状态（UI-SPEC §9：五态里"空态必须解释为什么空 + 给出口"）
+    //
+    // 为什么用 Paint 而不是往列表里塞一条假行：
+    //   列表是 OwnerDrawFixed + 单击取消选中，塞假行会污染选中逻辑、手机端任务同步，
+    //   还要在四五处加特判。直接画在空白处、自己处理点击，副作用最小。
+    //   注意：有内容时这里一律不画，正常绘制完全不受影响。
+    // ------------------------------------------------------------------------
+
+    private enum EmptyAction
+    {
+        None,
+        DropActiveFilter,   // 关掉「仅进行中」
+        ShowAnyRegion,      // 切到「任意地区」
+        BackToMap,          // 从「任意地区」切回本图
+    }
+
+    /// <summary>空列表时第 1/2 个出口的文字和动作。两个方法必须同源，改文案例子时一起改。</summary>
+    private static (string Text, EmptyAction Action) EmptyOption(int index, bool anyRegion, bool onlyActive)
+    {
+        if (index == 0)
+        {
+            if (anyRegion)
+            {
+                return ("· 回到本图任务", EmptyAction.BackToMap);
+            }
+            return onlyActive
+                ? ("· 关掉「仅进行中」，看本图全部任务", EmptyAction.DropActiveFilter)
+                : ("· 看「任意地区」任务", EmptyAction.ShowAnyRegion);
+        }
+        return !anyRegion && onlyActive
+            ? ("· 看「任意地区」任务（跨图任务）", EmptyAction.ShowAnyRegion)
+            : ("", EmptyAction.None);
+    }
+
+    /// <summary>三块可点区域的矩形（标题 / 出口一 / 出口二）。绘制和点击都用它。</summary>
+    private Rectangle[] EmptyHintRects()
+    {
+        var width = Math.Max(40, _taskList.ClientSize.Width - 32);
+        return new[]
+        {
+            new Rectangle(16, 18, width, 24),
+            new Rectangle(16, 54, width, 22),
+            new Rectangle(16, 78, width, 22),
+        };
+    }
+
+    private void PaintEmptyTaskHint(object? sender, PaintEventArgs e)
+    {
+        if (_taskList.Items.Count > 0)
+        {
+            return;
+        }
+        var rects = EmptyHintRects();
+        var title = _noZone.Active ? "没有符合条件的任意地区任务" : "本图没有进行中的任务";
+        TextRenderer.DrawText(e.Graphics, title, _taskList.Font, rects[0], UiTokens.TextMain);
+        for (var i = 0; i < 2; i++)
+        {
+            var (text, _) = EmptyOption(i, _noZone.Active, _onlyActive.Active);
+            if (text.Length == 0)
+            {
+                continue;
+            }
+            TextRenderer.DrawText(e.Graphics, text, _taskList.Font, rects[i + 1], UiTokens.Accent);
+        }
+    }
+
+    private void ClickEmptyTaskHint(object? sender, MouseEventArgs e)
+    {
+        if (_taskList.Items.Count > 0)
+        {
+            return;
+        }
+        var rects = EmptyHintRects();
+        for (var i = 0; i < 2; i++)
+        {
+            if (!rects[i + 1].Contains(e.Location))
+            {
+                continue;
+            }
+            var (_, action) = EmptyOption(i, _noZone.Active, _onlyActive.Active);
+            if (action == EmptyAction.None)
+            {
+                return;
+            }
+            switch (action)
+            {
+                case EmptyAction.DropActiveFilter:
+                    _onlyActive.Active = false;
+                    _canvas.OnlyActive = false;
+                    break;
+                case EmptyAction.ShowAnyRegion:
+                    _noZone.Active = true;
+                    break;
+                case EmptyAction.BackToMap:
+                    _noZone.Active = false;
+                    break;
+            }
+            RefreshTaskList();
+            _taskList.ClearSelected();
+            _canvas.SelectedTaskId = null;
+            ShowTaskDetail(null);
+            _canvas.Invalidate();
+            return;
+        }
+    }
     private void RefreshTaskList()
     {
         var map = CurrentMap;
@@ -1723,7 +1836,7 @@ internal sealed class MapForm : Form
         var (text, color) = TarkovData.FromSeed
             ? ($"内置数据 · {TarkovData.FetchedAt:MM-dd}", Color.FromArgb(230, 190, 120))
             : TarkovData.Online
-                ? ($"在线 · {TarkovData.FetchedAt:HH:mm}", Color.FromArgb(120, 200, 140))
+                ? ($"在线 · {TarkovData.FetchedAt:HH:mm}", UiTokens.Ok)
                 : TarkovData.FetchedAt != DateTime.MinValue
                     ? ($"缓存 · {TarkovData.FetchedAt:MM-dd HH:mm}", Color.FromArgb(150, 200, 175))
                     : ("无数据", Color.FromArgb(220, 130, 130));

@@ -154,7 +154,7 @@ internal sealed class MapCanvas : Control
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
                  | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-        BackColor = Color.FromArgb(13, 15, 17);
+        BackColor = UiTokens.Back;
     }
 
     public MapProjection? Map => _map;
@@ -769,7 +769,7 @@ internal sealed class MapCanvas : Control
             return;
         }
         using var font = new Font("Microsoft YaHei UI", 8.5f, FontStyle.Bold);
-        using var halo = new SolidBrush(Color.FromArgb(205, 0, 0, 0));
+        using var halo = new SolidBrush(UiTokens.Scrim);
         using var ink = new SolidBrush(Color.FromArgb(240, 236, 228, 198));
         var placed = new List<RectangleF>();
         foreach (var (point, label) in labels
@@ -811,7 +811,7 @@ internal sealed class MapCanvas : Control
         using var fill = new SolidBrush(Color.FromArgb(235, 90, 200, 210));
         using var ring = new Pen(Color.FromArgb(235, 15, 40, 45), 1.2f);
         using var ink = new SolidBrush(Color.FromArgb(235, 235, 250, 252));
-        using var halo = new SolidBrush(Color.FromArgb(205, 0, 0, 0));
+        using var halo = new SolidBrush(UiTokens.Scrim);
         foreach (var stop in BtrStops)
         {
             var x = origin.X + stop.Screen.X * scale;
@@ -845,7 +845,7 @@ internal sealed class MapCanvas : Control
         using var hole = new SolidBrush(Color.FromArgb(235, 40, 32, 14));
         using var font = new Font("Microsoft YaHei UI", 7.5f);
         using var ink = new SolidBrush(Color.FromArgb(238, 255, 243, 214));
-        using var halo = new SolidBrush(Color.FromArgb(205, 0, 0, 0));
+        using var halo = new SolidBrush(UiTokens.Scrim);
         var visible = new RectangleF(-40, -40, ClientSize.Width + 80, ClientSize.Height + 80);
         // 先数一下屏幕上有几个，再决定要不要画名字
         var onScreen = 0;
@@ -1137,7 +1137,7 @@ internal sealed class MapCanvas : Control
     private static Color ColorOf(TaskState state) => state switch
     {
         TaskState.Started => Color.FromArgb(76, 154, 255),
-        TaskState.Finished => Color.FromArgb(120, 200, 140),
+        TaskState.Finished => UiTokens.Ok,
         TaskState.Failed => Color.FromArgb(220, 110, 110),
         _ => Color.FromArgb(150, 150, 160),
     };
@@ -1162,7 +1162,7 @@ internal sealed class MapCanvas : Control
         {
             var rect = new Rectangle(10, y, 84, 24);
             var active = string.Equals(key, _layer, StringComparison.OrdinalIgnoreCase);
-            using var back = new SolidBrush(active ? Color.FromArgb(46, 96, 170) : Color.FromArgb(34, 39, 46));
+            using var back = new SolidBrush(active ? Color.FromArgb(46, 96, 170) : UiTokens.ButtonBack);
             using var border = new Pen(Color.FromArgb(74, 82, 92));
             g.FillRectangle(back, rect);
             g.DrawRectangle(border, rect);
@@ -1609,11 +1609,11 @@ internal sealed class MapCanvas : Control
         }
         using var path = RoundedRect(new RectangleF(x, y, width, height), 6);
         using var back = new SolidBrush(Color.FromArgb(238, 22, 26, 32));
-        using var border = new Pen(Color.FromArgb(226, 168, 74), 1.2f);
+        using var border = new Pen(UiTokens.Warn, 1.2f);
         g.FillPath(back, path);
         g.DrawPath(border, path);
         g.DrawString(text, font, Brushes.White, x + 8, y + 5);
-        g.DrawString(sub, small, new SolidBrush(Color.FromArgb(150, 160, 172)), x + 8, y + 6 + size.Height);
+        g.DrawString(sub, small, new SolidBrush(UiTokens.TextDim), x + 8, y + 6 + size.Height);
     }
 
     protected override void OnMouseDoubleClick(MouseEventArgs e)
