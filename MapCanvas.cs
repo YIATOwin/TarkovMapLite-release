@@ -960,15 +960,18 @@ internal sealed class MapCanvas : Control
                 continue;
             }
             var dim = state is TaskState.Finished or TaskState.Failed;
+            // 不在当前楼层的区域画成半透明：储备站/实验室这种多层图，一眼就能分出
+            // 哪些是脚下这层的（Floor 由接口的 top/bottom 推算，见 TarkovData.FloorFromZone）
+            var offFloor = zone.Floor != CurrentFloor;
             var color = ColorOf(state);
             using var path = new GraphicsPath();
             var pts = zone.Points.Select(p => new PointF(origin.X + p.X * scale, origin.Y + p.Y * scale)).ToArray();
             path.AddPolygon(pts);
-            using var fill = new SolidBrush(Color.FromArgb(dim ? 26 : 56, color));
+            using var fill = new SolidBrush(Color.FromArgb(dim ? 26 : offFloor ? 14 : 56, color));
             g.FillPath(fill, path);
-            using var stroke = new Pen(Color.FromArgb(dim ? 128 : 255, 255, 255), 1.6f);
+            using var stroke = new Pen(Color.FromArgb(offFloor ? 70 : dim ? 128 : 255, 255, 255), offFloor ? 1.1f : 1.6f);
             g.DrawPath(stroke, path);
-            using var inner = new Pen(Color.FromArgb(dim ? 140 : 255, color), 1f);
+            using var inner = new Pen(Color.FromArgb(offFloor ? 60 : dim ? 140 : 255, color), 1f);
             g.DrawPath(inner, path);
         }
 
