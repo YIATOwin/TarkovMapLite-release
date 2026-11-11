@@ -1177,7 +1177,10 @@ internal sealed class MapCanvas : Control
     };
 
     /// <summary>地图上玩家标记的颜色（青色）；楼层按钮旁的小人标记也用它，保证是同一个语义。</summary>
-    private static readonly Color PlayerMarkerColor = Color.FromArgb(255, 196, 92);
+    private static readonly Color PlayerMarkerColor = Color.FromArgb(64, 156, 255);
+
+    /// <summary>取景框 + 十字延长线的颜色（橙黄）：这是"标注"，和箭头本身的颜色分开，一眼能分清哪个是玩家。</summary>
+    private static readonly Color PlayerGuideColor = Color.FromArgb(255, 186, 88);
 
     private void DrawFloors(Graphics g)
     {
@@ -1281,60 +1284,59 @@ internal sealed class MapCanvas : Control
             : new PointF(0, -1);
         var right = new PointF(-forward.Y, forward.X);
 
-        // 扩散脉冲：半径 12 → 42、透明度 150 → 0，1.6 秒一轮。
-        // 只为了"一眼能找到自己"，不在别的楼层时不动画（那时候本来就该淡）。
-        if (!offFloor && _pulsePhase < 0.999f)
+        // 取景框 + 十字延长线（按草图）：橙色只做"标注"，箭头保持玩家自己的蓝色。
+        // 框线的透明度随相位呼吸（130..225），是最轻的一种动态提示，不抢地图信息。
+        var breathe = (float)(0.5 + 0.5 * Math.Sin(_pulsePhase * Math.PI * 2));
+        var frameAlpha = offFloor ? 60 : (int)(130 + 95 * breathe);
+        const float half = 32f;
+        var box = new RectangleF(x - half, y - half, half * 2, half * 2);
+
+        using (var frame = new Pen(Color.FromArgb(frameAlpha, PlayerGuideColor), 1.4f))
         {
-            var radius = 12f + 30f * _pulsePhase;
-            var pulseAlpha = (int)(150 * (1f - _pulsePhase));
-            if (pulseAlpha > 2)
-            {
-                using var pulse = new Pen(Color.FromArgb(pulseAlpha, PlayerMarkerColor), 2f);
-                g.DrawEllipse(pulse, x - radius, y - radius, radius * 2, radius * 2);
-            }
+            g.DrawRectangle(frame, box.X, box.Y, box.Width, box.Height);
         }
 
-        // 细十字线 + 朝向短线：比箭头更"精确"，也能看出朝向。
-        // 颜色用橙黄，和任务区域的琥珀色靠深色描边 + 脉冲环区分开。
-        var arm = 9f;          // 十字臂长
-        var gap = 3f;          // 中心留空，避免糊成一坨
-        var spike = 15f;       // 朝向短线，比臂长一点，方向才读得出来
-        var nose = new PointF(x + forward.X * spike, y + forward.Y * spike);
-        var back = new PointF(x - forward.X * spike * 0.45f, y - forward.Y * spike * 0.45f);
-
-        // 深色底衬：浅色地形上也能看清
-        using var halo = new Pen(Color.FromArgb(Math.Min(alpha, 200), 10, 12, 14), 3.4f)
+        // 四条延长线：从框的边一直到画布边缘，中间不穿过框（像取景器刻度）
+        using (var guide = new Pen(Color.FromArgb(offFloor ? 35 : 95, PlayerGuideColor), 1f))
         {
-            StartCap = System.Drawing.Drawing2D.LineCap.Round,
-            EndCap = System.Drawing.Drawing2D.LineCap.Round,
-        };
-        void Halo(PointF a, PointF b) => g.DrawLine(halo, a, b);
-        Halo(new PointF(x - arm, y), new PointF(x - gap, y));
-        Halo(new PointF(x + gap, y), new PointF(x + arm, y));
-        Halo(new PointF(x, y - arm), new PointF(x, y - gap));
-        Halo(new PointF(x, y + gap), new PointF(x, y + arm));
-        Halo(new PointF(x, y), nose);
-        Halo(new PointF(x, y), back);
+            g.DrawLine(guide, x, 0, x, box.Top);
+            g.DrawLine(guide, x, box.Bottom, x, ClientSize.Height);
+            g.DrawLine(guide, 0, y, box.Left, y);
+            g.DrawLine(guide, box.Right, y, ClientSize.Width, y);
+        }
 
-        // 细线本体
-        using var line = new Pen(Color.FromArgb(alpha, PlayerMarkerColor), 1.3f)
-        {
-            StartCap = System.Drawing.Drawing2D.LineCap.Round,
-            EndCap = System.Drawing.Drawing2D.LineCap.Round,
-        };
-        g.DrawLine(line, x - arm, y, x - gap, y);
-        g.DrawLine(line, x + gap, y, x + arm, y);
-        g.DrawLine(line, x, y - arm, x, y - gap);
-        g.DrawLine(line, x, y + gap, x, y + arm);
+        // 箭头本体：长三角是朝向，后面一个尾翼三角，中间横杠 + 脊线（第一张草图）
+        PointF At(float forwardOffset, float sideOffset) => new(
+            x + forward.X * forwardOffset + right.X * sideOffset,
+            y + forward.Y * forwardOffset + right.Y * sideOffset);
 
-        // 朝向：从中心指出来的那一段更长、更亮，一眼看出面朝哪
-        using var spire = new Pen(Color.FromArgb(alpha, PlayerMarkerColor), 2f)
+        var tip = At(18f, 0f);
+        var wingLeft = At(-7f, 8f);
+        var wingRight = At(-7f, -8f);
+        var tail = At(-17f, 0f);
+        var nose = new[] { tip, wingLeft, wingRight };
+        var tailFin = new[] { wingLeft, tail, wingRight };
+
+        // 深色描边打底：浅色地形上也不会糊
+        using (var outline = new Pen(Color.FromArgb(Math.Min(alpha, 235), 8, 14, 18), 4.2f)
         {
-            StartCap = System.Drawing.Drawing2D.LineCap.Round,
-            EndCap = System.Drawing.Drawing2D.LineCap.Round,
-        };
-        g.DrawLine(spire, x, y, nose.X, nose.Y);
-        g.DrawLine(spire, x, y, back.X, back.Y);
+            LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
+        })
+        {
+            g.DrawPolygon(outline, nose);
+            g.DrawPolygon(outline, tailFin);
+        }
+
+        using (var noseBrush = new SolidBrush(Color.FromArgb(Math.Min(alpha, 235), PlayerMarkerColor)))
+        using (var finBrush = new SolidBrush(Color.FromArgb(Math.Min(alpha, 170), PlayerMarkerColor)))
+        {
+            g.FillPolygon(noseBrush, nose);
+            g.FillPolygon(finBrush, tailFin);
+        }
+
+        using var edge = new Pen(Color.FromArgb(Math.Min(alpha, 190), 240, 248, 255), 1.4f);
+        g.DrawLine(edge, wingLeft, wingRight);
+        g.DrawLine(edge, tip, tail);
     }
     /// <summary>候选刷新点：小琥珀色圆点，带白边，方便和任务区域区分。</summary>
     private void DrawSpawnPoints(Graphics g, float scale, PointF origin)
