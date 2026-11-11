@@ -189,6 +189,56 @@ public sealed class PlayerLocator
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// 读目录里最新的一张截图——**不看本次启动时间**，给界面上的「测试截图」用。
+    /// 目录里没有截图（或最新那张文件名里没坐标）时返回 null。
+    /// </summary>
+    public Fix? NewestInFolder(string? folder = null)
+    {
+        var dir = !string.IsNullOrWhiteSpace(folder)
+            ? folder
+            : (Folder.Length > 0 ? Folder : ResolveFolder());
+        if (!Directory.Exists(dir))
+        {
+            return null;
+        }
+        FileInfo? newest = null;
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(dir, "*.png"))
+            {
+                var info = new FileInfo(path);
+                if (newest == null || info.LastWriteTime > newest.LastWriteTime)
+                {
+                    newest = info;
+                }
+            }
+        }
+        catch
+        {
+            return null;
+        }
+        return newest == null ? null : Parse(newest);
+    }
+
+    /// <summary>从一张截图的文件名解析坐标和朝向；文件名不符合格式返回 null。</summary>
+    public static Fix? Parse(FileInfo file)
+    {
+        var match = NamePattern.Match(Path.GetFileNameWithoutExtension(file.Name));
+        if (!match.Success)
+        {
+            return null;
+        }
+        var x = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+        var y = double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+        var z = double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+        var (forwardX, forwardZ) = Forward(
+            double.Parse(match.Groups[4].Value, CultureInfo.InvariantCulture),
+            double.Parse(match.Groups[5].Value, CultureInfo.InvariantCulture),
+            double.Parse(match.Groups[6].Value, CultureInfo.InvariantCulture),
+            double.Parse(match.Groups[7].Value, CultureInfo.InvariantCulture));
+        return new Fix(x, y, z, forwardX, forwardZ, file.LastWriteTime, file.Name);
+    }
     /// <summary>把朝向四元数（Unity 的 qx,qy,qz,qw）换成世界坐标里的前方向量（只看水平面）。</summary>
     private static (double X, double Z) Forward(double qx, double qy, double qz, double qw)
     {

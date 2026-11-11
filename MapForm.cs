@@ -56,6 +56,10 @@ internal sealed class MapForm : Form
     private readonly UiButton _mapButton = new();
     /// <summary>底部状态栏最右边的「截图目录」按钮：手动指定游戏截图放在哪。</summary>
     private readonly UiButton _shotsButton = new();
+    /// <summary>底部「测试截图」按钮：拿目录里最新的一张截图试投影。</summary>
+    private readonly UiButton _testButton = new();
+    /// <summary>测试截图给出的坐标（真实定位没出来时优先用它画标记）。</summary>
+    private (double X, double Y, double Z, double FX, double FZ)? _testFix;
     /// <summary>局域网 HTTP 服务 + 手机要的状态快照。</summary>
     private readonly LocalServer _mobile = new();
     /// <summary>250ms 一次：把画布状态推给手机、把手机的动作取回来。</summary>
@@ -292,9 +296,17 @@ internal sealed class MapForm : Form
         _shotsButton.Width = 86;
         _shotsButton.Font = new Font("Microsoft YaHei UI", 8.5f);
         _shotsButton.Click += (_, _) => PickScreenshotFolder();
+
+        // 测试截图：立刻用最新一张截图验证目录和投影，不用等进游戏再来一张
+        _testButton.Text = "测试截图";
+        _testButton.Dock = DockStyle.Right;
+        _testButton.Width = 86;
+        _testButton.Font = new Font("Microsoft YaHei UI", 8.5f);
+        _testButton.Click += (_, _) => TestNewestScreenshot();
         bottom.Controls.Add(_status);
         bottom.Controls.Add(_dataStatus);
         bottom.Controls.Add(_shotsButton);
+        bottom.Controls.Add(_testButton);
 
         var right = new Panel { Dock = DockStyle.Right, Width = 250, BackColor = UiTokens.Sunken, Padding = new Padding(0) };
         _header.Dock = DockStyle.Top;
@@ -1558,39 +1570,64 @@ internal sealed class MapForm : Form
     /// </summary>
     private void UpdatePlayerMarker()
     {
-        var fix = _player.Current;
-        var map = string.IsNullOrEmpty(_raidMapKey) ? null : MapPack.Find(_raidMapKey);
-        if (fix == null || map == null)
+        // 1) 真实定位：只认"本次启动之后"的截图（避免把几天前的老图当成当前位置）
+        var real = _player.Current;
+        var realMap = string.IsNullOrEmpty(_raidMapKey) ? null : MapPack.Find(_raidMapKey);
+        if (real != null && realMap != null)
         {
-            _canvas.PlayerPosition = null;
-            _canvas.PlayerForward = null;
-            _canvas.PlayerMapKey = "";
+            ApplyFix(realMap, real.X, real.Y, real.Z, real.ForwardX, real.ForwardZ);
             return;
         }
-        var (x, y) = MapPack.ToImage(map, fix.X, fix.Z);
-        var (fx, fy) = MapPack.ToImage(map, fix.X + fix.ForwardX * 3, fix.Z + fix.ForwardZ * 3);
+        // 2) 测试截图：按"当前正在看的地图"投影，方便确认截图目录和投影是否正常
+        if (_testFix is { } test && CurrentMap is { } viewing)
+        {
+            ApplyFix(viewing, test.X, test.Y, test.Z, test.FX, test.FZ);
+            return;
+        }
+        _canvas.PlayerPosition = null;
+        _canvas.PlayerForward = null;
+        _canvas.PlayerMapKey = "";
+        _canvas.PlayerFloor = null;
+    }
+
+    /// <summary>把世界坐标投影到指定地图并交给画布（真实定位和测试截图共用）。</summary>
+    private void ApplyFix(MapProjection map, double worldX, double worldY, double worldZ,
+        double forwardX, double forwardZ)
+    {
+        var (x, y) = MapPack.ToImage(map, worldX, worldZ);
+        var (fx, fy) = MapPack.ToImage(map, worldX + forwardX * 3, worldZ + forwardZ * 3);
         _canvas.PlayerPosition = new PointF((float)x, (float)y);
         _canvas.PlayerForward = new PointF((float)(fx - x), (float)(fy - y));
         _canvas.PlayerMapKey = map.Key;
-        // 世界高度 → 楼层（近似：用这张图各层区域的高度中位数判断）
-        _canvas.PlayerFloor = TarkovData.FloorOfHeight(map.Data, fix.X, fix.Z, fix.Y);
+        _canvas.PlayerFloor = TarkovData.FloorOfHeight(map.Data, worldX, worldZ, worldY);
         _canvas.Invalidate();
     }
 
-    /// <summary>状态栏用的楼层提示：能判定就写「（2 层）」，判定不了留空。</summary>
-    private static string FloorHint(string mapData, double x, double z, double y)
+    /// <summary>
+    /// 「测试截图」：拿截图目录里**最新的一张**（不管是不是本次启动之后拍的）试一下投影。
+    /// 用来确认目录选对了、文件名格式能认出来、以及标记在图上是什么样。
+    /// </summary>
+    private void TestNewestScreenshot()
     {
-        if (TarkovData.FloorOfHeight(mapData, x, z, y) is not { } floor)
+        var folder = _player.Folder.Length > 0 ? _player.Folder : PlayerLocator.ResolveFolder();
+        var fix = _player.NewestInFolder(folder);
+        if (fix == null)
         {
-            return "";
+            _testFix = null;
+            UpdatePlayerMarker();
+            _status.Text = Directory.Exists(folder)
+                ? $"没有找到可用截图：{folder}（里面没有 PNG，或文件名里没有坐标）"
+                : $"截图目录不存在：{folder}";
+            return;
         }
-        var name = floor switch
-        {
-            -1 => "地下",
-            0 => "地面",
-            _ => $"{floor + 1} 层",
-        };
-        return $"（{name}）";
+        _testFix = (fix.X, fix.Y, fix.Z, fix.ForwardX, fix.ForwardZ);
+        UpdatePlayerMarker();
+        // 截图可能来自别的图，投影到当前图上就落到画布外了；说清楚，免得以为按钮没反应
+        var outside = _canvas.PlayerPosition is { } point
+                      && (point.X < 0 || point.Y < 0 || point.X > _canvas.Width || point.Y > _canvas.Height);
+        _status.Text = $"测试截图：{fix.File}　X {fix.X:0.0} Y {fix.Y:0.0} Z {fix.Z:0.0}"
+                       + $"（{fix.CapturedAt:MM-dd HH:mm}，按当前地图投影）"
+                       + (outside ? "　⚠ 坐标不在当前地图范围内，这张截图可能来自别的地图" : "");
     }
     /// <summary>把选中任务所需物品在本图的候选刷新点交给画布。</summary>
     private void UpdateSpawnPoints(TaskRow? row)
@@ -1895,6 +1932,21 @@ internal sealed class MapForm : Form
         _status.Text = count == 0
             ? $"截图目录：{folder}　（没有 PNG，确认一下是不是这个文件夹）"
             : $"截图目录：{folder}　共 {count} 张，最新 {newest:MM-dd HH:mm}　进游戏按截图键就会定位";
+    }
+    /// <summary>状态栏用的楼层提示：能判定就写「（2 层）」，判定不了留空。</summary>
+    private static string FloorHint(string mapData, double x, double z, double y)
+    {
+        if (TarkovData.FloorOfHeight(mapData, x, z, y) is not { } floor)
+        {
+            return "";
+        }
+        var name = floor switch
+        {
+            -1 => "地下",
+            0 => "地面",
+            _ => $"{floor + 1} 层",
+        };
+        return $"（{name}）";
     }
     private void UpdateStatus()
     {
