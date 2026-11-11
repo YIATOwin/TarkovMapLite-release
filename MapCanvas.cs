@@ -138,7 +138,31 @@ internal sealed class MapCanvas : Control
     public List<SwitchMarker> Switches { get; set; } = new();
 
     /// <summary>玩家位置（图片像素坐标）与朝向；只有 PlayerMapKey 和当前地图一致时才画。</summary>
-    public PointF? PlayerPosition { get; set; }
+    private PointF? _playerPosition;
+    /// <summary>50ms 一跳：只为了让玩家标记有轻微的呼吸/扩散，没玩家时不跑。</summary>
+    private readonly System.Windows.Forms.Timer _pulseTimer = new() { Interval = 50 };
+    private float _pulsePhase;
+
+    /// <summary>玩家位置（图片像素坐标）；设成 null 会停掉动画定时器，省 CPU。</summary>
+    public PointF? PlayerPosition
+    {
+        get => _playerPosition;
+        set
+        {
+            var had = _playerPosition.HasValue;
+            _playerPosition = value;
+            if (value.HasValue && !had)
+            {
+                _pulseTimer.Start();
+            }
+            else if (!value.HasValue && had)
+            {
+                _pulseTimer.Stop();
+                _pulsePhase = 0;
+                Invalidate();
+            }
+        }
+    }
     public PointF? PlayerForward { get; set; }
     public string PlayerMapKey { get; set; } = "";
 
@@ -155,6 +179,16 @@ internal sealed class MapCanvas : Control
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
                  | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         BackColor = UiTokens.Back;
+        // 玩家标记的呼吸/扩散动画：相位 0..1 循环，只在有玩家位置时运行
+        _pulseTimer.Tick += (_, _) =>
+        {
+            _pulsePhase += 0.05f / 1.6f;
+            if (_pulsePhase >= 1f)
+            {
+                _pulsePhase -= 1f;
+            }
+            Invalidate();
+        };
     }
 
     public MapProjection? Map => _map;
@@ -1226,52 +1260,73 @@ internal sealed class MapCanvas : Control
         {
             return;
         }
-        // 玩家不在当前浏览的楼层：画成半透明（楼层由 MapForm 用世界高度推算）
-        var offFloor = PlayerFloor.HasValue && PlayerFloor.Value != CurrentFloor;
-        var playerAlpha = offFloor ? 90 : 255;
         if (!string.Equals(PlayerMapKey, _map.Key, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
         var x = origin.X + position.X * scale;
         var y = origin.Y + position.Y * scale;
-        if (x < -30 || y < -30 || x > ClientSize.Width + 30 || y > ClientSize.Height + 30)
+        if (x < -40 || y < -40 || x > ClientSize.Width + 40 || y > ClientSize.Height + 40)
         {
             return;
         }
+        // 玩家不在当前浏览的楼层：整体压淡（楼层由 MapForm 用世界高度推算）
+        var offFloor = PlayerFloor.HasValue && PlayerFloor.Value != CurrentFloor;
+        var alpha = offFloor ? 90 : 255;
+
         var forward = PlayerForward ?? new PointF(0, -1);
         var length = (float)Math.Sqrt(forward.X * forward.X + forward.Y * forward.Y);
-        if (length > 1e-4f)
+        forward = length > 1e-4f
+            ? new PointF(forward.X / length, forward.Y / length)
+            : new PointF(0, -1);
+        var right = new PointF(-forward.Y, forward.X);
+
+        // 扩散脉冲：半径 12 → 42、透明度 150 → 0，1.6 秒一轮。
+        // 只为了"一眼能找到自己"，不在别的楼层时不动画（那时候本来就该淡）。
+        if (!offFloor && _pulsePhase < 0.999f)
         {
-            forward = new PointF(forward.X / length, forward.Y / length);
-        }
-        else
-        {
-            forward = new PointF(0, -1);
+            var radius = 12f + 30f * _pulsePhase;
+            var pulseAlpha = (int)(150 * (1f - _pulsePhase));
+            if (pulseAlpha > 2)
+            {
+                using var pulse = new Pen(Color.FromArgb(pulseAlpha, PlayerMarkerColor), 2f);
+                g.DrawEllipse(pulse, x - radius, y - radius, radius * 2, radius * 2);
+            }
         }
 
-        // 朝向三角
-        var tipX = x + forward.X * 17;
-        var tipY = y + forward.Y * 17;
-        var leftX = x + (-forward.Y) * 6 + forward.X * 4;
-        var leftY = y + forward.X * 6 + forward.Y * 4;
-        var rightX = x + forward.Y * 6 + forward.X * 4;
-        var rightY = y + (-forward.X) * 6 + forward.Y * 4;
-        using var arrow = new SolidBrush(Color.FromArgb(Math.Min(playerAlpha, 230), 90, 240, 255));
-        g.FillPolygon(arrow, new[]
-        {
-            new PointF(tipX, tipY),
-            new PointF(leftX, leftY),
-            new PointF(rightX, rightY),
-        });
+        // 按草图做成「3D 箭头」：前一个长三角表示朝向，中间一道横杠，
+        // 尾部一个小三角当尾翼，中间一条脊线。
+        PointF At(float forwardOffset, float sideOffset) => new(
+            x + forward.X * forwardOffset + right.X * sideOffset,
+            y + forward.Y * forwardOffset + right.Y * sideOffset);
 
-        // 位置点
-        using var fill = new SolidBrush(Color.FromArgb(Math.Min(playerAlpha, 240), 40, 210, 235));
-        using var ring = new Pen(Color.FromArgb(Math.Min(playerAlpha, 235), 255, 255, 255), 2f);
-        g.FillEllipse(fill, x - 7, y - 7, 14, 14);
-        g.DrawEllipse(ring, x - 7, y - 7, 14, 14);
+        var tip = At(18f, 0f);
+        var wingLeft = At(-7f, 8f);
+        var wingRight = At(-7f, -8f);
+        var tail = At(-17f, 0f);
+
+        var nose = new[] { tip, wingLeft, wingRight };
+        var tailFin = new[] { wingLeft, tail, wingRight };
+
+        // 先铺一层深色描边：浅色地面（雪地/沙地）上也不会糊成一团
+        using var outline = new Pen(Color.FromArgb(Math.Min(alpha, 235), 8, 14, 18), 4.2f)
+        {
+            LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
+        };
+        g.DrawPolygon(outline, nose);
+        g.DrawPolygon(outline, tailFin);
+
+        // 前三角亮、尾翼暗，才有立体的前后关系
+        using var noseBrush = new SolidBrush(Color.FromArgb(Math.Min(alpha, 235), PlayerMarkerColor));
+        using var finBrush = new SolidBrush(Color.FromArgb(Math.Min(alpha, 170), PlayerMarkerColor));
+        g.FillPolygon(noseBrush, nose);
+        g.FillPolygon(finBrush, tailFin);
+
+        // 横杠（两翼之间）+ 脊线（头到尾），对应草图上那两道线
+        using var edge = new Pen(Color.FromArgb(Math.Min(alpha, 190), 245, 252, 255), 1.4f);
+        g.DrawLine(edge, wingLeft, wingRight);
+        g.DrawLine(edge, tip, tail);
     }
-
     /// <summary>候选刷新点：小琥珀色圆点，带白边，方便和任务区域区分。</summary>
     private void DrawSpawnPoints(Graphics g, float scale, PointF origin)
     {
