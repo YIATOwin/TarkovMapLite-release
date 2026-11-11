@@ -44,12 +44,80 @@ public sealed class PlayerLocator
 
     public event Action? Changed;
 
+    private static string SettingsFile
+    {
+        get
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TarkovMapLite");
+            try { Directory.CreateDirectory(dir); } catch { }
+            return Path.Combine(dir, "settings.json");
+        }
+    }
+
+    /// <summary>用户在界面里手动选的截图目录；没选过返回空串。</summary>
+    public static string SavedFolder
+    {
+        get
+        {
+            try
+            {
+                var path = SettingsFile;
+                if (!File.Exists(path))
+                {
+                    return "";
+                }
+                if (System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))
+                    is System.Text.Json.Nodes.JsonObject root
+                    && root["screenshots"]?.GetValue<string>() is { Length: > 0 } value
+                    && Directory.Exists(value))
+                {
+                    return value;
+                }
+            }
+            catch
+            {
+                // 设置文件坏了就当没选过
+            }
+            return "";
+        }
+    }
+
+    /// <summary>记住用户选的截图目录（写 settings.json，重启后仍生效）。</summary>
+    public static void SaveFolder(string folder)
+    {
+        try
+        {
+            var root = new System.Text.Json.Nodes.JsonObject { ["screenshots"] = folder };
+            File.WriteAllText(SettingsFile, root.ToJsonString());
+        }
+        catch
+        {
+            // 写不进去就只对本次运行生效
+        }
+    }
+
+    /// <summary>立刻切到某个目录（界面里选完文件夹后调用）。</summary>
+    public void UseFolder(string folder)
+    {
+        Folder = folder;
+        _lastFile = "";
+        Status = "已切换截图目录，进游戏按截图键即可定位";
+        Changed?.Invoke();
+    }
+
+    /// <summary>环境变量优先（测试用），其次用户手动选的，最后是文档目录下的默认位置。</summary>
     public static string ResolveFolder()
     {
         var custom = Environment.GetEnvironmentVariable("TARKOVMAPLITE_SHOTS");
         if (!string.IsNullOrWhiteSpace(custom) && Directory.Exists(custom))
         {
             return custom;
+        }
+        var saved = SavedFolder;
+        if (saved.Length > 0)
+        {
+            return saved;
         }
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         return Path.Combine(documents, "Escape From Tarkov", "Screenshots");

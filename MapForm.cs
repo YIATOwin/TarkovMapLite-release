@@ -54,6 +54,8 @@ internal sealed class MapForm : Form
     private readonly UiButton _mobileButton = new();
     private readonly UiButton _layerButton = new();
     private readonly UiButton _mapButton = new();
+    /// <summary>底部状态栏最右边的「截图目录」按钮：手动指定游戏截图放在哪。</summary>
+    private readonly UiButton _shotsButton = new();
     /// <summary>局域网 HTTP 服务 + 手机要的状态快照。</summary>
     private readonly LocalServer _mobile = new();
     /// <summary>250ms 一次：把画布状态推给手机、把手机的动作取回来。</summary>
@@ -283,8 +285,16 @@ internal sealed class MapForm : Form
         _dataStatus.TextAlign = ContentAlignment.MiddleRight;
         _dataStatus.Padding = new Padding(0, 0, 10, 0);
         _dataStatus.Font = new Font("Microsoft YaHei UI", 8.5f);
+
+        // 底部最右：「截图目录」——游戏截图不一定在默认位置，这里手动指定
+        _shotsButton.Text = "截图目录";
+        _shotsButton.Dock = DockStyle.Right;
+        _shotsButton.Width = 86;
+        _shotsButton.Font = new Font("Microsoft YaHei UI", 8.5f);
+        _shotsButton.Click += (_, _) => PickScreenshotFolder();
         bottom.Controls.Add(_status);
         bottom.Controls.Add(_dataStatus);
+        bottom.Controls.Add(_shotsButton);
 
         var right = new Panel { Dock = DockStyle.Right, Width = 250, BackColor = UiTokens.Sunken, Padding = new Padding(0) };
         _header.Dock = DockStyle.Top;
@@ -1840,6 +1850,52 @@ internal sealed class MapForm : Form
         _header.Text = $"任务 · {_taskList.Items.Count}";
     }
 
+    /// <summary>
+    /// 手动指定游戏截图目录：有些人的截图不在默认的「文档\Escape From Tarkov\Screenshots」，
+    /// 也可能接了多块盘。选完立刻生效并写进 settings.json，重启不用再选。
+    /// </summary>
+    private void PickScreenshotFolder()
+    {
+        // 用 FolderBrowserDialog：OpenFolderDialog 在这个目标框架下不可用（CS0246 实测）
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "选择塔科夫截图文件夹（游戏内按 F12 的截图会存在这里）",
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = false,
+            SelectedPath = Directory.Exists(_player.Folder) ? _player.Folder : PlayerLocator.ResolveFolder(),
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+        var folder = dialog.SelectedPath;
+        PlayerLocator.SaveFolder(folder);
+        _player.UseFolder(folder);
+
+        // 顺手告诉用户这个目录里有多少张、最新一张是什么时候，方便确认没选错
+        var count = 0;
+        var newest = DateTime.MinValue;
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(folder, "*.png"))
+            {
+                count++;
+                var time = File.GetLastWriteTime(file);
+                if (time > newest)
+                {
+                    newest = time;
+                }
+            }
+        }
+        catch
+        {
+            // 读不动就只报目录本身
+        }
+        UpdateStatus();
+        _status.Text = count == 0
+            ? $"截图目录：{folder}　（没有 PNG，确认一下是不是这个文件夹）"
+            : $"截图目录：{folder}　共 {count} 张，最新 {newest:MM-dd HH:mm}　进游戏按截图键就会定位";
+    }
     private void UpdateStatus()
     {
         var map = CurrentMap;
