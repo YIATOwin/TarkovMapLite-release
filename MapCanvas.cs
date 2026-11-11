@@ -1177,7 +1177,7 @@ internal sealed class MapCanvas : Control
     };
 
     /// <summary>地图上玩家标记的颜色（青色）；楼层按钮旁的小人标记也用它，保证是同一个语义。</summary>
-    private static readonly Color PlayerMarkerColor = Color.FromArgb(40, 210, 235);
+    private static readonly Color PlayerMarkerColor = Color.FromArgb(255, 196, 92);
 
     private void DrawFloors(Graphics g)
     {
@@ -1294,38 +1294,47 @@ internal sealed class MapCanvas : Control
             }
         }
 
-        // 按草图做成「3D 箭头」：前一个长三角表示朝向，中间一道横杠，
-        // 尾部一个小三角当尾翼，中间一条脊线。
-        PointF At(float forwardOffset, float sideOffset) => new(
-            x + forward.X * forwardOffset + right.X * sideOffset,
-            y + forward.Y * forwardOffset + right.Y * sideOffset);
+        // 细十字线 + 朝向短线：比箭头更"精确"，也能看出朝向。
+        // 颜色用橙黄，和任务区域的琥珀色靠深色描边 + 脉冲环区分开。
+        var arm = 9f;          // 十字臂长
+        var gap = 3f;          // 中心留空，避免糊成一坨
+        var spike = 15f;       // 朝向短线，比臂长一点，方向才读得出来
+        var nose = new PointF(x + forward.X * spike, y + forward.Y * spike);
+        var back = new PointF(x - forward.X * spike * 0.45f, y - forward.Y * spike * 0.45f);
 
-        var tip = At(18f, 0f);
-        var wingLeft = At(-7f, 8f);
-        var wingRight = At(-7f, -8f);
-        var tail = At(-17f, 0f);
-
-        var nose = new[] { tip, wingLeft, wingRight };
-        var tailFin = new[] { wingLeft, tail, wingRight };
-
-        // 先铺一层深色描边：浅色地面（雪地/沙地）上也不会糊成一团
-        using var outline = new Pen(Color.FromArgb(Math.Min(alpha, 235), 8, 14, 18), 4.2f)
+        // 深色底衬：浅色地形上也能看清
+        using var halo = new Pen(Color.FromArgb(Math.Min(alpha, 200), 10, 12, 14), 3.4f)
         {
-            LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
+            StartCap = System.Drawing.Drawing2D.LineCap.Round,
+            EndCap = System.Drawing.Drawing2D.LineCap.Round,
         };
-        g.DrawPolygon(outline, nose);
-        g.DrawPolygon(outline, tailFin);
+        void Halo(PointF a, PointF b) => g.DrawLine(halo, a, b);
+        Halo(new PointF(x - arm, y), new PointF(x - gap, y));
+        Halo(new PointF(x + gap, y), new PointF(x + arm, y));
+        Halo(new PointF(x, y - arm), new PointF(x, y - gap));
+        Halo(new PointF(x, y + gap), new PointF(x, y + arm));
+        Halo(new PointF(x, y), nose);
+        Halo(new PointF(x, y), back);
 
-        // 前三角亮、尾翼暗，才有立体的前后关系
-        using var noseBrush = new SolidBrush(Color.FromArgb(Math.Min(alpha, 235), PlayerMarkerColor));
-        using var finBrush = new SolidBrush(Color.FromArgb(Math.Min(alpha, 170), PlayerMarkerColor));
-        g.FillPolygon(noseBrush, nose);
-        g.FillPolygon(finBrush, tailFin);
+        // 细线本体
+        using var line = new Pen(Color.FromArgb(alpha, PlayerMarkerColor), 1.3f)
+        {
+            StartCap = System.Drawing.Drawing2D.LineCap.Round,
+            EndCap = System.Drawing.Drawing2D.LineCap.Round,
+        };
+        g.DrawLine(line, x - arm, y, x - gap, y);
+        g.DrawLine(line, x + gap, y, x + arm, y);
+        g.DrawLine(line, x, y - arm, x, y - gap);
+        g.DrawLine(line, x, y + gap, x, y + arm);
 
-        // 横杠（两翼之间）+ 脊线（头到尾），对应草图上那两道线
-        using var edge = new Pen(Color.FromArgb(Math.Min(alpha, 190), 245, 252, 255), 1.4f);
-        g.DrawLine(edge, wingLeft, wingRight);
-        g.DrawLine(edge, tip, tail);
+        // 朝向：从中心指出来的那一段更长、更亮，一眼看出面朝哪
+        using var spire = new Pen(Color.FromArgb(alpha, PlayerMarkerColor), 2f)
+        {
+            StartCap = System.Drawing.Drawing2D.LineCap.Round,
+            EndCap = System.Drawing.Drawing2D.LineCap.Round,
+        };
+        g.DrawLine(spire, x, y, nose.X, nose.Y);
+        g.DrawLine(spire, x, y, back.X, back.Y);
     }
     /// <summary>候选刷新点：小琥珀色圆点，带白边，方便和任务区域区分。</summary>
     private void DrawSpawnPoints(Graphics g, float scale, PointF origin)
