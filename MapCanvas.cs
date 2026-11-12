@@ -633,8 +633,12 @@ internal sealed class MapCanvas : Control
         // 容器：每种类型一个颜色 + 形状（图例在「图层」菜单里）
         if (ShowContainers)
         {
-            foreach (var (point, kind) in layer.Containers)
+            foreach (var (point, kind, y) in layer.Containers)
             {
+                if (!MarkerFloors.Matches(_map?.Key ?? "", y, _layer))
+                {
+                    continue;
+                }
                 if (HiddenContainerKinds.Contains(kind))
                 {
                     continue;
@@ -653,6 +657,10 @@ internal sealed class MapCanvas : Control
         {
             foreach (var loot in layer.Loose)
             {
+                if (!MarkerFloors.Matches(_map?.Key ?? "", loot.Y, _layer))
+                {
+                    continue;
+                }
                 if (!LootKinds.Visible(loot.Mask, HiddenLootKinds))
                 {
                     continue;
@@ -694,8 +702,12 @@ internal sealed class MapCanvas : Control
             using var botPen = new Pen(Color.FromArgb(150, 235, 165, 90), 1.3f);
             using var bossPen = new Pen(Color.FromArgb(190, 200, 120, 255), 1.8f);
             using var sniperPen = new Pen(Color.FromArgb(170, 240, 90, 90), 1.3f);
-            foreach (var (point, cats) in layer.Spawns)
+            foreach (var (point, cats, y) in layer.Spawns)
             {
+                if (!MarkerFloors.Matches(_map?.Key ?? "", y, _layer))
+                {
+                    continue;
+                }
                 var p = At(point);
                 if (!visible.Contains(p))
                 {
