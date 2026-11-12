@@ -46,14 +46,6 @@ public sealed class MapProjection
     public double[] ViewBox { get; init; } = new double[4];
     public IReadOnlyList<MapLayer> Layers { get; init; } = Array.Empty<MapLayer>();
 
-    /// <summary>
-    /// true = 这张图的楼层图本身就是完整平面图，不再叠底图。
-    /// 工厂（含夜工厂/疫区工厂）就是这样：它的 2 层/3 层/地下 每张都画了整栋楼，
-    /// 再叠一层底图等于两张图重合。其余地图的楼层图只是"这层多出来的墙"，必须叠。
-    /// 判定依据：楼层图对底图不透明区域的覆盖率 ≈100%（见 tools/check-layers.py）。
-    /// </summary>
-    public bool FloorsComplete { get; init; }
-
     /// <summary>任务与标记从哪个地图 key 取（为空就是自己）。</summary>
     public string Data =>
         string.IsNullOrEmpty(DataKey) ? Key : DataKey;
