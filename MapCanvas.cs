@@ -529,7 +529,8 @@ internal sealed class MapCanvas : Control
             g.DrawImage(_image, rect);
         }
         // 非地面楼层：把地面压暗，再叠加当前楼层
-        if (!string.IsNullOrEmpty(_layer) && ImageFor(_layer) is { } floor)
+        // 完整楼层图（工厂）不压暗底图——底图根本就没画，压暗只会让整张图发黑
+        if (!string.IsNullOrEmpty(_layer) && !_map.FloorsComplete && ImageFor(_layer) is { } floor)
         {
             using (var dim = new SolidBrush(Color.FromArgb(130, 5, 7, 9)))
             {
