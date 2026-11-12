@@ -1006,6 +1006,15 @@ internal sealed class MapForm : Form
     {
         var maps = MapPack.Maps.ToList();
         var index = maps.FindIndex(m => string.Equals(m.Key, key, StringComparison.OrdinalIgnoreCase));
+        // 这张图的 SVG 少了层（或图没生成）：直接切到它的瓦片版，层才完整
+        if (index >= 0 && !string.IsNullOrEmpty(maps[index].PreferTiles))
+        {
+            var alt = maps.FindIndex(m => string.Equals(m.Key, maps[index].PreferTiles, StringComparison.OrdinalIgnoreCase));
+            if (alt >= 0)
+            {
+                index = alt;
+            }
+        }
         if (index < 0 || index == _mapSelect.SelectedIndex)
         {
             return;

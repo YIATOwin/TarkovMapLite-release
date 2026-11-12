@@ -46,6 +46,12 @@ public sealed class MapProjection
     public double[] ViewBox { get; init; } = new double[4];
     public IReadOnlyList<MapLayer> Layers { get; init; } = Array.Empty<MapLayer>();
 
+    /// <summary>
+    /// 这张图该默认用另一个条目（通常是它的瓦片版）。SVG 源里缺层的图会这么指：
+    /// 网站的瓦片有 5 层、SVG 只有 1 层时，用瓦片版才能把层补全。
+    /// </summary>
+    public string PreferTiles { get; init; } = "";
+
     /// <summary>任务与标记从哪个地图 key 取（为空就是自己）。</summary>
     public string Data =>
         string.IsNullOrEmpty(DataKey) ? Key : DataKey;

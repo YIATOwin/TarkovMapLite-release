@@ -70,6 +70,12 @@ internal static class MarkerFloors
         }
     }
 
+    private static string Normalize(string name)
+    {
+        var text = name.Replace("_Level", "").Replace("_Floor", "").Replace("_", "");
+        return text.Trim();
+    }
+
     /// <summary>该高度是否属于正在看的那一层；层名为空（= 地面）时不过滤。</summary>
     public static bool Matches(string mapKey, float y, string layer)
     {
@@ -89,7 +95,9 @@ internal static class MarkerFloors
         {
             if (y >= low && y < high)
             {
-                return string.Equals(name, layer, StringComparison.OrdinalIgnoreCase);
+                // 瓦片版和 SVG 版对同一层的叫法可能差一个后缀（Underground / Underground_Level），
+                // 比较前统一去掉 _Level / _Floor 再忽略大小写。
+                return string.Equals(Normalize(name), Normalize(layer), StringComparison.OrdinalIgnoreCase);
             }
         }
         return true;
