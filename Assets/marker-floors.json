@@ -1,0 +1,195 @@
+{
+ "generated": "build-marker-floors.py",
+ "maps": {
+  "factory": {
+   "bands": [
+    [
+     null,
+     -0.42,
+     "Basement"
+    ],
+    [
+     -0.42,
+     2.78,
+     "(ground)"
+    ],
+    [
+     2.78,
+     6.38,
+     "Second_Floor"
+    ],
+    [
+     6.38,
+     null,
+     "Third_Floor"
+    ]
+   ],
+   "count": 248
+  },
+  "customs": {
+   "bands": [
+    [
+     null,
+     -0.75,
+     "Underground_Level"
+    ],
+    [
+     -0.75,
+     4.39,
+     "(ground)"
+    ],
+    [
+     4.39,
+     10.14,
+     "Second_Floor"
+    ],
+    [
+     10.14,
+     null,
+     "Third_Floor"
+    ]
+   ],
+   "count": 861
+  },
+  "shoreline": {
+   "bands": [
+    [
+     null,
+     -40.01,
+     "Underground_Level"
+    ],
+    [
+     -40.01,
+     -15.68,
+     "(ground)"
+    ],
+    [
+     -15.68,
+     -2.03,
+     "Second_Floor"
+    ],
+    [
+     -2.03,
+     null,
+     "Third_Floor"
+    ]
+   ],
+   "count": 1200
+  },
+  "reserve": {
+   "bands": [
+    [
+     null,
+     8.13,
+     "Bunkers"
+    ],
+    [
+     8.13,
+     null,
+     "(ground)"
+    ]
+   ],
+   "count": 1458
+  },
+  "interchange": {
+   "bands": [
+    [
+     null,
+     24.63,
+     "(ground)"
+    ],
+    [
+     24.63,
+     32.57,
+     "First_Floor"
+    ],
+    [
+     32.57,
+     null,
+     "Second_Floor"
+    ]
+   ],
+   "count": 1315
+  },
+  "streets-of-tarkov": {
+   "bands": [
+    [
+     null,
+     -0.89,
+     "Underground_Level"
+    ],
+    [
+     -0.89,
+     2.05,
+     "(ground)"
+    ],
+    [
+     2.05,
+     3.88,
+     "Second_Floor"
+    ],
+    [
+     3.88,
+     5.9,
+     "Third_Floor"
+    ],
+    [
+     5.9,
+     9.03,
+     "Fourth_Floor"
+    ],
+    [
+     9.03,
+     null,
+     "Fifth_Floor"
+    ]
+   ],
+   "count": 2230
+  },
+  "the-lab": {
+   "bands": [
+    [
+     null,
+     -1.49,
+     "(ground)"
+    ],
+    [
+     -1.49,
+     2.87,
+     "Technical"
+    ],
+    [
+     2.87,
+     null,
+     "Second_Floor"
+    ]
+   ],
+   "count": 681
+  },
+  "ground-zero": {
+   "bands": [
+    [
+     null,
+     19.56,
+     "Underground_Level"
+    ],
+    [
+     19.56,
+     24.26,
+     "(ground)"
+    ],
+    [
+     24.26,
+     28.22,
+     "Second_Floor"
+    ],
+    [
+     28.22,
+     null,
+     "Third_Floor"
+    ]
+   ],
+   "count": 707
+  }
+ }
+}

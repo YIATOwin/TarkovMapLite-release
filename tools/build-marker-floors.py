@@ -19,24 +19,41 @@ from pathlib import Path
 
 
 def bands_for(ys, count):
-    """把 y 排序后按最大的 count-1 个空隙切段，返回 [(low, high), ...]。"""
-    values = sorted(set(ys))
-    if count <= 1 or len(values) <= 1:
+    """1D k-means：把 y 分成 count 簇，用簇心之间的中点当断点。
+
+    为什么不用"最大空隙切分"：工厂的 y 在 -2.5（地下）、1（地面）、9（3 层）三处聚集，
+    但地面附近的点很密，空隙法会把地面和地下并到一段里。k-means 按密度分簇更稳。
+    """
+    values = sorted(ys)
+    if count <= 1 or not values:
         return [(-1e9, 1e9)]
-    gaps = []
-    for i in range(1, len(values)):
-        gaps.append((values[i] - values[i - 1], i))
-    gaps.sort(reverse=True)
-    cuts = sorted(cut_index for _, cut_index in gaps[: count - 1])
-    edges = [values[i - 0] for i in cuts]
-    bands = []
-    low = -1e9
+    count = min(count, len(set(values)))
+    if count <= 1:
+        return [(-1e9, 1e9)]
+    # 用分位数初始化簇心，避免随机性
+    centers = [values[min(len(values) - 1, int((i + 0.5) * len(values) / count))] for i in range(count)]
+    for _ in range(40):
+        groups = [[] for _ in centers]
+        for value in values:
+            index = min(range(len(centers)), key=lambda i: abs(value - centers[i]))
+            groups[index].append(value)
+        moved = False
+        for i, group in enumerate(groups):
+            if group:
+                center = sum(group) / len(group)
+                if abs(center - centers[i]) > 1e-6:
+                    moved = True
+                centers[i] = center
+        if not moved:
+            break
+    centers.sort()
+    edges = [(centers[i] + centers[i + 1]) / 2 for i in range(len(centers) - 1)]
+    bands, low = [], -1e9
     for edge in edges:
         bands.append((low, edge))
         low = edge
     bands.append((low, 1e9))
     return bands
-
 
 def rank(name):
     """楼层的物理高度顺序：越低的数字越小。"""
