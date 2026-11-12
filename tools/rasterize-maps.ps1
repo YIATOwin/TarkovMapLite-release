@@ -3,20 +3,21 @@
 # Uses a headless Edge/Chrome so the native tool never needs an SVG parser and
 # the output matches the browser pixel for pixel.
 #
-#   powershell -File tools\rasterize-maps.ps1 [-MaxEdge 4000]
+#   powershell -File tools\rasterize-maps.ps1 [-Scale 2] [-MaxEdge 2600]
 #
 # NOTE: keep this file ASCII-only. Windows PowerShell 5.1 reads a BOM-less
 # script as ANSI, and non-ASCII comments end up mangling subsequent statements.
 
 param(
     [double]$MaxScale = 24.0,
-    [int]$MaxEdge = 4000
+    [int]$MaxEdge = 4000,
+    [string]$Only = ""
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-$srcDir = Join-Path $repo 'tools\maps-src'
-$outDir = Join-Path $repo 'Assets\maps'
+$srcDir = Join-Path $repo 'TarkovMonitor\wwwroot\maps'
+$outDir = Join-Path $repo 'TarkovMapLite\Assets\maps'
 $tmpDir = Join-Path $env:TEMP 'tm-rasterize'
 
 New-Item -ItemType Directory -Force -Path $outDir, $tmpDir | Out-Null
@@ -47,7 +48,13 @@ function Get-ScopedStyles {
     }
     # ground is visible only for the base image; each floor image shows just that floor
     $groundVisible = [string]::IsNullOrEmpty($activeLayer)
-    [void]$sb.Append("#$svgId #Ground_Level{display:" + $(if ($groundVisible) { 'inline' } else { 'none' }) + '}')
+    # 地面分组的 id 每张 SVG 不一样：海关是 Ground_Level，工厂是 Ground_Floor。
+    # 写死一个 id 会静默失效（CSS 匹配不到就不隐藏），所以这里现探。
+    $groundId = ""
+    if ($raw -match '<g\s+[^>]*id="(Ground[^"]*)"') { $groundId = $Matches[1] }
+    if ($groundId) {
+        [void]$sb.Append("#$svgId #$groundId{display:" + $(if ($groundVisible) { 'inline' } else { 'none' }) + '}')
+    }
     foreach ($layer in $layers) {
         if (-not $layer.svgLayer) { continue }
         $visible = ($layer.svgLayer -eq $activeLayer)
@@ -58,6 +65,7 @@ function Get-ScopedStyles {
 
 $index = @()
 foreach ($map in $pack.maps) {
+    if ($Only -and $map.svg -notlike "*$Only*") { continue }
     $svgPath = Join-Path $srcDir $map.svg
     if (-not (Test-Path $svgPath)) { Write-Warning "missing svg: $svgPath"; continue }
     $raw = Get-Content $svgPath -Raw

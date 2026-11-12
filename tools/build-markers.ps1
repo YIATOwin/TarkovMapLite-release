@@ -89,7 +89,7 @@ foreach ($prop in $maps.PSObject.Properties) {
             if ($bit) { $mask = $mask -bor $bit }
         }
         if ($mask -eq 0) { $mask = 64 }
-        $loose += ,@((Round1 $point.position.x), (Round1 $point.position.z), $mask)
+        $loose += ,@((Round1 $point.position.x), (Round1 $point.position.z), $mask, (Round1 $point.position.y))
     }
     if ($loose.Count -gt 0) { $entry['loose'] = $loose }
 
@@ -99,7 +99,7 @@ foreach ($prop in $maps.PSObject.Properties) {
         $kindId = "$($point.lootContainer)"
         $kindNode = $json.data.lootContainers.$kindId
         $kind = if ($kindNode) { $kindNode.normalizedName } else { "container" }
-        $containers += ,@((Round1 $point.position.x), (Round1 $point.position.z), $kind)
+        $containers += ,@((Round1 $point.position.x), (Round1 $point.position.z), $kind, (Round1 $point.position.y))
     }
     if ($containers.Count -gt 0) { $entry['containers'] = $containers }
 
