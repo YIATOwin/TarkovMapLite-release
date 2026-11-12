@@ -56,6 +56,8 @@ internal sealed class MapForm : Form
     private readonly UiButton _mapButton = new();
     /// <summary>底部状态栏最右边的「截图目录」按钮：手动指定游戏截图放在哪。</summary>
     private readonly UiButton _shotsButton = new();
+    /// <summary>顶栏「钥匙」：列出这张图的钥匙，点一把就跳到对应的锁。</summary>
+    private readonly UiButton _keyButton = new();
     /// <summary>底部「测试截图」按钮：拿目录里最新的一张截图试投影。</summary>
     private readonly UiButton _testButton = new();
     /// <summary>测试截图给出的坐标（真实定位没出来时优先用它画标记）。</summary>
@@ -279,7 +281,7 @@ internal sealed class MapForm : Form
 
         top.Controls.AddRange(new Control[]
         {
-            title, _mapButton, _showExtracts, _layerButton, refresh, fit, _variant, _mobileButton,
+            title, _mapButton, _showExtracts, _keyButton, _layerButton, refresh, fit, _variant, _mobileButton,
         });
 
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 26, BackColor = PanelBack };
@@ -300,6 +302,12 @@ internal sealed class MapForm : Form
         _shotsButton.Text = "截图目录";
         _shotsButton.Dock = DockStyle.Right;
         _shotsButton.Width = 86;
+        _keyButton.Text = "钥匙";
+        _keyButton.Location = new Point(784, 10);
+        _keyButton.Size = new Size(60, 26);
+        _keyButton.Font = new Font("Microsoft YaHei UI", 8.5f);
+        _keyButton.Click += (_, _) => OpenKeyList();
+
         _shotsButton.Font = new Font("Microsoft YaHei UI", 8.5f);
         _shotsButton.Click += (_, _) => PickScreenshotFolder();
         // 右键：清理开关（默认关）和打开目录
@@ -2134,6 +2142,34 @@ internal sealed class MapForm : Form
         }
         var max = WindowState == FormWindowState.Maximized ? "1" : "0";
         PlayerLocator.SetSetting("window", $"{rect.X},{rect.Y},{rect.Width},{rect.Height},{max}");
+    }
+    /// <summary>把这张图的门锁按钥匙归组，弹「钥匙」列表；选中就飞到那把锁并闪一下。</summary>
+    private void OpenKeyList()
+    {
+        var map = CurrentMap;
+        if (map == null)
+        {
+            _status.Text = "先选一张地图";
+            return;
+        }
+        var (doors, _) = MapDoors.For(map);
+        var rows = doors
+            .Where(door => !string.IsNullOrEmpty(door.KeyName))
+            .GroupBy(door => MapDoors.DoorLabel(door.KeyName), StringComparer.OrdinalIgnoreCase)
+            .Select(group => new KeyListForm.Row(group.Key, group.Count(), group.First().World))
+            .OrderBy(row => row.Label, StringComparer.CurrentCulture)
+            .ToList();
+        if (rows.Count == 0)
+        {
+            _status.Text = "这张图没有需要钥匙的门";
+            return;
+        }
+        using var dialog = new KeyListForm(_mapButton.Text.Split('·')[0].Trim(), rows);
+        if (dialog.ShowDialog(this) == DialogResult.OK && dialog.Chosen is { } world)
+        {
+            _canvas.FocusWorld(world);
+            _status.Text = $"已定位：{dialog.ChosenLabel}";
+        }
     }
     private void UpdateStatus()
     {

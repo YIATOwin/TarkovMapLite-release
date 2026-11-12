@@ -1,0 +1,926 @@
+{
+ "generated": "2026-11-12 14:07",
+ "source": "json.tarkov.dev /pve/items + /pve/items_zh, icons from assets.tarkov.dev",
+ "keys": {
+  "14-4 KORD 站点 K.Arshavin 钥匙卡 (修复)": {
+   "id": "68cc09872bdcc15c010c2668",
+   "icon": "keyicons/68cc09872bdcc15c010c2668.png",
+   "name": "14-4 KORD 站点 K.Arshavin 钥匙卡 (修复)"
+  },
+  "Boreas 破冰船轮机舱": {
+   "id": "69bb3e54d6c67f6265004ab9",
+   "icon": "keyicons/69bb3e54d6c67f6265004ab9.png",
+   "name": "Boreas 破冰船轮机舱钥匙卡"
+  },
+  "Boreas 破冰船载员舱": {
+   "id": "69bb3ec9f609db77390b0e1a",
+   "icon": "keyicons/69bb3ec9f609db77390b0e1a.png",
+   "name": "Boreas 破冰船载员舱钥匙卡"
+  },
+  "C-1 舱室": {
+   "id": "69bb3f278af9f360ee010a7a",
+   "icon": "keyicons/69bb3f278af9f360ee010a7a.png",
+   "name": "C-1 舱室钥匙卡"
+  },
+  "C-3 舱室": {
+   "id": "69bb3f7df94327bc0f0230c9",
+   "icon": "keyicons/69bb3f7df94327bc0f0230c9.png",
+   "name": "C-3 舱室钥匙卡"
+  },
+  "Cardinal 公寓": {
+   "id": "68c165f1903341d88b092b2a",
+   "icon": "keyicons/68c165f1903341d88b092b2a.png",
+   "name": "Cardinal 公寓钥匙"
+  },
+  "Chekannaya 15号公寓": {
+   "id": "63a39fc0af870e651d58e6ae",
+   "icon": "keyicons/63a39fc0af870e651d58e6ae.png",
+   "name": "Chekannaya 15号公寓钥匙"
+  },
+  "Concordia 63号公寓": {
+   "id": "64ccc1f4ff54fb38131acf27",
+   "icon": "keyicons/64ccc1f4ff54fb38131acf27.png",
+   "name": "Concordia 63号公寓钥匙"
+  },
+  "Concordia 64号公寓": {
+   "id": "63a71e922b25f7513905ca20",
+   "icon": "keyicons/63a71e922b25f7513905ca20.png",
+   "name": "Concordia 64号公寓钥匙"
+  },
+  "Concordia 64号公寓办公室": {
+   "id": "63a71e86b7f4570d3a293169",
+   "icon": "keyicons/63a71e86b7f4570d3a293169.png",
+   "name": "Concordia 64号公寓办公室钥匙"
+  },
+  "Concordia 8号公寓": {
+   "id": "63a71e781031ac76fe773c7d",
+   "icon": "keyicons/63a71e781031ac76fe773c7d.png",
+   "name": "Concordia 8号公寓钥匙"
+  },
+  "Concordia 8号公寓家庭影院": {
+   "id": "64ccc1ec1779ad6ba200a137",
+   "icon": "keyicons/64ccc1ec1779ad6ba200a137.png",
+   "name": "Concordia 8号公寓家庭影院钥匙"
+  },
+  "Concordia 安保处": {
+   "id": "63a39c7964283b5e9c56b280",
+   "icon": "keyicons/63a39c7964283b5e9c56b280.png",
+   "name": "Concordia 安保处钥匙"
+  },
+  "Concordia34号公寓房间": {
+   "id": "64ccc1d4a0f13c24561edf27",
+   "icon": "keyicons/64ccc1d4a0f13c24561edf27.png",
+   "name": "Concordia34号公寓房间钥匙"
+  },
+  "EMERCOM医疗区": {
+   "id": "5ad5db3786f7743568421cce",
+   "icon": "keyicons/5ad5db3786f7743568421cce.png",
+   "name": "EMERCOM医疗区钥匙"
+  },
+  "Elektronik 的": {
+   "id": "68e95d71a3d110355b03e529",
+   "icon": "keyicons/68e95d71a3d110355b03e529.png",
+   "name": "Elektronik 的钥匙"
+  },
+  "Grumpy的藏身处": {
+   "id": "664d3dd590294949fe2d81b7",
+   "icon": "keyicons/664d3dd590294949fe2d81b7.png",
+   "name": "Grumpy的藏身处钥匙"
+  },
+  "Horse饭店厕所": {
+   "id": "658199a0490414548c0fa83b",
+   "icon": "keyicons/658199a0490414548c0fa83b.png",
+   "name": "Horse饭店厕所钥匙"
+  },
+  "Kiba 商店内侧格栅门": {
+   "id": "5addaffe86f77470b455f900",
+   "icon": "keyicons/5addaffe86f77470b455f900.png",
+   "name": "Kiba 商店内侧格栅门钥匙"
+  },
+  "Kiba 商店外门": {
+   "id": "5ad5d7d286f77450166e0a89",
+   "icon": "keyicons/5ad5d7d286f77450166e0a89.png",
+   "name": "Kiba 商店外门钥匙"
+  },
+  "Knossos LLC 设施": {
+   "id": "679b9716597ba2ed120c3d3f",
+   "icon": "keyicons/679b9716597ba2ed120c3d3f.png",
+   "name": "Knossos LLC 设施钥匙"
+  },
+  "Leon的藏身处": {
+   "id": "664d3de85f2355673b09aed5",
+   "icon": "keyicons/664d3de85f2355673b09aed5.png",
+   "name": "Leon的藏身处钥匙"
+  },
+  "OLI物流部": {
+   "id": "5ad5cfbd86f7742c825d6104",
+   "icon": "keyicons/5ad5cfbd86f7742c825d6104.png",
+   "name": "OLI物流部钥匙"
+  },
+  "OLI管理员办公室": {
+   "id": "5ad5ccd186f774446d5706e9",
+   "icon": "keyicons/5ad5ccd186f774446d5706e9.png",
+   "name": "OLI管理员办公室钥匙"
+  },
+  "OLI超市杂物间": {
+   "id": "5ad5d20586f77449be26d877",
+   "icon": "keyicons/5ad5d20586f77449be26d877.png",
+   "name": "OLI超市杂物间钥匙"
+  },
+  "Object #11SR": {
+   "id": "5e42c81886f7742a01529f57",
+   "icon": "keyicons/5e42c81886f7742a01529f57.png",
+   "name": "Object #11SR 钥匙卡"
+  },
+  "Object #21WS": {
+   "id": "5e42c83786f7742a021fdf3c",
+   "icon": "keyicons/5e42c83786f7742a021fdf3c.png",
+   "name": "Object #21WS 钥匙卡"
+  },
+  "Primorsky 46-48号天桥": {
+   "id": "63a39e1d234195315d4020bd",
+   "icon": "keyicons/63a39e1d234195315d4020bd.png",
+   "name": "Primorsky 46-48号天桥钥匙"
+  },
+  "Primorsky 48 公寓": {
+   "id": "63a71eb5b7f4570d3a29316b",
+   "icon": "keyicons/63a71eb5b7f4570d3a29316b.png",
+   "name": "Primorsky 48 公寓钥匙"
+  },
+  "RB-AK": {
+   "id": "5d80c78786f774403a401e3e",
+   "icon": "keyicons/5d80c78786f774403a401e3e.png",
+   "name": "RB-AK钥匙"
+  },
+  "RB-AM": {
+   "id": "5d80c88d86f77440556dbf07",
+   "icon": "keyicons/5d80c88d86f77440556dbf07.png",
+   "name": "RB-AM钥匙"
+  },
+  "RB-AO": {
+   "id": "5d80c66d86f774405611c7d6",
+   "icon": "keyicons/5d80c66d86f774405611c7d6.png",
+   "name": "RB-AO钥匙"
+  },
+  "RB-BK 符号": {
+   "id": "5d80c60f86f77440373c4ece",
+   "icon": "keyicons/5d80c60f86f77440373c4ece.png",
+   "name": "RB-BK 符号钥匙"
+  },
+  "RB-GN": {
+   "id": "5d8e3ecc86f774414c78d05e",
+   "icon": "keyicons/5d8e3ecc86f774414c78d05e.png",
+   "name": "RB-GN钥匙"
+  },
+  "RB-KORL": {
+   "id": "5d8e0db586f7744450412a42",
+   "icon": "keyicons/5d8e0db586f7744450412a42.png",
+   "name": "RB-KORL钥匙"
+  },
+  "RB-KPRL": {
+   "id": "5d8e0e0e86f774321140eb56",
+   "icon": "keyicons/5d8e0e0e86f774321140eb56.png",
+   "name": "RB-KPRL钥匙"
+  },
+  "RB-KSM": {
+   "id": "5d947d4e86f774447b415895",
+   "icon": "keyicons/5d947d4e86f774447b415895.png",
+   "name": "RB-KSM钥匙"
+  },
+  "RB-MP11": {
+   "id": "5d80c93086f7744036212b41",
+   "icon": "keyicons/5d80c93086f7744036212b41.png",
+   "name": "RB-MP11钥匙"
+  },
+  "RB-MP12": {
+   "id": "5d80c95986f77440351beef3",
+   "icon": "keyicons/5d80c95986f77440351beef3.png",
+   "name": "RB-MP12钥匙"
+  },
+  "RB-MP13": {
+   "id": "5d80cbd886f77470855c26c2",
+   "icon": "keyicons/5d80cbd886f77470855c26c2.png",
+   "name": "RB-MP13钥匙"
+  },
+  "RB-MP21": {
+   "id": "5d80ca9086f774403a401e40",
+   "icon": "keyicons/5d80ca9086f774403a401e40.png",
+   "name": "RB-MP21钥匙"
+  },
+  "RB-MP22": {
+   "id": "5d80cab086f77440535be201",
+   "icon": "keyicons/5d80cab086f77440535be201.png",
+   "name": "RB-MP22钥匙"
+  },
+  "RB-OB": {
+   "id": "5d80c6c586f77440351beef1",
+   "icon": "keyicons/5d80c6c586f77440351beef1.png",
+   "name": "RB-OB钥匙"
+  },
+  "RB-OP": {
+   "id": "5d80c8f586f77440373c4ed0",
+   "icon": "keyicons/5d80c8f586f77440373c4ed0.png",
+   "name": "RB-OP钥匙"
+  },
+  "RB-ORB1": {
+   "id": "5d80ccac86f77470841ff452",
+   "icon": "keyicons/5d80ccac86f77470841ff452.png",
+   "name": "RB-ORB1钥匙"
+  },
+  "RB-ORB2": {
+   "id": "5d80ccdd86f77474f7575e02",
+   "icon": "keyicons/5d80ccdd86f77474f7575e02.png",
+   "name": "RB-ORB2钥匙"
+  },
+  "RB-ORB3": {
+   "id": "5d80cd1a86f77402aa362f42",
+   "icon": "keyicons/5d80cd1a86f77402aa362f42.png",
+   "name": "RB-ORB3钥匙"
+  },
+  "RB-PKPM 符号": {
+   "id": "5ede7a8229445733cb4c18e2",
+   "icon": "keyicons/5ede7a8229445733cb4c18e2.png",
+   "name": "RB-PKPM 符号钥匙"
+  },
+  "RB-PKPTS": {
+   "id": "68e9654d72488961110dbf69",
+   "icon": "keyicons/68e9654d72488961110dbf69.png",
+   "name": "RB-PKPTS 钥匙"
+  },
+  "RB-PSP1": {
+   "id": "5d80cb3886f77440556dbf09",
+   "icon": "keyicons/5d80cb3886f77440556dbf09.png",
+   "name": "RB-PSP1钥匙"
+  },
+  "RB-PSP2": {
+   "id": "5d95d6fa86f77424484aa5e9",
+   "icon": "keyicons/5d95d6fa86f77424484aa5e9.png",
+   "name": "RB-PSP2钥匙"
+  },
+  "RB-PSV1": {
+   "id": "5d80cb5686f77440545d1286",
+   "icon": "keyicons/5d80cb5686f77440545d1286.png",
+   "name": "RB-PSV1钥匙"
+  },
+  "RB-PSV2": {
+   "id": "5d95d6be86f77424444eb3a7",
+   "icon": "keyicons/5d95d6be86f77424444eb3a7.png",
+   "name": "RB-PSV2钥匙"
+  },
+  "RB-RH": {
+   "id": "5da5cdcd86f774529238fb9b",
+   "icon": "keyicons/5da5cdcd86f774529238fb9b.png",
+   "name": "RB-RH钥匙"
+  },
+  "RB-RLSA": {
+   "id": "5ede7b0c6d23e5473e6e8c66",
+   "icon": "keyicons/5ede7b0c6d23e5473e6e8c66.png",
+   "name": "RB-RLSA 钥匙"
+  },
+  "RB-RS": {
+   "id": "5da46e3886f774653b7a83fe",
+   "icon": "keyicons/5da46e3886f774653b7a83fe.png",
+   "name": "RB-RS钥匙"
+  },
+  "RB-SMP": {
+   "id": "5d947d3886f774447b415893",
+   "icon": "keyicons/5d947d3886f774447b415893.png",
+   "name": "RB-SMP钥匙"
+  },
+  "RB-ST": {
+   "id": "5d9f1fa686f774726974a992",
+   "icon": "keyicons/5d9f1fa686f774726974a992.png",
+   "name": "RB-ST钥匙"
+  },
+  "RB-TB": {
+   "id": "5d80c6fc86f774403a401e3c",
+   "icon": "keyicons/5d80c6fc86f774403a401e3c.png",
+   "name": "RB-TB钥匙"
+  },
+  "RB-VO 符号": {
+   "id": "5d80c62a86f7744036212b3f",
+   "icon": "keyicons/5d80c62a86f7744036212b3f.png",
+   "name": "RB-VO 符号钥匙"
+  },
+  "Reshala 窝棚": {
+   "id": "68e95f4fa4a577e907015787",
+   "icon": "keyicons/68e95f4fa4a577e907015787.png",
+   "name": "Reshala 窝棚钥匙"
+  },
+  "Shatun的藏身处": {
+   "id": "664d3db6db5dea2bad286955",
+   "icon": "keyicons/664d3db6db5dea2bad286955.png",
+   "name": "Shatun的藏身处钥匙"
+  },
+  "TerraGroup 仓库": {
+   "id": "66acd6702b17692df20144c0",
+   "icon": "keyicons/66acd6702b17692df20144c0.png",
+   "name": "TerraGroup 仓库钥匙卡"
+  },
+  "TerraGroup 实验室军械库": {
+   "id": "5c1f79a086f7746ed066fb8f",
+   "icon": "keyicons/5c1f79a086f7746ed066fb8f.png",
+   "name": "TerraGroup 实验室军械库钥匙"
+  },
+  "TerraGroup 实验室武器测试区域": {
+   "id": "5c1e2d1f86f77431e9280bee",
+   "icon": "keyicons/5c1e2d1f86f77431e9280bee.png",
+   "name": "TerraGroup 实验室武器测试区域钥匙"
+  },
+  "TerraGroup 实验室生活区": {
+   "id": "6711039f9e648049e50b3307",
+   "icon": "keyicons/6711039f9e648049e50b3307.png",
+   "name": "TerraGroup 实验室生活区钥匙卡"
+  },
+  "TerraGroup 实验室经理办公室": {
+   "id": "5c1e2a1e86f77431ea0ea84c",
+   "icon": "keyicons/5c1e2a1e86f77431ea0ea84c.png",
+   "name": "TerraGroup 实验室经理办公室钥匙"
+  },
+  "TerraGroup 集团公寓": {
+   "id": "67ee7680562d5057e60ccc3a",
+   "icon": "keyicons/67ee7680562d5057e60ccc3a.png",
+   "name": "TerraGroup 集团公寓钥匙"
+  },
+  "TerraGroup会议室": {
+   "id": "64ccc206793ca11c8f450a38",
+   "icon": "keyicons/64ccc206793ca11c8f450a38.png",
+   "name": "TerraGroup会议室钥匙"
+  },
+  "TerraGroup军械库": {
+   "id": "64ccc24de61ea448b507d34d",
+   "icon": "keyicons/64ccc24de61ea448b507d34d.png",
+   "name": "TerraGroup军械库钥匙"
+  },
+  "TerraGroup科学家办公室": {
+   "id": "658199aa38c79576a2569e13",
+   "icon": "keyicons/658199aa38c79576a2569e13.png",
+   "name": "TerraGroup科学家办公室钥匙"
+  },
+  "ULTRA 医疗仓库": {
+   "id": "5e42c71586f7747f245e1343",
+   "icon": "keyicons/5e42c71586f7747f245e1343.png",
+   "name": "ULTRA 医疗仓库钥匙"
+  },
+  "USEC 仓库": {
+   "id": "5da743f586f7744014504f72",
+   "icon": "keyicons/5da743f586f7744014504f72.png",
+   "name": "USEC 仓库钥匙"
+  },
+  "USEC小屋房间": {
+   "id": "66265d7be65f224b2e17c6aa",
+   "icon": "keyicons/66265d7be65f224b2e17c6aa.png",
+   "name": "USEC小屋房间钥匙"
+  },
+  "Unity Credit银行现金收纳机": {
+   "id": "6581998038c79576a2569e11",
+   "icon": "keyicons/6581998038c79576a2569e11.png",
+   "name": "Unity Credit银行现金收纳机钥匙"
+  },
+  "Voron的藏身处": {
+   "id": "664d3ddfdda2e85aca370d75",
+   "icon": "keyicons/664d3ddfdda2e85aca370d75.png",
+   "name": "Voron的藏身处钥匙"
+  },
+  "X光检查室": {
+   "id": "64ccc246ff54fb38131acf29",
+   "icon": "keyicons/64ccc246ff54fb38131acf29.png",
+   "name": "X光检查室钥匙"
+  },
+  "ZB-014": {
+   "id": "591afe0186f77431bd616a11",
+   "icon": "keyicons/591afe0186f77431bd616a11.png",
+   "name": "ZB-014钥匙"
+  },
+  "ZB-1013": {
+   "id": "6aa2f6565d82e97ee9076820",
+   "icon": "keyicons/6aa2f6565d82e97ee9076820.png",
+   "name": "ZB-1013 钥匙"
+  },
+  "Zmeevsky 3公寓8号": {
+   "id": "63a39dfe3901f439517cafba",
+   "icon": "keyicons/63a39dfe3901f439517cafba.png",
+   "name": "Zmeevsky 3公寓8号钥匙"
+  },
+  "Zmeevsky 5公寓20号": {
+   "id": "63a39df18a56922e82001f25",
+   "icon": "keyicons/63a39df18a56922e82001f25.png",
+   "name": "Zmeevsky 5公寓20号钥匙"
+  },
+  "Zmeisky 巷 3 号公寓": {
+   "id": "68e960db934bf7b02d005dab",
+   "icon": "keyicons/68e960db934bf7b02d005dab.png",
+   "name": "Zmeisky 巷 3 号公寓钥匙"
+  },
+  "“白鲸”餐厅经理办公室": {
+   "id": "64ccc1fe088064307e14a6f7",
+   "icon": "keyicons/64ccc1fe088064307e14a6f7.png",
+   "name": "“白鲸”餐厅经理办公室钥匙"
+  },
+  "一号房": {
+   "id": "679baa2c61f588ae2b062a24",
+   "icon": "keyicons/679baa2c61f588ae2b062a24.png",
+   "name": "一号房钥匙"
+  },
+  "三号房": {
+   "id": "679baa5a59b8961f370dd685",
+   "icon": "keyicons/679baa5a59b8961f370dd685.png",
+   "name": "三号房钥匙"
+  },
+  "不动产管理处办公室": {
+   "id": "6582dc5740562727a654ebb1",
+   "icon": "keyicons/6582dc5740562727a654ebb1.png",
+   "name": "不动产管理处办公室钥匙"
+  },
+  "二号房": {
+   "id": "679baa4f59b8961f370dd683",
+   "icon": "keyicons/679baa4f59b8961f370dd683.png",
+   "name": "二号房钥匙"
+  },
+  "休息室": {
+   "id": "6582dbf0b8d7830efc45016f",
+   "icon": "keyicons/6582dbf0b8d7830efc45016f.png",
+   "name": "休息室钥匙"
+  },
+  "会议室": {
+   "id": "62987cb98081af308d7558c8",
+   "icon": "keyicons/62987cb98081af308d7558c8.png",
+   "name": "会议室钥匙"
+  },
+  "体育教师办公室": {
+   "id": "64ccc268c41e91416064ebc7",
+   "icon": "keyicons/64ccc268c41e91416064ebc7.png",
+   "name": "体育教师办公室钥匙"
+  },
+  "供应部门主管办公室": {
+   "id": "63a39ce4cd6db0635c1975fa",
+   "icon": "keyicons/63a39ce4cd6db0635c1975fa.png",
+   "name": "供应部门主管办公室钥匙"
+  },
+  "停尸房": {
+   "id": "679bab714e9ca6b3d80586b4",
+   "icon": "keyicons/679bab714e9ca6b3d80586b4.png",
+   "name": "停尸房钥匙"
+  },
+  "公司主管办公室": {
+   "id": "6761a6f90575f25e020816a4",
+   "icon": "keyicons/6761a6f90575f25e020816a4.png",
+   "name": "公司主管办公室钥匙"
+  },
+  "公寓管理员": {
+   "id": "664d4b0103ef2c61246afb56",
+   "icon": "keyicons/664d4b0103ef2c61246afb56.png",
+   "name": "公寓管理员钥匙"
+  },
+  "内务部学院门厅警卫室": {
+   "id": "6582dc4b6ba9e979af6b79f4",
+   "icon": "keyicons/6582dc4b6ba9e979af6b79f4.png",
+   "name": "内务部学院门厅警卫室钥匙"
+  },
+  "军事基地检查站": {
+   "id": "5913915886f774123603c392",
+   "icon": "keyicons/5913915886f774123603c392.png",
+   "name": "军事基地检查站钥匙"
+  },
+  "冷库": {
+   "id": "61a6446f4b5f8b70f451b166",
+   "icon": "keyicons/61a6446f4b5f8b70f451b166.png",
+   "name": "冷库钥匙"
+  },
+  "别墅后门": {
+   "id": "5a0eb6ac86f7743124037a28",
+   "icon": "keyicons/5a0eb6ac86f7743124037a28.png",
+   "name": "别墅后门钥匙"
+  },
+  "加油站储藏室": {
+   "id": "5913877a86f774432f15d444",
+   "icon": "keyicons/5913877a86f774432f15d444.png",
+   "name": "加油站储藏室钥匙"
+  },
+  "变电站杂物间": {
+   "id": "5ad5d49886f77455f9731921",
+   "icon": "keyicons/5ad5d49886f77455f9731921.png",
+   "name": "变电站杂物间钥匙"
+  },
+  "变电站符号": {
+   "id": "62987dfc402c7f69bf010923",
+   "icon": "keyicons/62987dfc402c7f69bf010923.png",
+   "name": "变电站符号钥匙"
+  },
+  "叛乱USEC仓库": {
+   "id": "61a64492ba05ef10d62adcc1",
+   "icon": "keyicons/61a64492ba05ef10d62adcc1.png",
+   "name": "叛乱USEC仓库钥匙"
+  },
+  "叛乱USEC工作间": {
+   "id": "61aa81fcb225ac1ead7957c3",
+   "icon": "keyicons/61aa81fcb225ac1ead7957c3.png",
+   "name": "叛乱USEC工作间钥匙"
+  },
+  "叛乱USEC营房": {
+   "id": "62a9cb937377a65d7b070cef",
+   "icon": "keyicons/62a9cb937377a65d7b070cef.png",
+   "name": "叛乱USEC营房钥匙"
+  },
+  "商店经理": {
+   "id": "63a39c69af870e651d58e6aa",
+   "icon": "keyicons/63a39c69af870e651d58e6aa.png",
+   "name": "商店经理钥匙"
+  },
+  "四号房": {
+   "id": "679baa9091966fe40408f149",
+   "icon": "keyicons/679baa9091966fe40408f149.png",
+   "name": "四号房钥匙"
+  },
+  "地下停车场杂物间": {
+   "id": "658199972dc4e60f6d556a2f",
+   "icon": "keyicons/658199972dc4e60f6d556a2f.png",
+   "name": "地下停车场杂物间钥匙"
+  },
+  "塔科夫银行现金区": {
+   "id": "64ccc2111779ad6ba200a139",
+   "icon": "keyicons/64ccc2111779ad6ba200a139.png",
+   "name": "塔科夫银行现金区钥匙"
+  },
+  "备用藏身处": {
+   "id": "6398fd8ad3de3849057f5128",
+   "icon": "keyicons/6398fd8ad3de3849057f5128.png",
+   "name": "备用藏身处钥匙"
+  },
+  "实验室钥匙卡·紫": {
+   "id": "5c1e495a86f7743109743dfb",
+   "icon": "keyicons/5c1e495a86f7743109743dfb.png",
+   "name": "实验室钥匙卡·紫"
+  },
+  "实验室钥匙卡·红": {
+   "id": "5c1d0efb86f7744baf2e7b7b",
+   "icon": "keyicons/5c1d0efb86f7744baf2e7b7b.png",
+   "name": "实验室钥匙卡·红"
+  },
+  "实验室钥匙卡·绿": {
+   "id": "5c1d0dc586f7744baf2e7b79",
+   "icon": "keyicons/5c1d0dc586f7744baf2e7b79.png",
+   "name": "实验室钥匙卡·绿"
+  },
+  "实验室钥匙卡·蓝": {
+   "id": "5c1d0c5f86f7744bb2683cf0",
+   "icon": "keyicons/5c1d0c5f86f7744bb2683cf0.png",
+   "name": "实验室钥匙卡·蓝"
+  },
+  "实验室钥匙卡·黄": {
+   "id": "5c1d0d6d86f7744bb2683e1f",
+   "icon": "keyicons/5c1d0d6d86f7744bb2683e1f.png",
+   "name": "实验室钥匙卡·黄"
+  },
+  "实验室钥匙卡·黑": {
+   "id": "5c1d0f4986f7744bb01837fa",
+   "icon": "keyicons/5c1d0f4986f7744bb01837fa.png",
+   "name": "实验室钥匙卡·黑"
+  },
+  "宿舍103房间": {
+   "id": "5938994586f774523a425196",
+   "icon": "keyicons/5938994586f774523a425196.png",
+   "name": "宿舍103房间钥匙"
+  },
+  "宿舍104房间": {
+   "id": "591383f186f7744a4c5edcf3",
+   "icon": "keyicons/591383f186f7744a4c5edcf3.png",
+   "name": "宿舍104房间钥匙"
+  },
+  "宿舍105房间": {
+   "id": "591382d986f774465a6413a7",
+   "icon": "keyicons/591382d986f774465a6413a7.png",
+   "name": "宿舍105房间钥匙"
+  },
+  "宿舍108房间": {
+   "id": "5914578086f774123569ffa4",
+   "icon": "keyicons/5914578086f774123569ffa4.png",
+   "name": "宿舍108房间钥匙"
+  },
+  "宿舍110房间": {
+   "id": "59136e1e86f774432f15d133",
+   "icon": "keyicons/59136e1e86f774432f15d133.png",
+   "name": "宿舍110房间钥匙"
+  },
+  "宿舍114房间": {
+   "id": "59387a4986f77401cc236e62",
+   "icon": "keyicons/59387a4986f77401cc236e62.png",
+   "name": "宿舍114房间钥匙"
+  },
+  "宿舍118房间": {
+   "id": "5672c92d4bdc2d180f8b4567",
+   "icon": "keyicons/5672c92d4bdc2d180f8b4567.png",
+   "name": "宿舍118房间钥匙"
+  },
+  "宿舍203房间": {
+   "id": "5938504186f7740991483f30",
+   "icon": "keyicons/5938504186f7740991483f30.png",
+   "name": "宿舍203房间钥匙"
+  },
+  "宿舍204房间": {
+   "id": "59148c8a86f774197930e983",
+   "icon": "keyicons/59148c8a86f774197930e983.png",
+   "name": "宿舍204房间钥匙"
+  },
+  "宿舍206房间": {
+   "id": "5938603e86f77435642354f4",
+   "icon": "keyicons/5938603e86f77435642354f4.png",
+   "name": "宿舍206房间钥匙"
+  },
+  "宿舍214房间": {
+   "id": "5780cf942459777df90dcb72",
+   "icon": "keyicons/5780cf942459777df90dcb72.png",
+   "name": "宿舍214房间钥匙"
+  },
+  "宿舍218房间": {
+   "id": "5780cf9e2459777df90dcb73",
+   "icon": "keyicons/5780cf9e2459777df90dcb73.png",
+   "name": "宿舍218房间钥匙"
+  },
+  "宿舍220房间": {
+   "id": "5780cfa52459777dfb276eb1",
+   "icon": "keyicons/5780cfa52459777dfb276eb1.png",
+   "name": "宿舍220房间钥匙"
+  },
+  "宿舍303房间": {
+   "id": "593aa4be86f77457f56379f8",
+   "icon": "keyicons/593aa4be86f77457f56379f8.png",
+   "name": "宿舍303房间钥匙"
+  },
+  "宿舍306房间": {
+   "id": "5780cda02459777b272ede61",
+   "icon": "keyicons/5780cda02459777b272ede61.png",
+   "name": "宿舍306房间钥匙"
+  },
+  "宿舍308房间": {
+   "id": "5780cf722459777a5108b9a1",
+   "icon": "keyicons/5780cf722459777a5108b9a1.png",
+   "name": "宿舍308房间钥匙"
+  },
+  "宿舍315房间": {
+   "id": "5780cf692459777de4559321",
+   "icon": "keyicons/5780cf692459777de4559321.png",
+   "name": "宿舍315房间钥匙"
+  },
+  "宿舍楼 314 房间符号": {
+   "id": "5780cf7f2459777de4559322",
+   "icon": "keyicons/5780cf7f2459777de4559322.png",
+   "name": "宿舍楼 314 房间符号钥匙"
+  },
+  "宿舍门卫室": {
+   "id": "59136a4486f774447a1ed172",
+   "icon": "keyicons/59136a4486f774447a1ed172.png",
+   "name": "宿舍门卫室钥匙"
+  },
+  "灯塔岛藏匿点": {
+   "id": "6a8d581fe74010bf70069d83",
+   "icon": "keyicons/6a8d581fe74010bf70069d83.png",
+   "name": "灯塔岛藏匿点钥匙"
+  },
+  "生锈的带血": {
+   "id": "64d4b23dc1b37504b41ac2b6",
+   "icon": "keyicons/64d4b23dc1b37504b41ac2b6.png",
+   "name": "生锈的带血钥匙"
+  },
+  "疗养院东楼 107 办公室": {
+   "id": "5a0ea64786f7741707720468",
+   "icon": "keyicons/5a0ea64786f7741707720468.png",
+   "name": "疗养院东楼 107 办公室钥匙"
+  },
+  "疗养院东楼 205 房间": {
+   "id": "5a144bdb86f7741d374bbde0",
+   "icon": "keyicons/5a144bdb86f7741d374bbde0.png",
+   "name": "疗养院东楼 205 房间钥匙"
+  },
+  "疗养院东楼 206 房间": {
+   "id": "5a0ee4b586f7743698200d22",
+   "icon": "keyicons/5a0ee4b586f7743698200d22.png",
+   "name": "疗养院东楼 206 房间钥匙"
+  },
+  "疗养院东楼 222 房间": {
+   "id": "5a13f24186f77410e57c5626",
+   "icon": "keyicons/5a13f24186f77410e57c5626.png",
+   "name": "疗养院东楼 222 房间钥匙"
+  },
+  "疗养院东楼 226 房间": {
+   "id": "5a13f35286f77413ef1436b0",
+   "icon": "keyicons/5a13f35286f77413ef1436b0.png",
+   "name": "疗养院东楼 226 房间钥匙"
+  },
+  "疗养院东楼 306 房间": {
+   "id": "5a145d4786f7744cbb6f4a12",
+   "icon": "keyicons/5a145d4786f7744cbb6f4a12.png",
+   "name": "疗养院东楼 306 房间钥匙"
+  },
+  "疗养院东楼 308 房间": {
+   "id": "5a145d7b86f7744cbb6f4a13",
+   "icon": "keyicons/5a145d7b86f7744cbb6f4a13.png",
+   "name": "疗养院东楼 308 房间钥匙"
+  },
+  "疗养院东楼 310 房间": {
+   "id": "5a0eec9686f77402ac5c39f2",
+   "icon": "keyicons/5a0eec9686f77402ac5c39f2.png",
+   "name": "疗养院东楼 310 房间钥匙"
+  },
+  "疗养院东楼 313 房间": {
+   "id": "5a0eecf686f7740350630097",
+   "icon": "keyicons/5a0eecf686f7740350630097.png",
+   "name": "疗养院东楼 313 房间钥匙"
+  },
+  "疗养院东楼 314 房间": {
+   "id": "5a0eed4386f77405112912aa",
+   "icon": "keyicons/5a0eed4386f77405112912aa.png",
+   "name": "疗养院东楼 314 房间钥匙"
+  },
+  "疗养院东楼 316 房间": {
+   "id": "5a145ebb86f77458f1796f05",
+   "icon": "keyicons/5a145ebb86f77458f1796f05.png",
+   "name": "疗养院东楼 316 房间钥匙"
+  },
+  "疗养院东楼 328 房间": {
+   "id": "5a0eee1486f77402aa773226",
+   "icon": "keyicons/5a0eee1486f77402aa773226.png",
+   "name": "疗养院东楼 328 房间钥匙"
+  },
+  "疗养院杂物间": {
+   "id": "5a0ea79b86f7741d4a35298e",
+   "icon": "keyicons/5a0ea79b86f7741d4a35298e.png",
+   "name": "疗养院杂物间钥匙"
+  },
+  "疗养院西楼 104 办公室": {
+   "id": "5a0dc45586f7742f6b0b73e3",
+   "icon": "keyicons/5a0dc45586f7742f6b0b73e3.png",
+   "name": "疗养院西楼 104 办公室钥匙"
+  },
+  "疗养院西楼 112 办公室": {
+   "id": "5a0dc95c86f77452440fc675",
+   "icon": "keyicons/5a0dc95c86f77452440fc675.png",
+   "name": "疗养院西楼 112 办公室钥匙"
+  },
+  "疗养院西楼 203 房间": {
+   "id": "5a144dfd86f77445cb5a0982",
+   "icon": "keyicons/5a144dfd86f77445cb5a0982.png",
+   "name": "疗养院西楼 203 房间钥匙"
+  },
+  "疗养院西楼 205 房间": {
+   "id": "5a0ec6d286f7742c0b518fb5",
+   "icon": "keyicons/5a0ec6d286f7742c0b518fb5.png",
+   "name": "疗养院西楼 205 房间钥匙"
+  },
+  "疗养院西楼 216 房间": {
+   "id": "5a0ee30786f774023b6ee08f",
+   "icon": "keyicons/5a0ee30786f774023b6ee08f.png",
+   "name": "疗养院西楼 216 房间钥匙"
+  },
+  "疗养院西楼 218 房间": {
+   "id": "5a13eebd86f7746fd639aa93",
+   "icon": "keyicons/5a13eebd86f7746fd639aa93.png",
+   "name": "疗养院西楼 218 房间钥匙"
+  },
+  "疗养院西楼 219 房间": {
+   "id": "5a13ef0686f7746e5a411744",
+   "icon": "keyicons/5a13ef0686f7746e5a411744.png",
+   "name": "疗养院西楼 219 房间钥匙"
+  },
+  "疗养院西楼 220 房间": {
+   "id": "5a0ee34586f774023b6ee092",
+   "icon": "keyicons/5a0ee34586f774023b6ee092.png",
+   "name": "疗养院西楼 220 房间钥匙"
+  },
+  "疗养院西楼 221 房间": {
+   "id": "5a0ee37f86f774023657a86f",
+   "icon": "keyicons/5a0ee37f86f774023657a86f.png",
+   "name": "疗养院西楼 221 房间钥匙"
+  },
+  "疗养院西楼 222 房间": {
+   "id": "5a1452ee86f7746f33111763",
+   "icon": "keyicons/5a1452ee86f7746f33111763.png",
+   "name": "疗养院西楼 222 房间钥匙"
+  },
+  "疗养院西楼 301 房间": {
+   "id": "5a13ef7e86f7741290491063",
+   "icon": "keyicons/5a13ef7e86f7741290491063.png",
+   "name": "疗养院西楼 301 房间钥匙"
+  },
+  "疗养院西楼 306 房间": {
+   "id": "5a13f46386f7741dd7384b04",
+   "icon": "keyicons/5a13f46386f7741dd7384b04.png",
+   "name": "疗养院西楼 306 房间钥匙"
+  },
+  "码头大门": {
+   "id": "6866adbe09b973bf45094339",
+   "icon": "keyicons/6866adbe09b973bf45094339.png",
+   "name": "码头大门钥匙"
+  },
+  "神秘房间符号": {
+   "id": "64ccc25f95763a1ae376e447",
+   "icon": "keyicons/64ccc25f95763a1ae376e447.png",
+   "name": "神秘房间符号钥匙"
+  },
+  "简易工棚": {
+   "id": "5938144586f77473c2087145",
+   "icon": "keyicons/5938144586f77473c2087145.png",
+   "name": "简易工棚钥匙"
+  },
+  "管理员": {
+   "id": "6a33c17933cff6b88c08902e",
+   "icon": "keyicons/6a33c17933cff6b88c08902e.png",
+   "name": "管理员钥匙"
+  },
+  "粘有胶带的疗养院办公室": {
+   "id": "5eff09cd30a7dc22fd1ddfed",
+   "icon": "keyicons/5eff09cd30a7dc22fd1ddfed.png",
+   "name": "粘有胶带的疗养院办公室钥匙"
+  },
+  "药房": {
+   "id": "5ad5d64486f774079b080af8",
+   "icon": "keyicons/5ad5d64486f774079b080af8.png",
+   "name": "药房钥匙"
+  },
+  "蓝色记号": {
+   "id": "5efde6b4f5448336730dbd61",
+   "icon": "keyicons/5efde6b4f5448336730dbd61.png",
+   "name": "蓝色记号钥匙卡"
+  },
+  "行刑室": {
+   "id": "679baae891966fe40408f14c",
+   "icon": "keyicons/679baae891966fe40408f14c.png",
+   "name": "行刑室钥匙"
+  },
+  "观察室": {
+   "id": "679baace4e9ca6b3d80586b2",
+   "icon": "keyicons/679baace4e9ca6b3d80586b2.png",
+   "name": "观察室钥匙"
+  },
+  "货物网格门": {
+   "id": "63a39fdf1e21260da44a0256",
+   "icon": "keyicons/63a39fdf1e21260da44a0256.png",
+   "name": "货物网格门钥匙"
+  },
+  "车行封闭区域": {
+   "id": "63a397d3af870e651d58e65b",
+   "icon": "keyicons/63a397d3af870e651d58e65b.png",
+   "name": "车行封闭区域钥匙"
+  },
+  "车行负责人办公室": {
+   "id": "63a399193901f439517cafb6",
+   "icon": "keyicons/63a399193901f439517cafb6.png",
+   "name": "车行负责人办公室钥匙"
+  },
+  "迷宫": {
+   "id": "679bac1d61f588ae2b062a26",
+   "icon": "keyicons/679bac1d61f588ae2b062a26.png",
+   "name": "迷宫钥匙"
+  },
+  "邪教受害者公寓": {
+   "id": "68e96180901b9b10270f1eed",
+   "icon": "keyicons/68e96180901b9b10270f1eed.png",
+   "name": "邪教受害者公寓钥匙"
+  },
+  "酒店215房间": {
+   "id": "63a39f08cd6db0635c197600",
+   "icon": "keyicons/63a39f08cd6db0635c197600.png",
+   "name": "酒店215房间钥匙"
+  },
+  "重新编码后的 A.P. 公寓门锁钥匙卡 (绿)": {
+   "id": "68c14b734a7e0bada00f8fd4",
+   "icon": "keyicons/68c14b734a7e0bada00f8fd4.png",
+   "name": "重新编码后的 A.P. 公寓门锁钥匙卡 (绿)"
+  },
+  "金融办公室": {
+   "id": "63a39667c9b3aa4b61683e98",
+   "icon": "keyicons/63a39667c9b3aa4b61683e98.png",
+   "name": "金融办公室钥匙"
+  },
+  "金融办公室小房间": {
+   "id": "63a71ed21031ac76fe773c7f",
+   "icon": "keyicons/63a71ed21031ac76fe773c7f.png",
+   "name": "金融办公室小房间钥匙"
+  },
+  "铁门": {
+   "id": "63a39f6e64283b5e9c56b289",
+   "icon": "keyicons/63a39f6e64283b5e9c56b289.png",
+   "name": "铁门钥匙"
+  },
+  "隔间": {
+   "id": "5780d0652459777df90dcb74",
+   "icon": "keyicons/5780d0652459777df90dcb74.png",
+   "name": "隔间钥匙"
+  },
+  "集装箱宿舍": {
+   "id": "5780d07a2459777de4559324",
+   "icon": "keyicons/5780d07a2459777de4559324.png",
+   "name": "集装箱宿舍钥匙"
+  },
+  "雷达站指挥室": {
+   "id": "62987c658081af308d7558c6",
+   "icon": "keyicons/62987c658081af308d7558c6.png",
+   "name": "雷达站指挥室钥匙"
+  },
+  "黑色军团": {
+   "id": "6866ad3853330f9b83064cf9",
+   "icon": "keyicons/6866ad3853330f9b83064cf9.png",
+   "name": "黑色军团钥匙卡"
+  }
+ }
+}

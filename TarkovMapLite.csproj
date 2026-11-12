@@ -10,7 +10,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>TarkovMapLite</AssemblyName>
     <RootNamespace>TarkovMapLite</RootNamespace>
-    <Version>0.3.4</Version>
+    <Version>0.3.5</Version>
     <!-- 画布控件只在本程序里用，不进设计器，不需要给属性配序列化器 -->
     <NoWarn>$(NoWarn);WFO1000</NoWarn>
     <!-- 单文件自包含：朋友机器不需要装 .NET 运行时 -->
@@ -47,6 +47,8 @@
     <EmbeddedResource Include="Assets\doors.json" />
     <!-- 闸点 → 撤离点 的手写对应表（接口里没有这个关系） -->
     <EmbeddedResource Include="Assets\switch-links.json" />
+    <EmbeddedResource Include="Assets\keys.json" />
+    <EmbeddedResource Include="Assets\keyicons\*.png" />
     <!-- 手机端页面：index.html / app.css / app.js，由内置的迷你 HTTP 服务发给手机 -->
     <EmbeddedResource Include="Assets\mobile\**\*.*" />
   </ItemGroup>

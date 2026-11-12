@@ -180,6 +180,7 @@ internal sealed class MapCanvas : Control
                  | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         BackColor = UiTokens.Back;
         // 玩家标记的呼吸/扩散动画：相位 0..1 循环，只在有玩家位置时运行
+        _flashTimer.Tick += (_, _) => FlashTick();
         _pulseTimer.Tick += (_, _) =>
         {
             _pulsePhase += 0.05f / 1.6f;
@@ -439,6 +440,69 @@ internal sealed class MapCanvas : Control
         }
     }
 
+    // 钥匙列表点中之后，在锁的位置闪一圈，免得平移完还要自己找
+    private PointF? _flashWorld;
+    private int _flashTick;
+    private readonly System.Windows.Forms.Timer _flashTimer = new() { Interval = 40 };
+
+    /// <summary>把某个世界坐标移到视野中心并放大（钥匙列表用它定位到锁）。</summary>
+    public void FocusWorld(PointF world, double zoom = 4.5)
+    {
+        if (_map == null || ClientSize.Width < 32 || ClientSize.Height < 32)
+        {
+            return;
+        }
+        _zoom = Math.Clamp(zoom, 1, 12);
+        var scale = _fitScale * _zoom;
+        var (pixelX, pixelY) = MapPack.ToImage(_map, world.X, world.Y);
+        // 让这个像素点落在画布正中：origin = 中心 - pixel*scale，再反推 _pan
+        var originX = ClientSize.Width / 2f - (float)(pixelX * scale);
+        var originY = ClientSize.Height / 2f - (float)(pixelY * scale);
+        _pan = new PointF(
+            originX - (float)((ClientSize.Width - _map.ViewBoxWidth * scale) / 2),
+            originY - (float)((ClientSize.Height - _map.ViewBoxHeight * scale) / 2));
+        Flash(world);
+    }
+
+    /// <summary>在某个世界坐标上闪一圈（约 1 秒），用来"指给你看"。</summary>
+    public void Flash(PointF world)
+    {
+        _flashWorld = world;
+        _flashTick = 0;
+        _flashTimer.Stop();
+        _flashTimer.Start();
+    }
+
+    private void FlashTick()
+    {
+        _flashTick++;
+        if (_flashTick > 28)
+        {
+            _flashTimer.Stop();
+            _flashWorld = null;
+        }
+        Invalidate();
+    }
+
+    private void DrawFlash(Graphics g)
+    {
+        if (_map == null || _flashWorld is not { } world || _flashTick > 28)
+        {
+            return;
+        }
+        var s = (float)Scale;
+        var origin = Origin;
+        var (pixelX, pixelY) = MapPack.ToImage(_map, world.X, world.Y);
+        var x = origin.X + (float)pixelX * s;
+        var y = origin.Y + (float)pixelY * s;
+        var progress = _flashTick / 28f;
+        var radius = 10 + 34 * progress;
+        var alpha = (int)(220 * (1 - progress));
+        using var pen = new Pen(Color.FromArgb(alpha, PlayerGuideColor), 2.4f);
+        g.DrawEllipse(pen, x - radius, y - radius, radius * 2, radius * 2);
+        using var dot = new SolidBrush(Color.FromArgb(Math.Min(alpha + 30, 255), PlayerGuideColor));
+        g.FillEllipse(dot, x - 3f, y - 3f, 6f, 6f);
+    }
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
