@@ -525,14 +525,31 @@ internal sealed class MapCanvas : Control
             (float)(_map.ViewBoxWidth * s), (float)(_map.ViewBoxHeight * s));
         g.InterpolationMode = _zoom > 1.6 ? InterpolationMode.NearestNeighbor : InterpolationMode.HighQualityBicubic;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        // 一次只显示一层：floor_<layer>.png 是构建期生成的"这一层的完整平面图"，
-        // 其他层完全不画（不是压暗）。官方地图的行为就是这个。
+        // 图层画法：先画地面层，选中的层再盖上去。
+        // 非地面层时地面压到 5% —— 只留一点点轮廓做空间参照，几乎看不见，
+        // 这样地下层不会被地面层的墙"穿透"，观感和官方地图一致。
         var hasLayers = _map.Layers.Count > 1;
-        var active = hasLayers && !string.IsNullOrEmpty(_layer) ? ImageFor($"floor_{_layer}") : null;
-        var drawn = active ?? _image;
-        if (drawn != null)
+        var selectingFloor = hasLayers && !string.IsNullOrEmpty(_layer);
+        if (_image != null)
         {
-            g.DrawImage(drawn, rect);
+            if (selectingFloor)
+            {
+                using (var attributes = new System.Drawing.Imaging.ImageAttributes())
+                {
+                    var matrix = new System.Drawing.Imaging.ColorMatrix { Matrix33 = 0.05f };
+                    attributes.SetColorMatrix(matrix);
+                    var dest = Rectangle.Round(rect);
+                    g.DrawImage(_image, dest, 0, 0, _image.Width, _image.Height, GraphicsUnit.Pixel, attributes);
+                }
+            }
+            else
+            {
+                g.DrawImage(_image, rect);
+            }
+        }
+        if (selectingFloor && ImageFor(_layer) is { } floor)
+        {
+            g.DrawImage(floor, rect);
         }
 
         g.SmoothingMode = SmoothingMode.AntiAlias;
