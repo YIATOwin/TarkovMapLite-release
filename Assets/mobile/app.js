@@ -775,6 +775,21 @@ function renderDetail() {
     row.textContent = '• ' + line;
     ui.taskDetail.appendChild(row);
   }
+  const wiki = data.wiki || [];
+  if (wiki.length) {
+    const bar = document.createElement('div');
+    bar.className = 'wiki';
+    for (const link of wiki) {
+      const a = document.createElement('a');
+      a.className = 'wikibtn';
+      a.href = link.u;
+      a.target = '_blank';
+      a.rel = 'noreferrer noopener';
+      a.textContent = link.l;
+      bar.appendChild(a);
+    }
+    ui.taskDetail.appendChild(bar);
+  }
   if (detail.items.length) {
     const box = document.createElement('div');
     box.className = 'items';

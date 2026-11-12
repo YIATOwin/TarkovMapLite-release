@@ -372,3 +372,28 @@ body.drawer-open #hud {
 #toast.show {
   opacity: 1;
 }
+
+/* 任务资料站：中文 Wiki / tarkov.dev / fandom —— 和桌面「任务页」菜单同源 */
+.wiki {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.wikibtn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--button, #202429);
+  color: var(--accent, #c6a26e);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.wikibtn:active {
+  background: var(--accent-tint, #292824);
+}

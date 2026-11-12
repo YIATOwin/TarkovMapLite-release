@@ -77,6 +77,8 @@ internal sealed class MapForm : Form
     private readonly PlayerLocator _player = new();
     /// <summary>最近一次进图（scene preset path）读到的地图 key，玩家定位就绑在这张图上。</summary>
     private string _raidMapKey = "";
+    /// <summary>本局开始的时刻：对局结束清理截图时用它界定"本局期间拍的"。</summary>
+    private DateTime _raidStartedAt = DateTime.MinValue;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 3000 };
 
     private bool _suppressMapChange;
@@ -129,6 +131,9 @@ internal sealed class MapForm : Form
         _log.Changed += () => { RefreshTaskList(); FillMapCombo(); _canvas.Invalidate(); UpdateStatus(); };
         _log.MapLoading += key => BeginInvoke(() =>
         {
+            // 进新图 = 上一局已经结束，先把上一局期间拍的截图清掉（开关默认关）
+            CleanupRaidScreenshots(_raidStartedAt, DateTime.Now);
+            _raidStartedAt = DateTime.Now;
             // 新一局开始：旧的位置点作废
             _raidMapKey = key;
             _player.NotBefore = DateTime.Now;
@@ -296,6 +301,14 @@ internal sealed class MapForm : Form
         _shotsButton.Width = 86;
         _shotsButton.Font = new Font("Microsoft YaHei UI", 8.5f);
         _shotsButton.Click += (_, _) => PickScreenshotFolder();
+        // 右键：清理开关（默认关）和打开目录
+        _shotsButton.MouseUp += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                ShowScreenshotsMenu();
+            }
+        };
 
         // 测试截图：立刻用最新一张截图验证目录和投影，不用等进游戏再来一张
         _testButton.Text = "测试截图";
@@ -393,14 +406,9 @@ internal sealed class MapForm : Form
         _wikiButton.Font = new Font("Microsoft YaHei UI", 8f);
         _wikiButton.Cursor = Cursors.Hand;
         _wikiButton.Visible = false;
-        _wikiButton.Click += (_, _) => OpenTaskPage();
-        _wikiButton.MouseUp += (_, e) =>
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                BuildTaskPageMenu().Show(_wikiButton, e.Location);
-            }
-        };
+        // 点击就列出所有可用的任务资料站，选一个再跳（不再默认直开 tarkov.dev）
+        _wikiButton.Click += (_, _) => ShowTaskPageMenu();
+        
 
         var detailHeaderPanel = new Panel
         {
@@ -1422,14 +1430,44 @@ internal sealed class MapForm : Form
         }
     }
 
-    /// <summary>右键菜单：让用户自己挑用哪个站点（fandom 需要代理）。</summary>
+    /// <summary>
+    /// 「任务页」点击后弹出的站点列表。中文 Wiki（eftarkov.com）和 tarkov.dev 用同一个任务 ID，
+    /// 所以这里不需要映射表，直接拼 URL 就行；实测 /task/&lt;id&gt; 返回 200。
+    /// </summary>
+    private void ShowTaskPageMenu()
+    {
+        if (string.IsNullOrEmpty(_currentTaskId) && string.IsNullOrEmpty(_currentSlug))
+        {
+            _status.Text = "这个任务没有可用的资料站链接";
+            return;
+        }
+
+        var menu = BuildTaskPageMenu();
+        menu.Renderer = new LayerMenuRenderer();
+        menu.ShowImageMargin = false;
+        menu.ShowCheckMargin = false;
+        var point = _wikiButton.PointToScreen(new Point(0, -menu.GetPreferredSize(Size.Empty).Height));
+        menu.Show(point);
+    }
+
+    /// <summary>任务资料站列表：中文 Wiki 优先（国内可直连），其次 tarkov.dev，最后 fandom。</summary>
     private ContextMenuStrip BuildTaskPageMenu()
     {
         var menu = new ContextMenuStrip { Font = new Font("Microsoft YaHei UI", 9f) };
+
+        if (!string.IsNullOrEmpty(_currentTaskId))
+        {
+            menu.Items.Add("中文 Wiki（eftarkov.com）", null,
+                (_, _) => OpenUrl($"https://www.eftarkov.com/task/{_currentTaskId}"));
+        }
         if (!string.IsNullOrEmpty(_currentSlug))
         {
             menu.Items.Add("tarkov.dev 任务页", null,
                 (_, _) => OpenUrl($"https://tarkov.dev/task/{_currentSlug}"));
+        }
+        if (!string.IsNullOrEmpty(_currentWiki))
+        {
+            menu.Items.Add("Fandom Wiki（需代理）", null, (_, _) => OpenUrl(_currentWiki));
         }
         // 环境变量可以覆盖：TARKOVMAPLITE_TASK_URL=https://example.com/task/{slug}
         var custom = Environment.GetEnvironmentVariable("TARKOVMAPLITE_TASK_URL");
@@ -1438,11 +1476,26 @@ internal sealed class MapForm : Form
             var url = custom.Replace("{slug}", _currentSlug).Replace("{id}", _currentTaskId);
             menu.Items.Add("自定义站点", null, (_, _) => OpenUrl(url));
         }
+        return menu;
+    }
+
+    /// <summary>当前任务可用的资料站（桌面和手机端共用同一份，保证两边看到的一样）。</summary>
+    private List<(string Label, string Url)> CurrentTaskLinks()
+    {
+        var links = new List<(string Label, string Url)>();
+        if (!string.IsNullOrEmpty(_currentTaskId))
+        {
+            links.Add(("中文 Wiki", $"https://www.eftarkov.com/task/{_currentTaskId}"));
+        }
+        if (!string.IsNullOrEmpty(_currentSlug))
+        {
+            links.Add(("tarkov.dev", $"https://tarkov.dev/task/{_currentSlug}"));
+        }
         if (!string.IsNullOrEmpty(_currentWiki))
         {
-            menu.Items.Add("Fandom Wiki（需代理）", null, (_, _) => OpenUrl(_currentWiki));
+            links.Add(("Fandom", _currentWiki));
         }
-        return menu;
+        return links;
     }
 
     private void ShowTaskDetail(TaskRow? row)
@@ -1947,6 +2000,95 @@ internal sealed class MapForm : Form
             _ => $"{floor + 1} 层",
         };
         return $"（{name}）";
+    }
+    /// <summary>
+    /// 对局结束时清掉这一局拍的截图。只在开关打开时执行，且只删截图目录里
+    /// 符合游戏截图命名、时间落在本局区间内的 PNG——不递归、不碰别的文件。
+    /// </summary>
+    private void CleanupRaidScreenshots(DateTime from, DateTime to)
+    {
+        if (!PlayerLocator.CleanupShots || from == DateTime.MinValue || to <= from)
+        {
+            return;
+        }
+        var folder = _player.Folder.Length > 0 ? _player.Folder : PlayerLocator.ResolveFolder();
+        if (!Directory.Exists(folder))
+        {
+            return;
+        }
+        // 给截图留 30 秒余量：退出前最后一张可能比进图日志晚一点点写入
+        var start = from.AddSeconds(-30);
+        var removed = 0;
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(folder, "*.png"))
+            {
+                if (!PlayerLocator.LooksLikeScreenshot(Path.GetFileName(path)))
+                {
+                    continue;
+                }
+                var time = File.GetLastWriteTime(path);
+                if (time < start || time > to)
+                {
+                    continue;
+                }
+                File.Delete(path);
+                removed++;
+            }
+        }
+        catch
+        {
+            // 删不掉就算了，不要影响切图
+        }
+        if (removed > 0)
+        {
+            _status.Text = $"已清理上一局的截图 {removed} 张（{from:HH:mm}–{to:HH:mm}）";
+        }
+    }
+
+    /// <summary>截图目录按钮的右键菜单：自动清理开关（默认关）+ 打开目录。</summary>
+    private void ShowScreenshotsMenu()
+    {
+        var menu = new ContextMenuStrip { Font = new Font("Microsoft YaHei UI", 9f) };
+        var cleanup = new ToolStripMenuItem("对局结束自动删截图")
+        {
+            Checked = PlayerLocator.CleanupShots,
+        };
+        cleanup.Click += (_, _) =>
+        {
+            var turnOn = !PlayerLocator.CleanupShots;
+            if (turnOn && !ConfirmDialog.Ask(
+                    this,
+                    "自动清理截图",
+                    "打开后，每局结束时会删掉这一局期间拍的截图。\n\n"
+                    + "只会删截图目录里符合游戏截图命名的 PNG，时间落在本局范围内的；"
+                    + "不递归子目录，不碰别的文件。已经过去的旧对局不会被清理。",
+                    "打开"))
+            {
+                return;
+            }
+            PlayerLocator.CleanupShots = turnOn;
+            _status.Text = turnOn ? "已开启：每局结束清理本局截图" : "已关闭：不再自动清理截图";
+        };
+        menu.Items.Add(cleanup);
+
+        menu.Items.Add("打开截图目录", null, (_, _) =>
+        {
+            var folder = _player.Folder.Length > 0 ? _player.Folder : PlayerLocator.ResolveFolder();
+            if (Directory.Exists(folder))
+            {
+                OpenUrl(folder);
+            }
+            else
+            {
+                _status.Text = $"截图目录不存在：{folder}";
+            }
+        });
+
+        menu.Renderer = new LayerMenuRenderer();
+        menu.ShowImageMargin = false;
+        menu.ShowCheckMargin = false;
+        menu.Show(_shotsButton, new Point(0, -menu.GetPreferredSize(Size.Empty).Height));
     }
     private void UpdateStatus()
     {

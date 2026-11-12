@@ -36,6 +36,9 @@ internal sealed class MobileAction
 /// <summary>手机端任务列表的一行（状态用枚举数字发过去，手机自己上色）。</summary>
 internal sealed record MobileTask(string Id, string Name, string Subtitle, TaskState State);
 
+    /// <summary>任务资料站链接（中文 Wiki / tarkov.dev / fandom），手机端照桌面那份渲染成按钮。</summary>
+    internal sealed record MobileLink(string Label, string Url);
+
 internal sealed record MobileItem(string Id, string Name);
 
 /// <summary>
@@ -73,6 +76,9 @@ internal sealed class MobileState
     /// <summary>选中任务的目标文字（没有选中任务时是空的）。</summary>
     public IReadOnlyList<string> Objectives { get; set; } = Array.Empty<string>();
     public IReadOnlyList<MobileItem> Items { get; set; } = Array.Empty<MobileItem>();
+
+    /// <summary>当前任务的资料站链接，和桌面「任务页」菜单同源（都由 MapForm.CurrentTaskLinks 给）。</summary>
+    public IReadOnlyList<MobileLink> WikiLinks { get; set; } = Array.Empty<MobileLink>();
 
     /// <summary>最近一次拼 JSON 的时间，给"手机端"面板显示用。</summary>
     public DateTime BuiltAt { get; private set; }
@@ -131,6 +137,11 @@ internal sealed class MobileState
             sb.Append((int)Math.Round(f.X * 20)).Append(',').Append((int)Math.Round(f.Y * 20));
         }
         sb.Append('|').Append(Objectives.Count).Append('|').Append(Items.Count).Append('|');
+        foreach (var link in WikiLinks)
+        {
+            sb.Append(link.Url).Append('~');
+        }
+        sb.Append('|');
         // 任务状态会变（完成/失败），数量和顺序不变，所以把状态一起算进指纹
         foreach (var task in Tasks)
         {
@@ -184,6 +195,19 @@ internal sealed class MobileState
 
         sb.Append(",\"onlyActive\":").Append(OnlyActive ? "true" : "false");
         sb.Append(",\"sel\":").Append(SelectedTaskId is { Length: > 0 } selected ? Quote(selected) : "null");
+
+        // 任务资料站：手机上直接渲染成按钮，点开就在手机浏览器里看
+        sb.Append(",\"wiki\":[");
+        for (var i = 0; i < WikiLinks.Count; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append(',');
+            }
+            sb.Append("{\"l\":").Append(Quote(WikiLinks[i].Label))
+              .Append(",\"u\":").Append(Quote(WikiLinks[i].Url)).Append('}');
+        }
+        sb.Append(']');
 
         // 玩家：只有「截图所属地图」和当前地图一致时才发，手机就不会把点画到别的图上
         if (Player is { } player && string.Equals(PlayerMapKey, Map?.Key, StringComparison.OrdinalIgnoreCase))

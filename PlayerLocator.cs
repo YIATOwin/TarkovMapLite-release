@@ -84,17 +84,52 @@ public sealed class PlayerLocator
     }
 
     /// <summary>记住用户选的截图目录（写 settings.json，重启后仍生效）。</summary>
-    public static void SaveFolder(string folder)
+    public static void SaveFolder(string folder) => Write(settings => settings["screenshots"] = folder);
+
+    /// <summary>对局结束时要不要删掉本局的截图。默认关——这是删用户的文件，必须显式打开。</summary>
+    public static bool CleanupShots
+    {
+        get => Read(settings => settings["cleanupShots"]?.GetValue<bool>() ?? false);
+        set => Write(settings => settings["cleanupShots"] = value);
+    }
+
+    /// <summary>读 settings.json 后交给调用方改，改完整体写回（其他键保留）。</summary>
+    private static void Write(Action<System.Text.Json.Nodes.JsonObject> change)
     {
         try
         {
-            var root = new System.Text.Json.Nodes.JsonObject { ["screenshots"] = folder };
-            File.WriteAllText(SettingsFile, root.ToJsonString());
+            var path = SettingsFile;
+            var root = File.Exists(path)
+                       && System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))
+                           is System.Text.Json.Nodes.JsonObject existing
+                ? existing
+                : new System.Text.Json.Nodes.JsonObject();
+            change(root);
+            File.WriteAllText(path, root.ToJsonString());
         }
         catch
         {
             // 写不进去就只对本次运行生效
         }
+    }
+
+    private static T Read<T>(Func<System.Text.Json.Nodes.JsonObject, T> read)
+    {
+        try
+        {
+            var path = SettingsFile;
+            if (File.Exists(path)
+                && System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))
+                    is System.Text.Json.Nodes.JsonObject root)
+            {
+                return read(root);
+            }
+        }
+        catch
+        {
+            // 坏文件当没设过
+        }
+        return default!;
     }
 
     /// <summary>立刻切到某个目录（界面里选完文件夹后调用）。</summary>
@@ -221,6 +256,9 @@ public sealed class PlayerLocator
         return newest == null ? null : Parse(newest);
     }
 
+    /// <summary>文件名是否符合游戏截图的坐标命名（清理时只认这种，避免误删别的 PNG）。</summary>
+    public static bool LooksLikeScreenshot(string fileName) =>
+        NamePattern.IsMatch(Path.GetFileNameWithoutExtension(fileName));
     /// <summary>从一张截图的文件名解析坐标和朝向；文件名不符合格式返回 null。</summary>
     public static Fix? Parse(FileInfo file)
     {
