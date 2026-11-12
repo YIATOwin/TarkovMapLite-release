@@ -148,6 +148,7 @@ internal sealed class MapForm : Form
         });
 
         Load += async (_, _) => await StartAsync();
+        FormClosed += (_, _) => SaveWindowBounds();
         FormClosed += (_, _) =>
         {
             _timer.Stop();
@@ -677,6 +678,10 @@ internal sealed class MapForm : Form
             _canvas.Invalidate();
         }
 
+        // 子项一律从「全部显示」开始，所以父项和画布也得是同一个状态——
+        // 否则会出现"列表全勾着、图上什么都没有"（子项默认 Checked 但 ShowXxx=false）。
+        SetAll(true);
+        SyncLoot();
         showAll.Click += (_, _) => SetAll(true);
         hideAll.Click += (_, _) => SetAll(false);
 
@@ -2089,6 +2094,46 @@ internal sealed class MapForm : Form
         menu.ShowImageMargin = false;
         menu.ShowCheckMargin = false;
         menu.Show(_shotsButton, new Point(0, -menu.GetPreferredSize(Size.Empty).Height));
+    }
+    /// <summary>上次关闭时的窗口位置和大小（含最大化状态），存在 settings.json 里。</summary>
+    private void RestoreWindowBounds()
+    {
+        var saved = PlayerLocator.GetSetting("window");
+        if (string.IsNullOrEmpty(saved))
+        {
+            return;
+        }
+        var parts = saved.Split(',');
+        if (parts.Length != 5
+            || !int.TryParse(parts[0], out var x) || !int.TryParse(parts[1], out var y)
+            || !int.TryParse(parts[2], out var w) || !int.TryParse(parts[3], out var h))
+        {
+            return;
+        }
+        // 只接受还在屏幕内的位置：换了显示器/拔了副屏时不要开在看不见的地方
+        var screen = Screen.FromPoint(new Point(x + 40, y + 40)).WorkingArea;
+        if (!screen.IntersectsWith(new Rectangle(x, y, Math.Max(w, 200), Math.Max(h, 200))))
+        {
+            return;
+        }
+        StartPosition = FormStartPosition.Manual;
+        Bounds = new Rectangle(x, y, Math.Max(w, MinimumSize.Width), Math.Max(h, MinimumSize.Height));
+        if (parts[4] == "1")
+        {
+            WindowState = FormWindowState.Maximized;
+        }
+    }
+
+    /// <summary>关窗时记住位置和大小（最大化时记还原后的尺寸，不然下次会一直粘在最大化）。</summary>
+    private void SaveWindowBounds()
+    {
+        var rect = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+        if (rect.Width < 200 || rect.Height < 200)
+        {
+            return;
+        }
+        var max = WindowState == FormWindowState.Maximized ? "1" : "0";
+        PlayerLocator.SetSetting("window", $"{rect.X},{rect.Y},{rect.Width},{rect.Height},{max}");
     }
     private void UpdateStatus()
     {

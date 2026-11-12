@@ -86,6 +86,13 @@ public sealed class PlayerLocator
     /// <summary>记住用户选的截图目录（写 settings.json，重启后仍生效）。</summary>
     public static void SaveFolder(string folder) => Write(settings => settings["screenshots"] = folder);
 
+    /// <summary>读一个字符串设置（settings.json 里的键），没有就返回空串。</summary>
+    public static string GetSetting(string key) =>
+        Read(settings => settings[key]?.GetValue<string>() ?? "");
+
+    /// <summary>写一个字符串设置（其他键保留）。</summary>
+    public static void SetSetting(string key, string value) => Write(settings => settings[key] = value);
+
     /// <summary>对局结束时要不要删掉本局的截图。默认关——这是删用户的文件，必须显式打开。</summary>
     public static bool CleanupShots
     {
