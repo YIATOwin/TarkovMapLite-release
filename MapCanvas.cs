@@ -441,8 +441,6 @@ internal sealed class MapCanvas : Control
     }
 
     // 钥匙列表点中之后，在锁的位置闪一圈，免得平移完还要自己找
-    /// <summary>合成图的假图层名：ImageFor("_union") -> <map>/_union，由 tools/build-unions.py 生成。</summary>
-    private const string UnionLayer = "_union";
 
     private PointF? _flashWorld;
     private int _flashTick;
@@ -527,37 +525,14 @@ internal sealed class MapCanvas : Control
             (float)(_map.ViewBoxWidth * s), (float)(_map.ViewBoxHeight * s));
         g.InterpolationMode = _zoom > 1.6 ? InterpolationMode.NearestNeighbor : InterpolationMode.HighQualityBicubic;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        // 图层画法（v0.3.7 起）：先铺"所有层合成图"当轮廓，再把选中的层实心画上去。
-        // 为什么不用"底图 + 压暗 + 叠加层"：工厂那种每层都是完整平面图的数据，
-        // 会变成两张完整图重合；而合成图对两种数据形状都成立，边缘自然就是全图轮廓。
+        // 一次只显示一层：floor_<layer>.png 是构建期生成的"这一层的完整平面图"，
+        // 其他层完全不画（不是压暗）。官方地图的行为就是这个。
         var hasLayers = _map.Layers.Count > 1;
-        if (hasLayers && ImageFor(UnionLayer) is { } union)
+        var active = hasLayers && !string.IsNullOrEmpty(_layer) ? ImageFor($"floor_{_layer}") : null;
+        var drawn = active ?? _image;
+        if (drawn != null)
         {
-            var oldMatrix = g.Transform;
-            g.TranslateTransform(rect.X, rect.Y);
-            g.ScaleTransform(rect.Width / union.Width, rect.Height / union.Height);
-            using (var attributes = new System.Drawing.Imaging.ImageAttributes())
-            {
-                var matrix = new System.Drawing.Imaging.ColorMatrix { Matrix33 = 0.55f };
-                attributes.SetColorMatrix(matrix);
-                g.DrawImage(union, new Rectangle(0, 0, union.Width, union.Height),
-                    0, 0, union.Width, union.Height, GraphicsUnit.Pixel, attributes);
-            }
-            g.Transform = oldMatrix;
-        }
-        else if (_image != null)
-        {
-            g.DrawImage(_image, rect);
-        }
-
-        // 选中的那一层实心画；地面层就用底图
-        if (hasLayers)
-        {
-            var solid = string.IsNullOrEmpty(_layer) ? _image : ImageFor(_layer);
-            if (solid != null)
-            {
-                g.DrawImage(solid, rect);
-            }
+            g.DrawImage(drawn, rect);
         }
 
         g.SmoothingMode = SmoothingMode.AntiAlias;
