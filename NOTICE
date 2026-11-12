@@ -3,12 +3,21 @@ TarkovMapLite — third-party material and disclaimers
 
 1. Map artwork
 --------------
-Assets/maps/**/*.png are rasterised from the map SVGs in tools/maps-src/.
+Map images are rasterised from the map SVGs in tools/maps-src/ or stitched
+from the tarkov.dev tile images at https://assets.tarkov.dev/maps/.
 Those SVGs come from the tarkov.dev map resources (https://github.com/the-hideout/tarkov-dev),
 which in turn are traced from maps that belong to the game.
 
   * The PNGs here are derivatives (rendered at ~4000 px on the long edge,
     one image per floor with the ground layer hidden).
+  * Reserve's Second_Floor through Fifth_Floor under Assets/maps/reserve/
+    are tile-derived fallbacks, reprojected into the SVG base's coordinate frame.
+    The ground and Bunkers images remain SVG-derived.
+  * Assets/floor-extents.json preserves supported maps' building bounds and height
+    rules from https://github.com/the-hideout/tarkov-dev/blob/main/src/data/maps.json
+    (retrieved 2026-11-12). tools/sync-map-layers.py rebuilds these derivatives.
+    Customs' fourth SVG floor and Shoreline/Interchange tile floors are likewise
+    reprojected from the available artwork in their sibling variants.
   * They are provided for personal, non-commercial use together with this tool.
   * All rights to the original game artwork belong to Battlestate Games Limited.
 

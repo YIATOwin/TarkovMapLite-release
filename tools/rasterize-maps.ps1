@@ -16,8 +16,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-$srcDir = Join-Path $repo 'TarkovMonitor\wwwroot\maps'
-$outDir = Join-Path $repo 'TarkovMapLite\Assets\maps'
+$srcDir = Join-Path $repo 'tools\maps-src'
+$outDir = Join-Path $repo 'Assets\maps'
 $tmpDir = Join-Path $env:TEMP 'tm-rasterize'
 
 New-Item -ItemType Directory -Force -Path $outDir, $tmpDir | Out-Null
@@ -46,19 +46,17 @@ function Get-ScopedStyles {
             [void]$sb.Append($scoped).Append('{').Append($body).Append('}')
         }
     }
-    # ground is visible only for the base image; each floor image shows just that floor
+    # Root groups are floors. Ground companion groups (First_Floor on several
+    # maps) belong to the base, NOT to every upper/underground floor image.
     $groundVisible = [string]::IsNullOrEmpty($activeLayer)
-    # 地面分组的 id 每张 SVG 不一样：海关是 Ground_Level，工厂是 Ground_Floor。
-    # 写死一个 id 会静默失效（CSS 匹配不到就不隐藏），所以这里现探。
-    $groundId = ""
-    if ($raw -match '<g\s+[^>]*id="(Ground[^"]*)"') { $groundId = $Matches[1] }
-    if ($groundId) {
-        [void]$sb.Append("#$svgId #$groundId{display:" + $(if ($groundVisible) { 'inline' } else { 'none' }) + '}')
-    }
-    foreach ($layer in $layers) {
-        if (-not $layer.svgLayer) { continue }
-        $visible = ($layer.svgLayer -eq $activeLayer)
-        [void]$sb.Append("#$svgId #$($layer.svgLayer){display:" + $(if ($visible) { 'inline' } else { 'none' }) + '}')
+    $xml = [xml]$raw
+    foreach ($group in $xml.DocumentElement.ChildNodes) {
+        if ($group.LocalName -ne 'g') { continue }
+        $id = $group.GetAttribute('id')
+        if (-not $id) { continue }
+        $keep = $group.GetAttribute('data-keep-with-group')
+        $visible = ($id -eq $activeLayer) -or ($groundVisible -and ($id -like 'Ground*' -or $keep -like 'Ground*'))
+        [void]$sb.Append("#$svgId #$id{display:" + $(if ($visible) { 'inline' } else { 'none' }) + ' !important}')
     }
     $sb.ToString()
 }

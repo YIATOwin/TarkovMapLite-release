@@ -279,7 +279,10 @@ function draw() {
   const map = data.map;
   const base = image(map.img, 'base');
   if (base) {
+    ctx.save();
+    ctx.globalAlpha = map.layer ? 0.05 : 1;
     ctx.drawImage(base, S.tx, S.ty, map.w * S.scale, map.h * S.scale);
+    ctx.restore();
   }
   if (map.layer) {
     const floor = image(map.img, map.layer);

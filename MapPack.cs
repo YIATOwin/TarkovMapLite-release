@@ -76,6 +76,8 @@ public sealed class MapLayer
     public string Name { get; init; } = "";
     public string SvgLayer { get; init; } = "";
     public bool Show { get; init; }
+    public int? Level { get; init; }
+    public int Floor => Level ?? MapFloors.NumberOfLayer(SvgLayer, Name);
 }
 
 internal sealed class MapPackDocument
@@ -116,6 +118,14 @@ public static class MapPack
         }
         return Maps.FirstOrDefault(m => string.Equals(m.Key, key, StringComparison.OrdinalIgnoreCase))
             ?? Maps.FirstOrDefault(m => string.Equals(m.NormalizedName, key, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>自动选图可采用默认版本，用户显式切换时保留所选版本。</summary>
+    public static MapProjection? Resolve(string key, bool preferDefault)
+    {
+        var map = Find(key);
+        return preferDefault && !string.IsNullOrEmpty(map?.PreferTiles)
+            ? Find(map.PreferTiles) ?? map : map;
     }
 
     private static (double Px, double Py) ToPixel(MapProjection map, double x, double z)

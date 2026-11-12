@@ -14,3 +14,5 @@ Assets/maps/*.png.tmp
 # OS
 Thumbs.db
 desktop.ini
+__pycache__/
+*.pyc

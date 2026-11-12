@@ -84,6 +84,7 @@ dotnet publish -c Release -r win-x64 --self-contained true
 | **[docs/CODE-MAP.md](docs/CODE-MAP.md)** | **先看这个**：调用关系、四条数据链、改一件事要动哪几处、出问题查哪里、11 条历史坑 |
 | [docs/DATA-RULES.md](docs/DATA-RULES.md) | tarkov.dev 接口字段与本地数据格式 |
 | [docs/UI-RULES.md](docs/UI-RULES.md) | WinForms 的坑（菜单、ListBox、滚动条……） |
+| [docs/MAP-FLOORS.md](docs/MAP-FLOORS.md) | 楼层来源、跨版本素材补齐、菜单更新与自动检查 |
 
 每个 `.cs` 文件顶部还有一段头注释：这个文件负责什么、谁在用、改它会牵连什么。
 

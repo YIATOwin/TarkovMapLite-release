@@ -10,7 +10,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>TarkovMapLite</AssemblyName>
     <RootNamespace>TarkovMapLite</RootNamespace>
-    <Version>0.4.3</Version>
+    <Version>0.4.4</Version>
     <!-- 画布控件只在本程序里用，不进设计器，不需要给属性配序列化器 -->
     <NoWarn>$(NoWarn);WFO1000</NoWarn>
     <!-- 单文件自包含：朋友机器不需要装 .NET 运行时 -->
@@ -24,6 +24,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="tests\**\*.cs" />
     <!--
       资源只以 EmbeddedResource 形式进程序集。
       以前这里还有两条 CopyToOutputDirectory 的 Content，单文件打包会把它们
@@ -40,6 +41,7 @@
     <!-- 地图静态标记：容器/散落物资/出生点/危险区，由 tools/build-markers.ps1 生成 -->
     <EmbeddedResource Include="Assets\markers.json" />
     <EmbeddedResource Include="Assets\marker-floors.json" />
+    <EmbeddedResource Include="Assets\floor-extents.json" />
     <!-- 地名（Big Red / Dorms …）：接口里没有，由 tools/build-labels.ps1 从站点配置导出 -->
     <EmbeddedResource Include="Assets\labels.json" />
     <!-- 地名的中文对照（人工整理，站点配置里只有英文） -->

@@ -19,7 +19,7 @@ using System.Drawing;
 namespace TarkovMapLite;
 
 /// <summary>一个散落物资点：图片像素坐标 + 分类位掩码。</summary>
-internal readonly record struct LootPoint(PointF Point, int Mask, float Y = 0);
+internal readonly record struct LootPoint(PointF Point, int Mask, float Y = 0, string? FloorLayer = null);
 
 internal sealed record LootKind(int Bit, string Name, Color Color);
 

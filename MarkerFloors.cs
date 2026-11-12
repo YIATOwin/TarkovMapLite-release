@@ -1,7 +1,7 @@
-// ==== 点位楼层：Assets/marker-floors.json（构建期由 tools/build-marker-floors.py 生成）===
+// ==== 点位楼层：优先使用 MapFloors 按建筑范围计算的结果，其余地图用高度聚类表 ===
 // 职责：给出「某个点位的高度属于哪一层」，让容器/散落物资能跟着楼层按钮切换。
 // 谁在用：MapCanvas 画点位时逐个判断。
-// 改动须知：断点是 1D k-means 从真实 y 分布算出来的，改阈值就改那个脚本再重跑，
+// 改动须知：旧表的断点是 1D k-means 从真实 y 分布算出来的，改阈值就改那个脚本再重跑，
 //           别在这里手写魔数——一张图四个数字，写死会很快和游戏版本对不上。
 // 踩过的坑：
 //  · bands 的上下界在 JSON 里可能是 null（表示正负无穷），必须当极小/极大处理，
@@ -76,9 +76,14 @@ internal static class MarkerFloors
         return text.Trim();
     }
 
-    /// <summary>该高度是否属于正在看的那一层；层名为空（= 地面）时不过滤。</summary>
-    public static bool Matches(string mapKey, float y, string layer)
+    /// <summary>判断是否属于当前层；已有建筑规则时地面也过滤，旧表维持原有地面总览。</summary>
+    public static bool Matches(string mapKey, float y, string layer, string? floorLayer = null)
     {
+        // 新的按建筑分区规则已在投影时计算。地面也要过滤，避免把地下/楼上物资混在一起。
+        if (floorLayer != null)
+        {
+            return string.Equals(Normalize(floorLayer), Normalize(layer), StringComparison.OrdinalIgnoreCase);
+        }
         if (string.IsNullOrEmpty(layer))
         {
             return true;

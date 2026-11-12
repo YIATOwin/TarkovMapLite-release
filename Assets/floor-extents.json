@@ -1,0 +1,1691 @@
+{
+  "customs": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              2.7,
+              6.5
+            ],
+            "bounds": [
+              [
+                [
+                  243,
+                  190
+                ],
+                [
+                  165,
+                  125
+                ],
+                "dorms"
+              ],
+              [
+                [
+                  116,
+                  -83
+                ],
+                [
+                  72,
+                  -170
+                ],
+                "mechanic"
+              ],
+              [
+                [
+                  356,
+                  -30
+                ],
+                [
+                  341,
+                  -84
+                ],
+                "switch 2nd"
+              ],
+              [
+                [
+                  334,
+                  -52
+                ],
+                [
+                  321,
+                  -59
+                ],
+                "switch 2nd"
+              ],
+              [
+                [
+                  589,
+                  10
+                ],
+                [
+                  577,
+                  -1
+                ],
+                "scav checkpoint"
+              ],
+              [
+                [
+                  580,
+                  -104
+                ],
+                [
+                  532,
+                  -134
+                ],
+                "dead scav warehouse"
+              ],
+              [
+                [
+                  625,
+                  -120
+                ],
+                [
+                  599,
+                  -139
+                ],
+                "pump 2nd"
+              ]
+            ]
+          },
+          {
+            "height": [
+              5.7,
+              1000
+            ],
+            "bounds": [
+              [
+                [
+                  580,
+                  -104
+                ],
+                [
+                  532,
+                  -134
+                ],
+                "dead scav warehouse"
+              ],
+              [
+                [
+                  -199,
+                  -90
+                ],
+                [
+                  -223,
+                  -131
+                ],
+                "big red 2nd"
+              ],
+              [
+                [
+                  239,
+                  3
+                ],
+                [
+                  169,
+                  -160
+                ],
+                "skeleton"
+              ],
+              [
+                [
+                  336,
+                  -56
+                ],
+                [
+                  316,
+                  -95
+                ],
+                "switch snipe"
+              ],
+              [
+                [
+                  584,
+                  -46
+                ],
+                [
+                  556,
+                  -92
+                ],
+                "USEC 2nd"
+              ],
+              [
+                [
+                  93,
+                  0
+                ],
+                [
+                  65,
+                  -22
+                ],
+                "construction 2nd"
+              ]
+            ]
+          },
+          {
+            "height": [
+              14,
+              15
+            ],
+            "bounds": [
+              [
+                [
+                  497,
+                  -44
+                ],
+                [
+                  450,
+                  -90
+                ],
+                "chemical warehouse sniper scav"
+              ]
+            ]
+          },
+          {
+            "height": [
+              3.9,
+              7.6
+            ],
+            "bounds": [
+              [
+                [
+                  73,
+                  57
+                ],
+                [
+                  22,
+                  -38
+                ],
+                "warehouse 17"
+              ]
+            ]
+          },
+          {
+            "height": [
+              4.4,
+              6.5
+            ],
+            "bounds": [
+              [
+                [
+                  119,
+                  -57
+                ],
+                [
+                  100,
+                  -42
+                ],
+                "boiler"
+              ]
+            ]
+          },
+          {
+            "height": [
+              4.6,
+              7.9
+            ],
+            "bounds": [
+              [
+                [
+                  279,
+                  -79
+                ],
+                [
+                  246,
+                  -1.4
+                ],
+                "oilrig & panda"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              5.7,
+              1000
+            ],
+            "bounds": [
+              [
+                [
+                  243,
+                  190
+                ],
+                [
+                  165,
+                  125
+                ],
+                "dorms"
+              ]
+            ]
+          },
+          {
+            "height": [
+              7.7,
+              11.3
+            ],
+            "bounds": [
+              [
+                [
+                  73,
+                  -73
+                ],
+                [
+                  22,
+                  -38
+                ],
+                "warehouse 17"
+              ]
+            ]
+          },
+          {
+            "height": [
+              6.7,
+              11.6
+            ],
+            "bounds": [
+              [
+                [
+                  126,
+                  -64
+                ],
+                [
+                  88,
+                  -35
+                ],
+                "boiler"
+              ]
+            ]
+          },
+          {
+            "height": [
+              8.0,
+              11.1
+            ],
+            "bounds": [
+              [
+                [
+                  279,
+                  -79
+                ],
+                [
+                  246,
+                  -1.4
+                ],
+                "oilrig & panda"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Fourth_Floor",
+        "level": 3,
+        "extents": [
+          {
+            "height": [
+              11.2,
+              54.7
+            ],
+            "bounds": [
+              [
+                [
+                  279,
+                  -79
+                ],
+                [
+                  246,
+                  -1.4
+                ],
+                "oilrig & panda"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Underground_Level",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -1000,
+              0.5
+            ],
+            "bounds": [
+              [
+                [
+                  635,
+                  -137
+                ],
+                [
+                  620,
+                  -125
+                ],
+                "zb-1011"
+              ],
+              [
+                [
+                  473,
+                  -122
+                ],
+                [
+                  458,
+                  -110
+                ],
+                "zb-1012"
+              ],
+              [
+                [
+                  314,
+                  -173
+                ],
+                [
+                  308,
+                  -184
+                ],
+                "old gas"
+              ],
+              [
+                [
+                  349,
+                  -88
+                ],
+                [
+                  323,
+                  -32
+                ],
+                "switch basement"
+              ],
+              [
+                [
+                  219,
+                  -158
+                ],
+                [
+                  193,
+                  -137
+                ],
+                "zb-013"
+              ],
+              [
+                [
+                  122,
+                  -61
+                ],
+                [
+                  88,
+                  -40
+                ],
+                "boiler room"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "factory": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              3,
+              6
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              6,
+              10000
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Basement",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -10000,
+              -1
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "ground-zero": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              28,
+              32.3
+            ]
+          },
+          {
+            "height": [
+              26,
+              31
+            ],
+            "bounds": [
+              [
+                [
+                  98,
+                  216
+                ],
+                [
+                  91,
+                  228
+                ],
+                "m showroom"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              32.3,
+              1000
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Underground_Level",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -1000,
+              21
+            ],
+            "bounds": [
+              [
+                [
+                  117,
+                  -100
+                ],
+                [
+                  43,
+                  190
+                ],
+                "garage"
+              ],
+              [
+                [
+                  143,
+                  49
+                ],
+                [
+                  117,
+                  80
+                ],
+                "underpass"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "interchange": {
+    "layers": [
+      {
+        "layer": "First_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              25,
+              34
+            ],
+            "bounds": [
+              [
+                [
+                  120,
+                  218
+                ],
+                [
+                  -222,
+                  -327
+                ],
+                "mall"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Second_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              34,
+              1000
+            ],
+            "bounds": [
+              [
+                [
+                  120,
+                  218
+                ],
+                [
+                  -222,
+                  -327
+                ],
+                "mall"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "reserve": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              22.1,
+              25.7
+            ],
+            "bounds": [
+              [
+                [
+                  1,
+                  164
+                ],
+                [
+                  -17,
+                  199
+                ],
+                "dome"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -3.5,
+              -0.64
+            ],
+            "bounds": [
+              [
+                [
+                  -77,
+                  26
+                ],
+                [
+                  -177,
+                  106
+                ],
+                "pawns"
+              ],
+              [
+                [
+                  62,
+                  59
+                ],
+                [
+                  51,
+                  108
+                ],
+                "checkpoint fence tower"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -3.5,
+              -0.64
+            ],
+            "bounds": [
+              [
+                [
+                  -104,
+                  -37
+                ],
+                [
+                  -177,
+                  5
+                ],
+                "black bishop"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -3.9,
+              -0.6
+            ],
+            "bounds": [
+              [
+                [
+                  -47,
+                  -47
+                ],
+                [
+                  -85,
+                  -18
+                ],
+                "white bishop"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -4.3,
+              -2.2
+            ],
+            "bounds": [
+              [
+                [
+                  -19.91,
+                  -13
+                ],
+                [
+                  -78,
+                  39
+                ],
+                "white king"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -3.8,
+              -1.1
+            ],
+            "bounds": [
+              [
+                [
+                  99,
+                  -50
+                ],
+                [
+                  -2,
+                  7
+                ],
+                "knights"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -1.9,
+              11.3
+            ],
+            "bounds": [
+              [
+                [
+                  191,
+                  -175
+                ],
+                [
+                  137,
+                  -120
+                ],
+                "train depot"
+              ]
+            ]
+          },
+          {
+            "height": [
+              1,
+              8
+            ],
+            "bounds": [
+              [
+                [
+                  -109,
+                  -156
+                ],
+                [
+                  -119,
+                  -147
+                ],
+                "towers"
+              ],
+              [
+                [
+                  289,
+                  -92
+                ],
+                [
+                  299,
+                  -82
+                ],
+                "towers"
+              ],
+              [
+                [
+                  3,
+                  -210
+                ],
+                [
+                  -7,
+                  -200
+                ],
+                "towers"
+              ],
+              [
+                [
+                  195,
+                  -260
+                ],
+                [
+                  185,
+                  -250
+                ],
+                "towers"
+              ],
+              [
+                [
+                  276,
+                  17
+                ],
+                [
+                  266,
+                  27
+                ],
+                "towers"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -4.1,
+              -1.2
+            ],
+            "bounds": [
+              [
+                [
+                  -128,
+                  -139
+                ],
+                [
+                  -146,
+                  -120
+                ],
+                "scav lands"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              25.7,
+              29.3
+            ],
+            "bounds": [
+              [
+                [
+                  1,
+                  164
+                ],
+                [
+                  -17,
+                  199
+                ],
+                "dome"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -0.64,
+              2.23
+            ],
+            "bounds": [
+              [
+                [
+                  -77,
+                  26
+                ],
+                [
+                  -177,
+                  106
+                ],
+                "pawns"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -0.64,
+              2.23
+            ],
+            "bounds": [
+              [
+                [
+                  -104,
+                  -37
+                ],
+                [
+                  -177,
+                  5
+                ],
+                "black bishop"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -0.6,
+              10
+            ],
+            "bounds": [
+              [
+                [
+                  -47,
+                  -47
+                ],
+                [
+                  -85,
+                  -18
+                ],
+                "white bishop"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -2.2,
+              2.14
+            ],
+            "bounds": [
+              [
+                [
+                  -19.91,
+                  -13
+                ],
+                [
+                  -78,
+                  39
+                ],
+                "white king"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -1.1,
+              1.6
+            ],
+            "bounds": [
+              [
+                [
+                  99,
+                  -50
+                ],
+                [
+                  -2,
+                  7
+                ],
+                "knights"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Fourth_Floor",
+        "level": 3,
+        "extents": [
+          {
+            "height": [
+              29.3,
+              36
+            ],
+            "bounds": [
+              [
+                [
+                  1,
+                  164
+                ],
+                [
+                  -17,
+                  199
+                ],
+                "dome"
+              ]
+            ]
+          },
+          {
+            "height": [
+              2.23,
+              5
+            ],
+            "bounds": [
+              [
+                [
+                  -77,
+                  26
+                ],
+                [
+                  -177,
+                  106
+                ],
+                "pawns"
+              ]
+            ]
+          },
+          {
+            "height": [
+              2.15,
+              6.6
+            ],
+            "bounds": [
+              [
+                [
+                  -19.91,
+                  -13
+                ],
+                [
+                  -78,
+                  39
+                ],
+                "white king"
+              ]
+            ]
+          },
+          {
+            "height": [
+              1.6,
+              4.7
+            ],
+            "bounds": [
+              [
+                [
+                  99,
+                  -50
+                ],
+                [
+                  -2,
+                  7
+                ],
+                "knights"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Fifth_Floor",
+        "level": 4,
+        "extents": [
+          {
+            "height": [
+              5,
+              9.5
+            ],
+            "bounds": [
+              [
+                [
+                  -77,
+                  26
+                ],
+                [
+                  -177,
+                  106
+                ],
+                "pawns"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Bunkers",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -10000,
+              -7.27
+            ],
+            "bounds": [
+              [
+                [
+                  128,
+                  -208
+                ],
+                [
+                  18,
+                  -33
+                ],
+                "storage bunker"
+              ],
+              [
+                [
+                  -46,
+                  -42
+                ],
+                [
+                  -176,
+                  127
+                ],
+                "command bunkers"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -10000,
+              -12
+            ],
+            "bounds": [
+              [
+                [
+                  -40,
+                  124
+                ],
+                [
+                  -124,
+                  189
+                ],
+                "D2"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -10000,
+              18
+            ],
+            "bounds": [
+              [
+                [
+                  23,
+                  173
+                ],
+                [
+                  -65,
+                  189
+                ],
+                "dome tunnels"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -7.27,
+              -3.2
+            ],
+            "bounds": [
+              [
+                [
+                  74,
+                  -196
+                ],
+                [
+                  19,
+                  -149
+                ],
+                "bunker hermetic door bunkers"
+              ]
+            ]
+          },
+          {
+            "height": [
+              -11,
+              -4.6
+            ],
+            "bounds": [
+              [
+                [
+                  -246,
+                  -79
+                ],
+                [
+                  -274,
+                  -53
+                ],
+                "E1 bunkers"
+              ],
+              [
+                [
+                  238,
+                  -26
+                ],
+                [
+                  126,
+                  45
+                ],
+                "bunkers"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "shoreline": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              -1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              2,
+              1000
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Underground_Level",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -1000,
+              -5
+            ],
+            "bounds": [
+              [
+                [
+                  -137,
+                  -68
+                ],
+                [
+                  -237,
+                  -104
+                ],
+                "west wing"
+              ],
+              [
+                [
+                  -234,
+                  -134
+                ],
+                [
+                  -268,
+                  -163
+                ],
+                "admin"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "streets-of-tarkov": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              10,
+              15
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              15,
+              20
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Fourth_Floor",
+        "level": 3,
+        "extents": [
+          {
+            "height": [
+              20,
+              25
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Fifth_Floor",
+        "level": 4,
+        "extents": [
+          {
+            "height": [
+              25,
+              10000
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Underground_Level",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -10000,
+              -6
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "night-factory": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              3,
+              6
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              6,
+              10000
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Basement",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -10000,
+              -1
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "infected-factory": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              3,
+              6
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              6,
+              10000
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Basement",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -10000,
+              -1
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "ground-zero-21": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              28,
+              32.3
+            ]
+          },
+          {
+            "height": [
+              26,
+              31
+            ],
+            "bounds": [
+              [
+                [
+                  98,
+                  216
+                ],
+                [
+                  91,
+                  228
+                ],
+                "m showroom"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              32.3,
+              1000
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Underground_Level",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -1000,
+              21
+            ],
+            "bounds": [
+              [
+                [
+                  117,
+                  -100
+                ],
+                [
+                  43,
+                  190
+                ],
+                "garage"
+              ],
+              [
+                [
+                  143,
+                  49
+                ],
+                [
+                  117,
+                  80
+                ],
+                "underpass"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "ground-zero-tutorial": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              28,
+              32.3
+            ]
+          },
+          {
+            "height": [
+              26,
+              31
+            ],
+            "bounds": [
+              [
+                [
+                  98,
+                  216
+                ],
+                [
+                  91,
+                  228
+                ],
+                "m showroom"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Third_Floor",
+        "level": 2,
+        "extents": [
+          {
+            "height": [
+              32.3,
+              1000
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Underground_Level",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -1000,
+              21
+            ],
+            "bounds": [
+              [
+                [
+                  117,
+                  -100
+                ],
+                [
+                  43,
+                  190
+                ],
+                "garage"
+              ],
+              [
+                [
+                  143,
+                  49
+                ],
+                [
+                  117,
+                  80
+                ],
+                "underpass"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "the-lab": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              3,
+              10000
+            ],
+            "bounds": [
+              [
+                [
+                  -101,
+                  -422
+                ],
+                [
+                  -271,
+                  -270
+                ]
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Technical",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -10000,
+              -0.9
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "the-lab-dark": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              3,
+              10000
+            ],
+            "bounds": [
+              [
+                [
+                  -101,
+                  -422
+                ],
+                [
+                  -271,
+                  -270
+                ]
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Technical",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -10000,
+              -0.9
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "infected-lab": {
+    "layers": [
+      {
+        "layer": "Second_Floor",
+        "level": 1,
+        "extents": [
+          {
+            "height": [
+              3,
+              10000
+            ],
+            "bounds": [
+              [
+                [
+                  -101,
+                  -422
+                ],
+                [
+                  -271,
+                  -270
+                ]
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "layer": "Technical",
+        "level": -1,
+        "extents": [
+          {
+            "height": [
+              -10000,
+              -0.9
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

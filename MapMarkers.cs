@@ -18,14 +18,14 @@ internal sealed class MarkerLayer
 {
     public List<LootPoint> Loose { get; } = new();
     /// <summary>容器点：位置 + 类型（drawer / jacket / medbag ...）。</summary>
-    public List<(PointF Point, string Kind, float Y)> Containers { get; } = new();
+    public List<(PointF Point, string Kind, float Y, string? FloorLayer)> Containers { get; } = new();
     public List<PointF> Statics { get; } = new();
     /// <summary>点状危险区（地雷等）：位置 + 类型。</summary>
     public List<(PointF Point, string Type)> Hazards { get; } = new();
     /// <summary>面状危险区（雷区轮廓）。</summary>
     public List<(PointF[] Ring, string Type)> HazardAreas { get; } = new();
     /// <summary>出生点：位置 + 类别串（p=玩家 b=AI o=Boss s=狙击手）。</summary>
-    public List<(PointF Point, string Cats, float Y)> Spawns { get; } = new();
+    public List<(PointF Point, string Cats, float Y, string? FloorLayer)> Spawns { get; } = new();
 
     public bool IsEmpty =>
         Loose.Count == 0 && Containers.Count == 0 && Statics.Count == 0
@@ -55,7 +55,7 @@ internal static class MapMarkers
         var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var layer in World.Values)
         {
-            foreach (var (_, kind, _) in layer.Containers)
+            foreach (var (_, kind, _, _) in layer.Containers)
             {
                 counts[kind] = counts.TryGetValue(kind, out var n) ? n + 1 : 1;
             }
@@ -96,12 +96,12 @@ internal static class MapMarkers
             foreach (var loot in source.Loose)
             {
                 var (u, v) = MapPack.ToImage(map, loot.Point.X, loot.Point.Y);
-                layer.Loose.Add(new LootPoint(new PointF((float)u, (float)v), loot.Mask, loot.Y));
+                layer.Loose.Add(new LootPoint(new PointF((float)u, (float)v), loot.Mask, loot.Y, Classify(map, loot.Point, loot.Y)));
             }
-            foreach (var (point, kind, y) in source.Containers)
+            foreach (var (point, kind, y, _) in source.Containers)
             {
                 var (u, v) = MapPack.ToImage(map, point.X, point.Y);
-                layer.Containers.Add((new PointF((float)u, (float)v), kind, y));
+                layer.Containers.Add((new PointF((float)u, (float)v), kind, y, Classify(map, point, y)));
             }
             Project(source.Statics, layer.Statics);
             foreach (var (point, type) in source.Hazards)
@@ -119,15 +119,18 @@ internal static class MapMarkers
                 }
                 layer.HazardAreas.Add((projected, type));
             }
-            foreach (var (point, cats, y) in source.Spawns)
+            foreach (var (point, cats, y, _) in source.Spawns)
             {
                 var (u, v) = MapPack.ToImage(map, point.X, point.Y);
-                layer.Spawns.Add((new PointF((float)u, (float)v), cats, y));
+                layer.Spawns.Add((new PointF((float)u, (float)v), cats, y, Classify(map, point, y)));
             }
         }
         Image[map.Key] = layer;
         return layer;
     }
+
+    private static string? Classify(MapProjection map, PointF world, float y) =>
+        MapFloors.TryLayer(map.Data, world.X, world.Y, y, out var layer) ? layer : null;
 
     private static void EnsureLoaded()
     {
@@ -201,7 +204,7 @@ internal static class MapMarkers
                                     (float)(row[0]?.GetValue<double>() ?? 0),
                                     (float)(row[1]?.GetValue<double>() ?? 0)),
                                 row.Count >= 3 ? row[2]?.GetValue<string>() ?? "" : "",
-                                row.Count >= 4 ? (float)(row[3]?.GetValue<double>() ?? 0) : 0f));
+                                row.Count >= 4 ? (float)(row[3]?.GetValue<double>() ?? 0) : 0f, null));
                         }
                     }
                 }
@@ -217,7 +220,7 @@ internal static class MapMarkers
         }
     }
 
-    private static void ReadContainerPoints(JsonNode? node, List<(PointF Point, string Kind, float Y)> target)
+    private static void ReadContainerPoints(JsonNode? node, List<(PointF Point, string Kind, float Y, string? FloorLayer)> target)
     {
         if (node is not JsonArray array)
         {
@@ -236,7 +239,7 @@ internal static class MapMarkers
                     (float)(row[0]?.GetValue<double>() ?? 0),
                     (float)(row[1]?.GetValue<double>() ?? 0)),
                 kind,
-                y));
+                y, null));
         }
     }
 
@@ -260,7 +263,7 @@ internal static class MapMarkers
                         (float)(row[0]?.GetValue<double>() ?? 0),
                         (float)(row[1]?.GetValue<double>() ?? 0)),
                     mask,
-                    row.Count >= 4 ? (float)(row[3]?.GetValue<double>() ?? 0) : 0f));
+                    row.Count >= 4 ? (float)(row[3]?.GetValue<double>() ?? 0) : 0f, null));
             }
         }
     }

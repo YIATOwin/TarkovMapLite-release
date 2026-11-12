@@ -71,6 +71,8 @@ internal sealed class MapForm : Form
     private IReadOnlyList<string> _mobileObjectives = Array.Empty<string>();
     private IReadOnlyList<MobileItem> _mobileItems = Array.Empty<MobileItem>();
     private readonly ContextMenuStrip _layerMenu = new();
+    private readonly ContextMenuStrip _mapMenu = new();
+    private bool _layerUpdateQueued;
     /// <summary>当前选中任务的 wiki 链接（没有就是空串）。</summary>
     private string _currentWiki = "";
     private string _currentSlug = "";
@@ -191,7 +193,13 @@ internal sealed class MapForm : Form
         _mapButton.Location = new Point(50, 8);
         _mapButton.Size = new Size(252, 30);
         _mapButton.Font = new Font("Microsoft YaHei UI", 9f);
-        _mapButton.Click += (_, _) => ShowMapMenu();
+        _mapMenu.Font = _mapSelect.Font;
+        _mapMenu.BackColor = UiTokens.Raised;
+        _mapMenu.ForeColor = TextMain;
+        _mapMenu.Renderer = new LayerMenuRenderer();
+        _mapMenu.ShowImageMargin = false;
+        _mapMenu.ShowCheckMargin = false;
+        _ = new MenuButtonBinding(_mapButton, _mapMenu, RefreshMapMenu);
 
         _onlyActive.Active = true;
         _onlyActive.Text = "仅进行中";
@@ -225,7 +233,9 @@ internal sealed class MapForm : Form
         {
             if (_variant.Tag is string key)
             {
-                SelectMap(key);
+                var floor = _canvas.CurrentFloor;
+                SelectMap(key, preferDefault: false);
+                _canvas.ShowFloor(floor);
             }
         };
 
@@ -246,8 +256,7 @@ internal sealed class MapForm : Form
         _layerButton.Text = "图层";
         _layerButton.Location = new Point(382, 8);
         _layerButton.Size = new Size(66, 30);
-        _layerButton.Click += (_, _) =>
-            _layerMenu.Show(_layerButton, new Point(0, _layerButton.Height));
+        _ = new MenuButtonBinding(_layerButton, _layerMenu, () => { });
         BuildLayerMenu();
 
         var refresh = new UiButton
@@ -491,29 +500,6 @@ internal sealed class MapForm : Form
         Controls.Add(top);
     }
 
-    /// <summary>"图层"下拉：多选，勾哪个画哪个。</summary>
-    /// <summary>
-    /// 按勾选状态刷新菜单文字颜色：勾选=强调色、半选=预警色、未勾选=常态色。
-    /// 为什么不用渲染器里的 e.TextColor：实测被系统的 item.ForeColor 盖掉了（截图验证），
-    /// 直接设 ForeColor 才可靠。放在 UpdateLayerButtonText 里调，所有开关都会经过这里。
-    /// </summary>
-    private static void StyleLayerItems(ToolStripItemCollection items)
-    {
-        foreach (ToolStripItem entry in items)
-        {
-            if (entry is not ToolStripMenuItem item)
-            {
-                continue;
-            }
-            item.ForeColor = item.CheckState switch
-            {
-                CheckState.Checked => UiTokens.Accent,
-                CheckState.Indeterminate => UiTokens.Warn,
-                _ => UiTokens.TextMain,
-            };
-            StyleLayerItems(item.DropDownItems);
-        }
-    }
     private void BuildLayerMenu()
     {
         _layerMenu.Font = new Font("Microsoft YaHei UI", 9f);
@@ -535,6 +521,12 @@ internal sealed class MapForm : Form
             // 左内边距留 0：图标由系统的图片边距列负责，加了反而挤掉图标
             item.Padding = new Padding(0, 4, 10, 4);
             item.Margin = Padding.Empty;
+            item.CheckStateChanged += (_, _) =>
+            {
+                // 渲染器直接读取 CheckState；只刷新变化的行，批量操作合并为一次画布更新。
+                item.Invalidate();
+                QueueLayerUpdate();
+            };
             return item;
         }
 
@@ -546,8 +538,7 @@ internal sealed class MapForm : Form
                 var on = item.CheckState != CheckState.Checked;
                 item.CheckState = on ? CheckState.Checked : CheckState.Unchecked;
                 set(on);
-                UpdateLayerButtonText();
-                _canvas.Invalidate();
+                QueueLayerUpdate();
             };
             _layerMenu.Items.Add(item);
         }
@@ -593,9 +584,7 @@ internal sealed class MapForm : Form
             lootItem.CheckState = hidden == 0 ? CheckState.Checked
                 : hidden == lootRows.Count ? CheckState.Unchecked
                 : CheckState.Indeterminate;
-            lootItem.DropDown.Invalidate(true);
-            UpdateLayerButtonText();
-            _canvas.Invalidate();
+            QueueLayerUpdate();
         }
         foreach (var lootKind in LootKinds.All)
         {
@@ -681,15 +670,8 @@ internal sealed class MapForm : Form
                 ApplyKindState(slug, on);
             }
             RefreshContainerState(containerItem, kinds);
-            // 程序改 CheckState 不会自动重画，要悬停才刷新——必须手动让下拉失效
-            containerItem.DropDown.Invalidate(true);
-            _canvas.Invalidate();
         }
 
-        // 子项一律从「全部显示」开始，所以父项和画布也得是同一个状态——
-        // 否则会出现"列表全勾着、图上什么都没有"（子项默认 Checked 但 ShowXxx=false）。
-        SetAll(true);
-        SyncLoot();
         showAll.Click += (_, _) => SetAll(true);
         hideAll.Click += (_, _) => SetAll(false);
 
@@ -704,8 +686,6 @@ internal sealed class MapForm : Form
                 sub.CheckState = on ? CheckState.Checked : CheckState.Unchecked;
                 ApplyKindState(slug, on);
                 RefreshContainerState(containerItem, kinds);
-                containerItem.DropDown.Invalidate(true);
-                _canvas.Invalidate();
             };
             containerItem.DropDownItems.Add(sub);
             kinds.Add((slug, sub));
@@ -719,6 +699,9 @@ internal sealed class MapForm : Form
             }
         };
 
+        // 子项建好以后再同步父项与画布，避免初始化发生在空列表上。
+        SetAll(true);
+        SyncLoot();
         UpdateLayerButtonText();
     }
     private void ClearDoneMarks()
@@ -771,7 +754,7 @@ internal sealed class MapForm : Form
                 ? CheckState.Checked
                 : CheckState.Indeterminate;
         _canvas.ShowContainers = on > 0;
-        UpdateLayerButtonText();
+        QueueLayerUpdate();
     }
 
     /// <summary>深色 ToolStrip 配色：菜单项背景和边框。</summary>
@@ -788,16 +771,29 @@ internal sealed class MapForm : Form
 
     private void UpdateLayerButtonText()
     {
-        StyleLayerItems(_layerMenu.Items);
         var count = 0;
         foreach (ToolStripItem item in _layerMenu.Items)
         {
-            if (item is ToolStripMenuItem item2 && item2.CheckState == CheckState.Checked)
+            if (item is ToolStripMenuItem item2 && item2.CheckState != CheckState.Unchecked)
             {
                 count++;
             }
         }
-        _layerButton.Text = count == 0 ? "图层" : $"图层 {count}";
+        var text = count == 0 ? "图层" : $"图层 {count}";
+        if (_layerButton.Text != text) _layerButton.Text = text;
+    }
+
+    private void QueueLayerUpdate()
+    {
+        if (_layerUpdateQueued || !IsHandleCreated || IsDisposed) return;
+        _layerUpdateQueued = true;
+        BeginInvoke(() =>
+        {
+            _layerUpdateQueued = false;
+            if (IsDisposed) return;
+            UpdateLayerButtonText();
+            _canvas.Invalidate();
+        });
     }
 
     private void DrawTaskRow(object? sender, DrawItemEventArgs e)
@@ -904,43 +900,37 @@ internal sealed class MapForm : Form
     private void SyncMapButtonText()
     {
         var index = _mapSelect.SelectedIndex;
-        _mapButton.Text = index >= 0 && index < _mapSelect.Items.Count
-            ? _mapSelect.Items[index]?.ToString() ?? ""
-            : "选择地图";
+        var text = index >= 0 && index < _mapSelect.Items.Count
+            ? _mapSelect.Items[index]?.ToString() ?? "" : "选择地图";
+        if (_mapButton.Text != text) _mapButton.Text = text;
+        if (_mapMenu.Visible) RefreshMapMenu();
     }
 
-    /// <summary>地图菜单：每次打开按当前条目重建（条目少，重建比同步状态省心）。</summary>
-    private void ShowMapMenu()
+    /// <summary>复用菜单项；任务数/选中地图变化时只更新文字和选中状态。</summary>
+    private void RefreshMapMenu()
     {
-        var menu = new ContextMenuStrip
+        if (_mapMenu.Items.Count != _mapSelect.Items.Count)
         {
-            Font = new Font("Microsoft YaHei UI", 9f),
-            BackColor = UiTokens.Raised,
-            ForeColor = UiTokens.TextMain,
-            Renderer = new LayerMenuRenderer(),
-            ShowImageMargin = false,
-            ShowCheckMargin = false,
-        };
-        for (var i = 0; i < _mapSelect.Items.Count; i++)
-        {
-            var index = i;
-            var item = new ToolStripMenuItem(_mapSelect.Items[i]?.ToString() ?? "")
+            while (_mapMenu.Items.Count > 0) _mapMenu.Items[0].Dispose();
+            for (var i = 0; i < _mapSelect.Items.Count; i++)
             {
-                Checked = i == _mapSelect.SelectedIndex,
-                Padding = new Padding(12, 4, 16, 4),
-            };
-            item.Click += (_, _) =>
-            {
-                menu.Close();
-                if (index != _mapSelect.SelectedIndex)
+                var index = i;
+                var item = new ToolStripMenuItem { Padding = new Padding(12, 4, 16, 4) };
+                item.Click += (_, _) =>
                 {
-                    _mapSelect.SelectedIndex = index;
-                }
-            };
-            menu.Items.Add(item);
+                    _mapMenu.Close();
+                    if (index != _mapSelect.SelectedIndex) _mapSelect.SelectedIndex = index;
+                };
+                _mapMenu.Items.Add(item);
+            }
         }
-        menu.Closed += (_, _) => BeginInvoke(new Action(menu.Dispose));
-        menu.Show(_mapButton, new Point(0, _mapButton.Height));
+        for (var i = 0; i < _mapMenu.Items.Count; i++)
+        {
+            var item = (ToolStripMenuItem)_mapMenu.Items[i];
+            var text = _mapSelect.Items[i]?.ToString() ?? "";
+            if (item.Text != text) item.Text = text;
+            item.Checked = i == _mapSelect.SelectedIndex;
+        }
     }
     private void FillMapCombo()
     {
@@ -1002,19 +992,11 @@ internal sealed class MapForm : Form
         _variant.Visible = true;
     }
 
-    private void SelectMap(string key)
+    private void SelectMap(string key, bool preferDefault = true)
     {
         var maps = MapPack.Maps.ToList();
-        var index = maps.FindIndex(m => string.Equals(m.Key, key, StringComparison.OrdinalIgnoreCase));
-        // 这张图的 SVG 少了层（或图没生成）：直接切到它的瓦片版，层才完整
-        if (index >= 0 && !string.IsNullOrEmpty(maps[index].PreferTiles))
-        {
-            var alt = maps.FindIndex(m => string.Equals(m.Key, maps[index].PreferTiles, StringComparison.OrdinalIgnoreCase));
-            if (alt >= 0)
-            {
-                index = alt;
-            }
-        }
+        var target = MapPack.Resolve(key, preferDefault);
+        var index = maps.FindIndex(m => m.Key == target?.Key);
         if (index < 0 || index == _mapSelect.SelectedIndex)
         {
             return;
@@ -1236,7 +1218,7 @@ internal sealed class MapForm : Form
                 SelectTaskFromMobile(action.Value);
                 break;
             case MobileAction.SetMap:
-                SelectMap(action.Value);
+                SelectMap(action.Value, preferDefault: false);
                 break;
         }
     }

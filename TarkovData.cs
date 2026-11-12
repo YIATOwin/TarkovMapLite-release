@@ -549,6 +549,11 @@ public static class TarkovData
                 var zoneHeight = zone?["y"]?.GetValue<double?>() ?? 0;
                 var cx = 0f; var cz = 0f;
                 foreach (var pt in world) { cx += pt.X; cz += pt.Y; }
+                if (zone?["y"] != null && MapFloors.TryLayer(mapKey, cx / world.Count,
+                    cz / world.Count, zoneHeight, out var floorLayer))
+                {
+                    zoneFloor = MapFloors.FloorOf(mapKey, floorLayer);
+                }
                 FloorSamples.Add((mapKey, cx / world.Count, cz / world.Count, zoneHeight, zoneFloor));
                 var shape = new ZoneShape
                 {
@@ -557,7 +562,7 @@ public static class TarkovData
                     Type = zone?["t"]?.GetValue<string>() ?? "",
                     ObjectiveId = zone?["o"]?.GetValue<string>() ?? "",
                     WorldPoints = world.ToArray(),
-                    Floor = zone?["f"]?.GetValue<int?>() ?? 0,
+                    Floor = zoneFloor,
                 };
                 if (!zones.TryGetValue(mapKey, out var list))
                 {
@@ -626,6 +631,10 @@ public static class TarkovData
     /// </summary>
     public static int? FloorOfHeight(string mapData, double x, double z, double y)
     {
+        if (MapFloors.TryLayer(mapData, x, z, y, out var layer))
+        {
+            return MapFloors.FloorOf(mapData, layer);
+        }
         if (string.IsNullOrEmpty(mapData) || !ZoneSamples.TryGetValue(mapData, out var samples) || samples.Count == 0)
         {
             return null;

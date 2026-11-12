@@ -272,6 +272,11 @@ internal sealed class MapCanvas : Control
 
     public void SetLayer(string layer)
     {
+        if (!string.IsNullOrEmpty(layer) && !(_map?.Layers.Any(l =>
+            string.Equals(l.SvgLayer, layer, StringComparison.OrdinalIgnoreCase)) ?? false))
+        {
+            return;
+        }
         _layer = layer;
         _image = null;
         Invalidate();
@@ -528,7 +533,7 @@ internal sealed class MapCanvas : Control
         // 图层画法：先画地面层，选中的层再盖上去。
         // 非地面层时地面压到 5% —— 只留一点点轮廓做空间参照，几乎看不见，
         // 这样地下层不会被地面层的墙"穿透"，观感和官方地图一致。
-        var hasLayers = _map.Layers.Count > 1;
+        var hasLayers = _map.Layers.Any(l => !string.IsNullOrWhiteSpace(l.SvgLayer));
         var selectingFloor = hasLayers && !string.IsNullOrEmpty(_layer);
         if (_image != null)
         {
@@ -633,9 +638,9 @@ internal sealed class MapCanvas : Control
         // 容器：每种类型一个颜色 + 形状（图例在「图层」菜单里）
         if (ShowContainers)
         {
-            foreach (var (point, kind, y) in layer.Containers)
+            foreach (var (point, kind, y, floorLayer) in layer.Containers)
             {
-                if (!MarkerFloors.Matches(_map?.Key ?? "", y, _layer))
+                if (!MarkerFloors.Matches(_map?.Key ?? "", y, _layer, floorLayer))
                 {
                     continue;
                 }
@@ -657,7 +662,7 @@ internal sealed class MapCanvas : Control
         {
             foreach (var loot in layer.Loose)
             {
-                if (!MarkerFloors.Matches(_map?.Key ?? "", loot.Y, _layer))
+                if (!MarkerFloors.Matches(_map?.Key ?? "", loot.Y, _layer, loot.FloorLayer))
                 {
                     continue;
                 }
@@ -702,9 +707,9 @@ internal sealed class MapCanvas : Control
             using var botPen = new Pen(Color.FromArgb(150, 235, 165, 90), 1.3f);
             using var bossPen = new Pen(Color.FromArgb(190, 200, 120, 255), 1.8f);
             using var sniperPen = new Pen(Color.FromArgb(170, 240, 90, 90), 1.3f);
-            foreach (var (point, cats, y) in layer.Spawns)
+            foreach (var (point, cats, y, floorLayer) in layer.Spawns)
             {
-                if (!MarkerFloors.Matches(_map?.Key ?? "", y, _layer))
+                if (!MarkerFloors.Matches(_map?.Key ?? "", y, _layer, floorLayer))
                 {
                     continue;
                 }
@@ -1316,8 +1321,8 @@ internal sealed class MapCanvas : Control
             // 以前这里是一个 7px 的青色圆点，和地图上的玩家标记语义不连贯，换成人形更好认。
             var entryFloor = string.IsNullOrEmpty(key)
                 ? 0
-                : FloorOfLayerName(_map?.Layers.FirstOrDefault(l =>
-                    string.Equals(l.SvgLayer, key, StringComparison.OrdinalIgnoreCase))?.Name ?? "");
+                : _map?.Layers.FirstOrDefault(l =>
+                    string.Equals(l.SvgLayer, key, StringComparison.OrdinalIgnoreCase))?.Floor ?? 0;
             // 玩家截图所属地图 == 当前显示地图，且推算楼层等于这一层，才标这个小人
             var sameMap = string.Equals(PlayerMapKey, _map?.Key, StringComparison.OrdinalIgnoreCase);
             if (sameMap && PlayerFloor.HasValue && PlayerFloor.Value == entryFloor)
@@ -1518,32 +1523,12 @@ internal sealed class MapCanvas : Control
             }
             var layer = _map.Layers.FirstOrDefault(l =>
                 string.Equals(l.SvgLayer, _layer, StringComparison.OrdinalIgnoreCase));
-            return layer == null ? 0 : FloorOfLayerName(layer.Name);
+            return layer?.Floor ?? 0;
         }
     }
 
     /// <summary>把楼层名（2nd Floor / Underground / Bunkers…）转成楼层号。</summary>
-    public static int FloorOfLayerName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return 0;
-        }
-        var match = System.Text.RegularExpressions.Regex.Match(name, @"^(\d)");
-        if (match.Success && int.TryParse(match.Groups[1].Value, out var n) && n >= 1)
-        {
-            return n - 1;
-        }
-        if (name.Contains("Underground", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("Bunker", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("Basement", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("Tunnel", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("Garage", StringComparison.OrdinalIgnoreCase))
-        {
-            return -1;
-        }
-        return 0;
-    }
+    public static int FloorOfLayerName(string name) => MapFloors.NumberOfLayer("", name);
 
     /// <summary>切到指定楼层；该层不存在时返回 false。</summary>
     public bool ShowFloor(int floor)
@@ -1552,13 +1537,13 @@ internal sealed class MapCanvas : Control
         {
             return false;
         }
-        if (floor <= 0 && floor != -1)
+        if (floor == 0)
         {
             SetLayer("");
             return true;
         }
         var layer = _map.Layers.FirstOrDefault(l =>
-            !string.IsNullOrWhiteSpace(l.SvgLayer) && FloorOfLayerName(l.Name) == floor);
+            !string.IsNullOrWhiteSpace(l.SvgLayer) && l.Floor == floor);
         if (layer == null)
         {
             return false;
@@ -1666,16 +1651,18 @@ internal sealed class MapCanvas : Control
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        if (e.Button == MouseButtons.Left && e.Y < 10 + (FloorCount() * 28) && e.X < 76)
+        if (e.Button == MouseButtons.Left && _map?.Layers.Count > 0)
         {
-            var index = (e.Y - 10) / 28;
             var entries = new List<string> { "" };
             entries.AddRange(_map?.Layers.Where(l => !string.IsNullOrWhiteSpace(l.SvgLayer))
                 .Select(l => l.SvgLayer) ?? Enumerable.Empty<string>());
-            if (index >= 0 && index < entries.Count)
+            for (var index = 0; index < entries.Count; index++)
             {
-                FloorRequested?.Invoke(entries[index]);
-                return;
+                if (new Rectangle(10, 10 + index * 30, 84, 26).Contains(e.Location))
+                {
+                    FloorRequested?.Invoke(entries[index]);
+                    return;
+                }
             }
         }
         if (e.Button is MouseButtons.Left or MouseButtons.Middle)
@@ -1688,9 +1675,6 @@ internal sealed class MapCanvas : Control
             Cursor = Cursors.SizeAll;
         }
     }
-
-    private int FloorCount() =>
-        1 + (_map?.Layers.Count(l => !string.IsNullOrWhiteSpace(l.SvgLayer)) ?? 0);
 
     protected override void OnMouseMove(MouseEventArgs e)
     {

@@ -35,20 +35,24 @@
    ],
    "layers": [
     {
-     "name": "地下",
-     "svgLayer": "Underground_Level"
-    },
-    {
-     "name": "1 层",
-     "svgLayer": "First_Floor"
-    },
-    {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "4 层",
+     "svgLayer": "Fourth_Floor",
+     "level": 3
+    },
+    {
+     "name": "地下",
+     "svgLayer": "Underground_Level",
+     "level": -1
     }
    ],
    "preferTiles": "customs-tiles"
@@ -87,16 +91,19 @@
    ],
    "layers": [
     {
-     "name": "地下室",
-     "svgLayer": "Basement"
-    },
-    {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "隧道",
+     "svgLayer": "Basement",
+     "level": -1
     }
    ]
   },
@@ -134,20 +141,19 @@
    ],
    "layers": [
     {
-     "name": "地下",
-     "svgLayer": "Underground_Level"
-    },
-    {
-     "name": "1 层",
-     "svgLayer": "First_Floor"
-    },
-    {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "车库",
+     "svgLayer": "Underground_Level",
+     "level": -1
     }
    ],
    "preferTiles": "ground-zero-tiles"
@@ -183,12 +189,14 @@
    "heightRange": null,
    "layers": [
     {
-     "name": "1 层",
-     "svgLayer": "First_Floor"
+     "name": "2 层",
+     "svgLayer": "First_Floor",
+     "level": 1
     },
     {
-     "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "name": "3 层",
+     "svgLayer": "Second_Floor",
+     "level": 2
     }
    ]
   },
@@ -257,8 +265,29 @@
    ],
    "layers": [
     {
+     "name": "2 层",
+     "svgLayer": "Second_Floor",
+     "level": 1
+    },
+    {
+     "name": "3 层",
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "4 层",
+     "svgLayer": "Fourth_Floor",
+     "level": 3
+    },
+    {
+     "name": "5 层",
+     "svgLayer": "Fifth_Floor",
+     "level": 4
+    },
+    {
      "name": "地堡",
-     "svgLayer": "Bunkers"
+     "svgLayer": "Bunkers",
+     "level": -1
     }
    ],
    "preferTiles": "reserve-tiles"
@@ -297,20 +326,19 @@
    ],
    "layers": [
     {
-     "name": "地下",
-     "svgLayer": "Underground_Level"
-    },
-    {
-     "name": "1 层",
-     "svgLayer": "First_Floor"
-    },
-    {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "地下",
+     "svgLayer": "Underground_Level",
+     "level": -1
     }
    ],
    "preferTiles": "shoreline-tiles"
@@ -349,28 +377,29 @@
    ],
    "layers": [
     {
-     "name": "地下",
-     "svgLayer": "Underground_Level"
-    },
-    {
-     "name": "1 层",
-     "svgLayer": "First_Floor"
-    },
-    {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
     },
     {
      "name": "4 层",
-     "svgLayer": "Fourth_Floor"
+     "svgLayer": "Fourth_Floor",
+     "level": 3
     },
     {
      "name": "5 层",
-     "svgLayer": "Fifth_Floor"
+     "svgLayer": "Fifth_Floor",
+     "level": 4
+    },
+    {
+     "name": "地下",
+     "svgLayer": "Underground_Level",
+     "level": -1
     }
    ]
   },
@@ -403,12 +432,7 @@
     1043.9554
    ],
    "heightRange": null,
-   "layers": [
-    {
-     "name": "1 层",
-     "svgLayer": "First_Floor"
-    }
-   ]
+   "layers": []
   },
   {
    "key": "woods",
@@ -476,16 +500,19 @@
    ],
    "layers": [
     {
-     "name": "地下室",
-     "svgLayer": "Basement"
-    },
-    {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "隧道",
+     "svgLayer": "Basement",
+     "level": -1
     }
    ]
   },
@@ -524,16 +551,19 @@
    ],
    "layers": [
     {
-     "name": "地下室",
-     "svgLayer": "Basement"
-    },
-    {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "隧道",
+     "svgLayer": "Basement",
+     "level": -1
     }
    ]
   },
@@ -572,20 +602,19 @@
    ],
    "layers": [
     {
-     "name": "地下",
-     "svgLayer": "Underground_Level"
-    },
-    {
-     "name": "1 层",
-     "svgLayer": "First_Floor"
-    },
-    {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "车库",
+     "svgLayer": "Underground_Level",
+     "level": -1
     }
    ]
   },
@@ -624,20 +653,19 @@
    ],
    "layers": [
     {
-     "name": "地下",
-     "svgLayer": "Underground_Level"
-    },
-    {
-     "name": "1 层",
-     "svgLayer": "First_Floor"
-    },
-    {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "车库",
+     "svgLayer": "Underground_Level",
+     "level": -1
     }
    ]
   },
@@ -708,12 +736,14 @@
    ],
    "layers": [
     {
-     "name": "技术层",
-     "svgLayer": "Technical"
+     "name": "2 层",
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
-     "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "name": "技术层",
+     "svgLayer": "Technical",
+     "level": -1
     }
    ]
   },
@@ -751,12 +781,14 @@
    ],
    "layers": [
     {
-     "name": "技术层",
-     "svgLayer": "Technical"
+     "name": "2 层",
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
-     "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "name": "技术层",
+     "svgLayer": "Technical",
+     "level": -1
     }
    ]
   },
@@ -794,12 +826,14 @@
    ],
    "layers": [
     {
-     "name": "技术层",
-     "svgLayer": "Technical"
+     "name": "2 层",
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
-     "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "name": "技术层",
+     "svgLayer": "Technical",
+     "level": -1
     }
    ]
   },
@@ -847,19 +881,23 @@
    "layers": [
     {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
     },
     {
      "name": "4 层",
-     "svgLayer": "Fourth_Floor"
+     "svgLayer": "Fourth_Floor",
+     "level": 3
     },
     {
      "name": "地下",
-     "svgLayer": "Underground"
+     "svgLayer": "Underground",
+     "level": -1
     }
    ]
   },
@@ -941,7 +979,23 @@
     2693
    ],
    "heightRange": null,
-   "layers": []
+   "layers": [
+    {
+     "name": "2 层",
+     "svgLayer": "Second_Floor",
+     "level": 1
+    },
+    {
+     "name": "3 层",
+     "svgLayer": "Third_Floor",
+     "level": 2
+    },
+    {
+     "name": "地下",
+     "svgLayer": "Underground_Level",
+     "level": -1
+    }
+   ]
   },
   {
    "key": "interchange-tiles",
@@ -981,7 +1035,18 @@
     3721
    ],
    "heightRange": null,
-   "layers": []
+   "layers": [
+    {
+     "name": "2 层",
+     "svgLayer": "First_Floor",
+     "level": 1
+    },
+    {
+     "name": "3 层",
+     "svgLayer": "Second_Floor",
+     "level": 2
+    }
+   ]
   },
   {
    "key": "factory-tiles",
@@ -1027,15 +1092,18 @@
    "layers": [
     {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
     },
     {
-     "name": "地下",
-     "svgLayer": "Basement"
+     "name": "隧道",
+     "svgLayer": "Basement",
+     "level": -1
     }
    ]
   },
@@ -1083,23 +1151,28 @@
    "layers": [
     {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
     },
     {
      "name": "4 层",
-     "svgLayer": "Fourth_Floor"
+     "svgLayer": "Fourth_Floor",
+     "level": 3
     },
     {
      "name": "5 层",
-     "svgLayer": "Fifth_Floor"
+     "svgLayer": "Fifth_Floor",
+     "level": 4
     },
     {
      "name": "地堡",
-     "svgLayer": "Bunkers"
+     "svgLayer": "Bunkers",
+     "level": -1
     }
    ]
   },
@@ -1147,15 +1220,18 @@
    "layers": [
     {
      "name": "2 层",
-     "svgLayer": "Second_Floor"
+     "svgLayer": "Second_Floor",
+     "level": 1
     },
     {
      "name": "3 层",
-     "svgLayer": "Third_Floor"
+     "svgLayer": "Third_Floor",
+     "level": 2
     },
     {
      "name": "车库",
-     "svgLayer": "Underground_Level"
+     "svgLayer": "Underground_Level",
+     "level": -1
     }
    ]
   }
