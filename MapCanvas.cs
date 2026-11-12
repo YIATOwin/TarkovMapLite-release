@@ -90,6 +90,7 @@ internal sealed class MapCanvas : Control
 
     /// <summary>选中任务所需物品的候选刷新点（图片像素坐标）。</summary>
     public List<PointF> SpawnPoints { get; set; } = new();
+    public Dictionary<PointF, string?> SpawnPointLayers { get; set; } = new();
 
     /// <summary>
     /// 在这张图上"已经做完"的任务：区域和点位都不再画（任务列表右键切换）。
@@ -640,10 +641,6 @@ internal sealed class MapCanvas : Control
         {
             foreach (var (point, kind, y, floorLayer) in layer.Containers)
             {
-                if (!MarkerFloors.Matches(_map?.Key ?? "", y, _layer, floorLayer))
-                {
-                    continue;
-                }
                 if (HiddenContainerKinds.Contains(kind))
                 {
                     continue;
@@ -653,7 +650,7 @@ internal sealed class MapCanvas : Control
                 {
                     continue;
                 }
-                DrawContainer(g, p, ContainerKinds.Resolve(kind), scale);
+                DrawContainer(g, p, ContainerKinds.Resolve(kind), scale, MarkerFloors.Opacity(_map?.Key ?? "", y, _layer, floorLayer));
             }
         }
 
@@ -662,10 +659,6 @@ internal sealed class MapCanvas : Control
         {
             foreach (var loot in layer.Loose)
             {
-                if (!MarkerFloors.Matches(_map?.Key ?? "", loot.Y, _layer, loot.FloorLayer))
-                {
-                    continue;
-                }
                 if (!LootKinds.Visible(loot.Mask, HiddenLootKinds))
                 {
                     continue;
@@ -675,7 +668,7 @@ internal sealed class MapCanvas : Control
                 {
                     continue;
                 }
-                using var fill = new SolidBrush(LootKinds.Dominant(loot.Mask).Color);
+                using var fill = new SolidBrush(MarkerPaint.Fade(LootKinds.Dominant(loot.Mask).Color, MarkerFloors.Opacity(_map?.Key ?? "", loot.Y, _layer, loot.FloorLayer)));
                 g.FillEllipse(fill, p.X - 2.1f, p.Y - 2.1f, 4.2f, 4.2f);
             }
         }
@@ -684,8 +677,10 @@ internal sealed class MapCanvas : Control
         if (ShowHazards)
         {
             using var fill = new SolidBrush(Color.FromArgb(210, 235, 90, 80));
-            foreach (var (point, _) in layer.Hazards)
+            var paints = new MarkerPaint(fill);
+            foreach (var (point, _, floorLayer) in layer.Hazards)
             {
+                paints.SetOpacity(MarkerFloors.OpacityForLayer(floorLayer, _layer));
                 var p = At(point);
                 if (!visible.Contains(p))
                 {
@@ -707,12 +702,10 @@ internal sealed class MapCanvas : Control
             using var botPen = new Pen(Color.FromArgb(150, 235, 165, 90), 1.3f);
             using var bossPen = new Pen(Color.FromArgb(190, 200, 120, 255), 1.8f);
             using var sniperPen = new Pen(Color.FromArgb(170, 240, 90, 90), 1.3f);
+            var paints = new MarkerPaint(playerPen, botPen, bossPen, sniperPen);
             foreach (var (point, cats, y, floorLayer) in layer.Spawns)
             {
-                if (!MarkerFloors.Matches(_map?.Key ?? "", y, _layer, floorLayer))
-                {
-                    continue;
-                }
+                paints.SetOpacity(MarkerFloors.OpacityForLayer(floorLayer, _layer));
                 var p = At(point);
                 if (!visible.Contains(p))
                 {
@@ -731,8 +724,10 @@ internal sealed class MapCanvas : Control
         if (ShowStatics)
         {
             using var fill = new SolidBrush(Color.FromArgb(180, 150, 160, 175));
-            foreach (var point in layer.Statics)
+            var paints = new MarkerPaint(fill);
+            foreach (var (point, floorLayer) in layer.Statics)
             {
+                paints.SetOpacity(MarkerFloors.OpacityForLayer(floorLayer, _layer));
                 var p = At(point);
                 if (!visible.Contains(p))
                 {
@@ -761,12 +756,12 @@ internal sealed class MapCanvas : Control
     /// 一种容器：圆角底 + 内部象形记号。点太小（缩得很远）时只留纯色块，
     /// 因为 5px 里画笔画反而糊成一团。
     /// </summary>
-    private static void DrawContainer(Graphics g, PointF p, ContainerKinds.Kind kind, float scale)
+    private static void DrawContainer(Graphics g, PointF p, ContainerKinds.Kind kind, float scale, float opacity)
     {
         var s = Math.Clamp(scale * 30f, 3.6f, 7.2f);      // 半边长，约 7~14 px
         var rect = new RectangleF(p.X - s, p.Y - s, s * 2, s * 2);
-        using var fill = new SolidBrush(Color.FromArgb(228, kind.Color));
-        using var edge = new Pen(Color.FromArgb(210, 18, 20, 24), 1f);
+        using var fill = new SolidBrush(MarkerPaint.Fade(Color.FromArgb(228, kind.Color), opacity));
+        using var edge = new Pen(MarkerPaint.Fade(Color.FromArgb(210, 18, 20, 24), opacity), 1f);
         if (s < 4.6f)
         {
             g.FillRectangle(fill, rect);
@@ -778,7 +773,7 @@ internal sealed class MapCanvas : Control
         g.FillPath(fill, body);
         g.DrawPath(edge, body);
 
-        using var ink = new Pen(Color.FromArgb(240, 20, 22, 26), Math.Max(1f, s * 0.19f));
+        using var ink = new Pen(MarkerPaint.Fade(Color.FromArgb(240, 20, 22, 26), opacity), Math.Max(1f, s * 0.19f));
         var u = s;
         switch (kind.Glyph)
         {
@@ -836,22 +831,25 @@ internal sealed class MapCanvas : Control
         using var font = new Font("Microsoft YaHei UI", 7.5f);
         using var textBrush = new SolidBrush(Color.FromArgb(235, 235, 245, 255));
         using var halo = new SolidBrush(Color.FromArgb(200, 0, 0, 0));
+        var paints = new MarkerPaint(textBrush, halo);
         foreach (var (list, color) in new[]
                  {
                      (Extracts, Color.FromArgb(120, 220, 150)),
                      (Transits, Color.FromArgb(190, 150, 245)),
                  })
         {
-            foreach (var marker in list)
+            foreach (var marker in list.OrderBy(m => MarkerFloors.OpacityForLayer(m.FloorLayer, _layer)))
             {
+                var opacity = MarkerFloors.OpacityForLayer(marker.FloorLayer, _layer);
+                paints.SetOpacity(opacity);
                 var x = origin.X + marker.Screen.X * scale;
                 var y = origin.Y + marker.Screen.Y * scale;
                 if (x < -20 || y < -20 || x > ClientSize.Width + 20 || y > ClientSize.Height + 20)
                 {
                     continue;
                 }
-                using var fill = new SolidBrush(color);
-                using var ring = new Pen(Color.FromArgb(230, 20, 24, 20), 1.2f);
+                using var fill = new SolidBrush(MarkerPaint.Fade(color, opacity));
+                using var ring = new Pen(MarkerPaint.Fade(Color.FromArgb(230, 20, 24, 20), opacity), 1.2f);
                 if (marker.Kind == "extract")
                 {
                     // 方块
@@ -941,8 +939,11 @@ internal sealed class MapCanvas : Control
         using var ring = new Pen(Color.FromArgb(235, 15, 40, 45), 1.2f);
         using var ink = new SolidBrush(Color.FromArgb(235, 235, 250, 252));
         using var halo = new SolidBrush(UiTokens.Scrim);
+        var paints = new MarkerPaint(fill, ring, ink, halo);
         foreach (var stop in BtrStops)
         {
+            var opacity = MarkerFloors.OpacityForLayer(stop.FloorLayer, _layer);
+            paints.SetOpacity(opacity);
             var x = origin.X + stop.Screen.X * scale;
             var y = origin.Y + stop.Screen.Y * scale;
             if (x < -20 || y < -20 || x > ClientSize.Width + 20 || y > ClientSize.Height + 20)
@@ -988,8 +989,11 @@ internal sealed class MapCanvas : Control
         }
         var showNames = _zoom >= 1.25 || onScreen <= 12;
         var placed = new List<RectangleF>();
+        var paints = new MarkerPaint(fill, ring, hole, ink, halo);
         foreach (var door in Doors)
         {
+            var opacity = MarkerFloors.OpacityForLayer(door.FloorLayer, _layer);
+            paints.SetOpacity(opacity);
             var p = new PointF(origin.X + door.Screen.X * scale, origin.Y + door.Screen.Y * scale);
             if (!visible.Contains(p))
             {
@@ -1003,7 +1007,7 @@ internal sealed class MapCanvas : Control
             if (door.NeedsPower)
             {
                 // 还要通电才开的门，右上角点一个小黄点
-                using var dot = new SolidBrush(Color.FromArgb(240, 255, 214, 90));
+                using var dot = new SolidBrush(MarkerPaint.Fade(Color.FromArgb(240, 255, 214, 90), opacity));
                 g.FillEllipse(dot, p.X + 3f, p.Y - 7f, 3.4f, 3.4f);
             }
             if (!showNames || door.Name.Length == 0)
@@ -1038,8 +1042,11 @@ internal sealed class MapCanvas : Control
         using var halo = new SolidBrush(Color.FromArgb(210, 0, 0, 0));
         var visible = new RectangleF(-40, -40, ClientSize.Width + 80, ClientSize.Height + 80);
         var placed = new List<RectangleF>();
+        var paints = new MarkerPaint(fill, ring, ink, halo);
         foreach (var sw in Switches)
         {
+            var opacity = MarkerFloors.OpacityForLayer(sw.FloorLayer, _layer);
+            paints.SetOpacity(opacity);
             var p = new PointF(origin.X + sw.Screen.X * scale, origin.Y + sw.Screen.Y * scale);
             if (!visible.Contains(p))
             {
@@ -1438,8 +1445,11 @@ internal sealed class MapCanvas : Control
     {
         using var fill = new SolidBrush(Color.FromArgb(235, 255, 196, 64));
         using var ring = new Pen(Color.FromArgb(200, 40, 32, 8), 1.2f);
+        var paints = new MarkerPaint(fill, ring);
         foreach (var point in SpawnPoints)
         {
+            var opacity = MarkerFloors.OpacityForLayer(SpawnPointLayers.GetValueOrDefault(point), _layer);
+            paints.SetOpacity(opacity);
             var x = origin.X + point.X * scale;
             var y = origin.Y + point.Y * scale;
             if (x < -8 || y < -8 || x > ClientSize.Width + 8 || y > ClientSize.Height + 8)

@@ -65,3 +65,27 @@ data-keep-with-group 控制可见性。重新渲染后再运行上述同步命�
 MenuButtonBinding 统一处理重复点击、外部点击、Escape 与窗口失焦关闭。
 地图菜单保留项目，只在文字或选中项变化时更新；图层 CheckStateChanged 只使变化行失效，
 所有分类批量修改在下一轮界面消息中合并成一次按钮数量/画布刷新。
+
+## 点位透明度（0.4.5）
+
+同层点位保留原有样式，其他层使用原有 alpha 的 35%，不再剔除。
+图标、轮廓、名字和文字底板一起淡化。各类图层的手动开关/分类隐藏仍然生效。
+点位仍可悬停和点击；手机端撤离点与转移点使用同一透明度数值。
+
+在线读取、缓存序列化、离线数据及 Project 副本均保留世界高度 Y。
+Assets/point-heights.json 为丢失高度的旧数据补充实际高度，按地图/类型/0.1 米坐标匹配，
+不使用最近邻高度推测；同一平面坐标有多种高度时保留未知。
+缺少高度但位于所有附加层范围之外的点可确定为地面；建筑内部缺高度的点保持正常可见。
+明确的人工层级标注放在 point-floor-overrides.json，D-2 依据上游 D2 地下范围标为 Bunkers。
+
+本次官方 JSON/GraphQL 接口被 Cloudflare 拒绝访问，因此初始高度采用 NOTICE 中注明的公开原始快照。
+已覆盖现有全部 39 个闸点和 117 个撤离点；旧门锁和部分固定武器仍缺少真实高度，
+无法判断时保留正常显示，避免错误压暗。恢复接口后可用真实完整快照重新生成：
+
+```powershell
+python tools/build-point-heights.py path/to/maps.json
+# 也可传入包含 tarkov_*_raw.json 及 tarkov_btr.json 的离线快照目录
+```
+
+脚本同步更新 point-heights.json 与内置快照的高度字段。
+build-doors.ps1 也已保留门锁/闸点高度，新生成的快照不会再丢弃 Y。

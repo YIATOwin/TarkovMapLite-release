@@ -72,9 +72,29 @@ internal static class MarkerFloors
 
     private static string Normalize(string name)
     {
+        if (name == "(ground)") return "";
         var text = name.Replace("_Level", "").Replace("_Floor", "").Replace("_", "");
         return text.Trim();
     }
+
+    public const float OtherFloorOpacity = 0.35f;
+
+    public static float OpacityForLayer(string? pointLayer, string selectedLayer) =>
+        pointLayer == null || string.Equals(Normalize(pointLayer), Normalize(selectedLayer), StringComparison.OrdinalIgnoreCase)
+            ? 1f : OtherFloorOpacity;
+
+    public static string? LayerOfHeight(string mapKey, float y)
+    {
+        if (!Bands.TryGetValue(mapKey, out var bands)
+            && !(mapKey.EndsWith("-tiles", StringComparison.OrdinalIgnoreCase) && Bands.TryGetValue(mapKey[..^6], out bands)))
+            return null;
+        foreach (var (low, high, layer) in bands)
+            if (y >= low && y < high) return layer == "(ground)" ? "" : layer;
+        return null;
+    }
+
+    public static float Opacity(string mapKey, float y, string selectedLayer, string? pointLayer = null) =>
+        OpacityForLayer(pointLayer ?? LayerOfHeight(mapKey, y), selectedLayer);
 
     /// <summary>判断是否属于当前层；已有建筑规则时地面也过滤，旧表维持原有地面总览。</summary>
     public static bool Matches(string mapKey, float y, string layer, string? floorLayer = null)

@@ -137,6 +137,7 @@ internal sealed class MobileState
             sb.Append((int)Math.Round(f.X * 20)).Append(',').Append((int)Math.Round(f.Y * 20));
         }
         sb.Append('|').Append(Objectives.Count).Append('|').Append(Items.Count).Append('|');
+        foreach (var marker in Extracts.Concat(Transits)) sb.Append(marker.FloorLayer ?? "?").Append('~');
         foreach (var link in WikiLinks)
         {
             sb.Append(link.Url).Append('~');
@@ -262,7 +263,9 @@ internal sealed class MobileState
                 sb.Append("{\"n\":").Append(Quote(marker.Name))
                   .Append(",\"k\":\"").Append(kind).Append('"')
                   .Append(",\"x\":").Append(Num(marker.Screen.X))
-                  .Append(",\"y\":").Append(Num(marker.Screen.Y));
+                  .Append(",\"y\":").Append(Num(marker.Screen.Y))
+                  .Append(",\"a\":").Append(MarkerFloors.OpacityForLayer(marker.FloorLayer, Layer)
+                      .ToString("0.##", CultureInfo.InvariantCulture));
                 if (marker.Note.Length > 0)
                 {
                     sb.Append(",\"note\":").Append(Quote(marker.Note));

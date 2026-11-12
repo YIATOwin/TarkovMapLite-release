@@ -17,8 +17,8 @@
 # The app maps them to readable labels in MapDoors.cs.
 #
 # Output (world coordinates, rounded to 0.1 m):
-#   { "customs": { "doors":    [[x, z, "<key name>", powered], ...],
-#                  "switches": [[x, z, "<internal switch name>"], ...] } }
+#   { "customs": { "doors":    [[x, z, "<key name>", powered, y], ...],
+#                  "switches": [[x, z, "<internal switch name>", y], ...] } }
 #
 # NOTE: extracts[].switches[] is NOT usable as "which extracts does this switch
 # open". On customs all 28 extracts reference the very same switch id, so the
@@ -28,7 +28,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Net.Http
 
 $root = Split-Path -Parent $PSScriptRoot
-$outFile = Join-Path $root 'TarkovMapLite\Assets\doors.json'
+$outFile = Join-Path $root 'Assets\doors.json'
 
 function Get-Json([string] $url) {
     $client = [System.Net.Http.HttpClient]::new()
@@ -78,13 +78,15 @@ foreach ($entry in $maps.PSObject.Properties) {
             $keyName = $keyId
         }
         $powered = if ($lock.needsPower -eq $true) { 1 } else { 0 }
-        $doors += , @((Round1 $lock.position.x), (Round1 $lock.position.z), $keyName, $powered)
+        $height = if ($null -ne $lock.position.y) { Round1 $lock.position.y } else { $null }
+        $doors += , @((Round1 $lock.position.x), (Round1 $lock.position.z), $keyName, $powered, $height)
     }
 
     $switches = @()
     foreach ($sw in @($map.switches)) {
         if ($null -eq $sw -or $null -eq $sw.position) { continue }
-        $switches += , @((Round1 $sw.position.x), (Round1 $sw.position.z), "$($sw.name)")
+        $height = if ($null -ne $sw.position.y) { Round1 $sw.position.y } else { $null }
+        $switches += , @((Round1 $sw.position.x), (Round1 $sw.position.z), "$($sw.name)", $height)
     }
 
     if ($doors.Count -eq 0 -and $switches.Count -eq 0) { continue }

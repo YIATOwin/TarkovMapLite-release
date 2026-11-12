@@ -76,6 +76,15 @@ internal static class MapFloors
             && z <= Math.Max(a[1].GetDouble(), b[1].GetDouble());
     }
 
+    /// <summary>平面位置不在任何附加层范围内时，无需猜高度即可确定为地面。</summary>
+    public static bool IsGroundOutsideLayerBounds(string mapKey, double x, double z)
+    {
+        var key = MapPack.Find(mapKey)?.Data ?? mapKey;
+        return Rules.Value.TryGetValue(key, out var map) && !map.Layers
+            .SelectMany(layer => layer.Extents)
+            .Any(extent => extent.Bounds.Length == 0 || extent.Bounds.Any(rect => Contains(rect, x, z)));
+    }
+
     public static int FloorOf(string mapKey, string layer)
     {
         var key = MapPack.Find(mapKey)?.Data ?? mapKey;

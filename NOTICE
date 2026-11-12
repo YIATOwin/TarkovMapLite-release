@@ -26,6 +26,15 @@ deleted.
 
 2. Game data
 ------------
+
+Assets/point-heights.json includes factual position heights from the public
+tarkov.dev API snapshots distributed in sayser/TarkovTracker, Config/:
+https://github.com/sayser/TarkovTracker/tree/f17c54542e78fb8ef3f3cd40081c84c321a69825/Config
+(tarkov_extracts_raw.json, tarkov_switches_raw.json, tarkov_transits_raw.json,
+tarkov_spawns_raw.json, tarkov_hazards_raw.json, tarkov_btr.json).
+Loose-loot heights come from this project's existing Assets/markers.json.
+Only factual coordinates are imported; no source code or map artwork is copied.
+Explicit floor annotations and their sources are in Assets/point-floor-overrides.json.
 Assets/data-seed.json is a snapshot of:
 
   * https://json.tarkov.dev/pve/tasks        (+ tasks_zh translations)

@@ -33,6 +33,7 @@ internal sealed class DoorMarker
     public required PointF World { get; init; }
     /// <summary>投影后的图片像素位置，由 <see cref="MapDoors.For"/> 填好。</summary>
     public PointF Screen { get; set; }
+    public string? FloorLayer { get; init; }
 }
 
 /// <summary>一个闸点（拉杆/按钮/控制台）：位置 + 可读标签。</summary>
@@ -45,6 +46,7 @@ internal sealed class SwitchMarker
     public string Opens { get; init; } = "";
     public required PointF World { get; init; }
     public PointF Screen { get; set; }
+    public string? FloorLayer { get; init; }
 }
 
 internal static class MapDoors
@@ -176,6 +178,8 @@ internal static class MapDoors
                     NeedsPower = item.Count > 3 && (item[3]?.GetValue<int>() ?? 0) == 1,
                     World = world,
                     Screen = new PointF((float)u, (float)v),
+                    FloorLayer = PointHeights.LayerAt(map, "door", world.X, world.Y,
+                        item.Count > 4 ? item[4]?.GetValue<double?>() : null),
                 });
             }
             foreach (var sw in (node["switches"] as JsonArray) ?? new JsonArray())
@@ -194,6 +198,8 @@ internal static class MapDoors
                     RawName = raw,
                     Label = opens.Length > 0 ? $"{SwitchLabel(raw)} · {opens}" : SwitchLabel(raw),
                     Opens = opens,
+                    FloorLayer = PointHeights.LayerAt(map, "switch", world.X, world.Y,
+                        item.Count > 3 ? item[3]?.GetValue<double?>() : null),
                     World = world,
                     Screen = new PointF((float)u, (float)v),
                 });

@@ -363,12 +363,14 @@ function drawMarks(data) {
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   const placed = [];
-  for (const mark of marks) {
+  ctx.save();
+  for (const mark of [...marks].sort((a, b) => (a.a ?? 1) - (b.a ?? 1))) {
     const x = toX(mark.x);
     const y = toY(mark.y);
     if (x < -30 || y < -30 || x > S.w + 30 || y > S.h + 30) {
       continue;
     }
+    ctx.globalAlpha = mark.a ?? 1;
     const extract = mark.k === 'e';
     ctx.beginPath();
     if (extract) {
@@ -409,6 +411,7 @@ function drawMarks(data) {
     ctx.fillStyle = 'rgba(238,242,248,.95)';
     ctx.fillText(text, tx, ty);
   }
+  ctx.restore();
 }
 
 function drawPlayer(player) {

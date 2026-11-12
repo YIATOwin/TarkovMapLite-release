@@ -33,6 +33,8 @@ public sealed class MapMarker
     public required string Name { get; init; }
     public required double X { get; init; }
     public required double Z { get; init; }
+    public double? Y { get; init; }
+    public string? FloorLayer { get; init; }
     /// <summary>extract / transit</summary>
     public required string Kind { get; init; }
     /// <summary>撤离阵营（PMC/Scav/通用）或转移目标地图。</summary>
@@ -53,6 +55,8 @@ public sealed class MapMarker
             Name = Name,
             X = X,
             Z = Z,
+            Y = Y,
+            FloorLayer = FloorLayer ?? PointHeights.LayerAt(map, Kind, X, Z, Y, Name),
             Kind = Kind,
             Note = Note,
             Screen = new PointF((float)u, (float)v),
@@ -188,7 +192,7 @@ public static class TarkovData
     /// <summary>当前用的是打包进 exe 的静态数据（没有缓存、也没联网时）。</summary>
     public static bool FromSeed { get; private set; }
     /// <summary>缓存格式版本：老的内置数据升到这里就要强制刷新一次。</summary>
-    public const int CurrentSchema = 11;   // 11: 区域带上中心高度（判断玩家楼层），旧缓存要重拉
+    public const int CurrentSchema = 12;   // 12: 撤离点/转移点/BTR 保留真实高度
     public static int Schema { get; private set; }
 
     private static string CachePath
@@ -829,6 +833,7 @@ public static class TarkovData
                     Name = BtrStopLabel(rawName, zh),
                     X = stop.TryGetProperty("x", out var bx) ? bx.GetDouble() : 0,
                     Z = stop.TryGetProperty("z", out var bz) ? bz.GetDouble() : 0,
+                    Y = stop.TryGetProperty("y", out var by) && by.ValueKind == JsonValueKind.Number ? by.GetDouble() : null,
                     Kind = "btr",
                 });
             }
@@ -944,6 +949,7 @@ public static class TarkovData
             Name = name,
             X = position.TryGetProperty("x", out var x) ? x.GetDouble() : 0,
             Z = position.TryGetProperty("z", out var z) ? z.GetDouble() : 0,
+            Y = position.TryGetProperty("y", out var height) && height.ValueKind == JsonValueKind.Number ? height.GetDouble() : null,
             Kind = kind,
             Note = note,
         };
@@ -962,6 +968,7 @@ public static class TarkovData
                     ["n"] = marker.Name,
                     ["x"] = marker.X,
                     ["z"] = marker.Z,
+                    ["h"] = marker.Y,
                     ["k"] = marker.Kind,
                     ["t"] = marker.Note,
                 });
@@ -996,6 +1003,7 @@ public static class TarkovData
                     Name = marker["n"]?.GetValue<string>() ?? "",
                     X = marker["x"]?.GetValue<double>() ?? 0,
                     Z = marker["z"]?.GetValue<double>() ?? 0,
+                    Y = marker["h"]?.GetValue<double?>(),
                     Kind = marker["k"]?.GetValue<string>() ?? "extract",
                     Note = marker["t"]?.GetValue<string>() ?? "",
                 });

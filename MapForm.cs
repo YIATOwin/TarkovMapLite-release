@@ -1694,6 +1694,7 @@ internal sealed class MapForm : Form
             || !TarkovData.TaskObjectives.TryGetValue(row.Id, out var objectives))
         {
             _canvas.SpawnPoints = new List<PointF>();
+            _canvas.SpawnPointLayers = new();
             _itemHeader.Text = "所需物品 · 点击复制";
             return;
         }
@@ -1702,6 +1703,7 @@ internal sealed class MapForm : Form
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         var points = new List<PointF>();
+        var pointLayers = new Dictionary<PointF, string?>();
         // 生成点存的是世界坐标，这里按当前地图投影（瓦片图和 SVG 图投影不同）
         if (TarkovData.SpawnPoints.TryGetValue(map.Data, out var perItem))
         {
@@ -1714,11 +1716,14 @@ internal sealed class MapForm : Form
                 foreach (var world in list)
                 {
                     var (u, v) = MapPack.ToImage(map, world.X, world.Y);
-                    points.Add(new PointF((float)u, (float)v));
+                    var point = new PointF((float)u, (float)v);
+                    points.Add(point);
+                    pointLayers[point] = PointHeights.LayerAt(map, "loose", world.X, world.Y);
                 }
             }
         }
         _canvas.SpawnPoints = points;
+        _canvas.SpawnPointLayers = pointLayers;
         // 去重：同一坐标被多个物品引用时只画一个点
         var unique = points
             .Select(p => (p.X, p.Y))

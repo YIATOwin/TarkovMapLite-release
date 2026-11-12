@@ -1,0 +1,9 @@
+[
+  {
+    "map": "reserve",
+    "kind": "extract",
+    "name": "D-2",
+    "layer": "Bunkers",
+    "source": "tarkov-dev/src/data/maps.json: Reserve Bunkers extents explicitly names the D2 underground area"
+  }
+]
