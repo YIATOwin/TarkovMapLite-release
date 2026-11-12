@@ -77,7 +77,11 @@ internal static class MarkerFloors
         {
             return true;
         }
-        if (!Bands.TryGetValue(mapKey, out var bands))
+        // 瓦片版和 SVG 版是两张地图条目（customs / customs-tiles），
+        // 断点表按 SVG 版的 key 生成，所以查不到时去掉 -tiles 再试一次。
+        if (!Bands.TryGetValue(mapKey, out var bands)
+            && !(mapKey.EndsWith("-tiles", StringComparison.OrdinalIgnoreCase)
+                 && Bands.TryGetValue(mapKey[..^6], out bands)))
         {
             return true;
         }
