@@ -12,6 +12,16 @@
 // ============================================================================
 namespace TarkovMapLite;
 
+/// <summary>GDI+ 图片与来源流拥有相同寿命；淘汰时一起释放，不复制整张像素或压缩文件。</summary>
+internal sealed class AssetImage : IDisposable
+{
+    private readonly Stream _source;
+    public Image Image { get; }
+
+    public AssetImage(Image image, Stream source) { Image=image; _source=source; }
+    public void Dispose() { try { Image.Dispose(); } finally { _source.Dispose(); } }
+}
+
 /// <summary>
 /// 资源读取：地图图片和 maps.json 编进 exe（单文件分发），开发时也支持旁边的
 /// Assets 目录覆盖，方便改图后不重新打包就能看到效果。
@@ -87,17 +97,22 @@ internal static class Assets
         return reader.ReadToEnd();
     }
 
-    /// <summary>图片要先整体读进内存，GDI+ 会一直按住流。</summary>
-    public static Image? ReadImage(string relativePath)
+    /// <summary>直接从资源流加载，由拥有者保持流至图片释放；避免大图的整图复制峰值。</summary>
+    public static AssetImage? ReadImage(string relativePath)
     {
-        using var stream = Open(relativePath);
+        var stream = Open(relativePath);
         if (stream == null)
         {
             return null;
         }
-        using var buffer = new MemoryStream();
-        stream.CopyTo(buffer);
-        buffer.Position = 0;
-        return Image.FromStream(buffer);
+        try
+        {
+            return new AssetImage(Image.FromStream(stream),stream);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 }

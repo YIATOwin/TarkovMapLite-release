@@ -510,12 +510,16 @@ internal sealed class MapForm : Form
         //   悬浮只描边不铺底色、文字颜色固定、勾选另用一套底色 + 强调色文字
         var renderer = new LayerMenuRenderer();
         _layerMenu.Renderer = renderer;
+        _layerMenu.ShowCheckMargin = true;
+        _layerMenu.ShowImageMargin = true;
+        _layerMenu.Opening += (_, _) => RefreshLayerIconSizes(_layerMenu.Items);
 
-        // 统一造项：分类颜色只画在 16×16 图标上，文字颜色交给渲染器决定
-        ToolStripMenuItem Create(string text, LayerIcon kind, Color color, CheckState check)
+        // 统一造项：分类颜色只画在 20px 图标上，文字颜色交给渲染器决定
+        ToolStripMenuItem Create(string text, LayerIcon kind, Color color, CheckState check, bool toggle = true)
         {
             var item = new ToolStripMenuItem(text) { CheckState = check };
-            item.Image = LayerMenuArt.Create(kind, color);
+            item.Tag = new LayerIconInfo(kind, color, toggle);
+            item.Image = LayerMenuArt.Create(kind, color, (int)Math.Round(20 * DeviceDpi / 96f));
             item.ImageScaling = ToolStripItemImageScaling.None;
             item.ImageAlign = ContentAlignment.MiddleLeft;
             // 左内边距留 0：图标由系统的图片边距列负责，加了反而挤掉图标
@@ -545,7 +549,7 @@ internal sealed class MapForm : Form
 
         void AddCommand(string text, LayerIcon kind, Color color, Action run)
         {
-            var item = Create(text, kind, color, CheckState.Unchecked);
+            var item = Create(text, kind, color, CheckState.Unchecked, toggle: false);
             item.Click += (_, _) => run();
             _layerMenu.Items.Add(item);
         }
@@ -561,7 +565,7 @@ internal sealed class MapForm : Form
 
         AddToggle("地名", LayerIcon.Label, Color.FromArgb(236, 228, 198), _canvas.ShowLabels,
             value => _canvas.ShowLabels = value);
-        AddToggle("BTR 站点", LayerIcon.Btr, Color.FromArgb(120, 210, 218), _canvas.ShowBtr,
+        AddToggle("BTR 站点", LayerIcon.Btr, UiTokens.Transport, _canvas.ShowBtr,
             value => _canvas.ShowBtr = value);
 
         // 散落物资带子菜单：7 个分类分别开关（分类位值见 LootKinds）。
@@ -570,9 +574,10 @@ internal sealed class MapForm : Form
             _canvas.ShowLoot ? CheckState.Checked : CheckState.Unchecked);
         _layerMenu.Items.Add(lootItem);
         lootItem.DropDown.Renderer = renderer;
+        if (lootItem.DropDown is ToolStripDropDownMenu lootMenu) lootMenu.ShowCheckMargin = true;
 
-        var lootAll = Create("全部显示", LayerIcon.Dot, UiTokens.Ok, CheckState.Unchecked);
-        var lootNone = Create("全部隐藏", LayerIcon.Dot, UiTokens.TextFaint, CheckState.Unchecked);
+        var lootAll = Create("全部显示", LayerIcon.ShowAll, UiTokens.TextMain, CheckState.Unchecked, toggle: false);
+        var lootNone = Create("全部隐藏", LayerIcon.HideAll, UiTokens.TextMain, CheckState.Unchecked, toggle: false);
         lootItem.DropDownItems.Add(lootAll);
         lootItem.DropDownItems.Add(lootNone);
         lootItem.DropDownItems.Add(new ToolStripSeparator());
@@ -588,7 +593,7 @@ internal sealed class MapForm : Form
         }
         foreach (var lootKind in LootKinds.All)
         {
-            var sub = Create(lootKind.Name, LayerIcon.Dot, lootKind.Color, CheckState.Checked);
+            var sub = Create(lootKind.Name, MarkerIcons.Loot(lootKind.Bit), lootKind.Color, CheckState.Checked);
             var bit = lootKind.Bit;
             sub.Click += (_, _) =>
             {
@@ -634,17 +639,17 @@ internal sealed class MapForm : Form
         };
 
         // 手动标记：清空（换赛季/重做任务时用）
-        AddCommand("清空已完成标记", LayerIcon.ClearMarks, Color.FromArgb(150, 210, 175), ClearDoneMarks);
-        AddToggle("出生点", LayerIcon.Spawn, Color.FromArgb(150, 200, 240), _canvas.ShowSpawns,
+        AddCommand("清空已完成标记", LayerIcon.ClearMarks, UiTokens.TextDim, ClearDoneMarks);
+        AddToggle("出生点", LayerIcon.Spawn, UiTokens.PlayerSpawn, _canvas.ShowSpawns,
             value => _canvas.ShowSpawns = value);
-        AddToggle("危险区", LayerIcon.Hazard, Color.FromArgb(235, 120, 110), _canvas.ShowHazards,
+        AddToggle("危险区", LayerIcon.Hazard, UiTokens.Danger, _canvas.ShowHazards,
             value => _canvas.ShowHazards = value);
-        AddToggle("固定武器", LayerIcon.Weapon, Color.FromArgb(180, 190, 205), _canvas.ShowStatics,
+        AddToggle("固定武器", LayerIcon.Weapon, UiTokens.TextMain, _canvas.ShowStatics,
             value => _canvas.ShowStatics = value);
         // 门锁和闸点：数据来自 tools/build-doors.ps1 的快照（Assets/doors.json）
         AddToggle("门锁（要钥匙）", LayerIcon.Door, UiTokens.Warn, _canvas.ShowDoors,
             value => _canvas.ShowDoors = value);
-        AddToggle("闸点（拉闸）", LayerIcon.Switch, Color.FromArgb(255, 208, 64), _canvas.ShowSwitches,
+        AddToggle("闸点（拉闸）", LayerIcon.Switch, UiTokens.SwitchMarker, _canvas.ShowSwitches,
             value => _canvas.ShowSwitches = value);
         _layerMenu.Items.Add(new ToolStripSeparator());
 
@@ -653,11 +658,12 @@ internal sealed class MapForm : Form
             _canvas.ShowContainers ? CheckState.Checked : CheckState.Unchecked);
         _layerMenu.Items.Add(containerItem);
         containerItem.DropDown.Renderer = renderer;
+        if (containerItem.DropDown is ToolStripDropDownMenu containerMenu) containerMenu.ShowCheckMargin = true;
 
         var kinds = new List<(string Slug, ToolStripMenuItem Item)>();
         // 父项带子菜单时点父项只会展开，所以整体开关放两条独立命令
-        var showAll = Create("全部显示", LayerIcon.Dot, UiTokens.Ok, CheckState.Unchecked);
-        var hideAll = Create("全部隐藏", LayerIcon.Dot, UiTokens.TextFaint, CheckState.Unchecked);
+        var showAll = Create("全部显示", LayerIcon.ShowAll, UiTokens.TextMain, CheckState.Unchecked, toggle: false);
+        var hideAll = Create("全部隐藏", LayerIcon.HideAll, UiTokens.TextMain, CheckState.Unchecked, toggle: false);
         containerItem.DropDownItems.Add(showAll);
         containerItem.DropDownItems.Add(hideAll);
         containerItem.DropDownItems.Add(new ToolStripSeparator());
@@ -679,7 +685,7 @@ internal sealed class MapForm : Form
         {
             var info = ContainerKinds.Resolve(kind);
             var slug = kind;
-            var sub = Create($"{info.Name}（{count}）", LayerIcon.Dot, info.Color, CheckState.Checked);
+            var sub = Create($"{info.Name}（{count}）", MarkerIcons.Container(kind), info.Color, CheckState.Checked);
             sub.Click += (_, _) =>
             {
                 var on = sub.CheckState != CheckState.Checked;
@@ -704,6 +710,30 @@ internal sealed class MapForm : Form
         SyncLoot();
         UpdateLayerButtonText();
     }
+    private void RefreshLayerIconSizes(ToolStripItemCollection items)
+    {
+        var size = (int)Math.Round(20 * DeviceDpi / 96f);
+        foreach (ToolStripItem item in items)
+        {
+            if (item.Tag is LayerIconInfo info && item.Image?.Width != size)
+            {
+                var previous = item.Image;
+                item.Image = LayerMenuArt.Create(info.Kind, info.Color, size);
+                previous?.Dispose();
+            }
+            if (item is ToolStripMenuItem row) RefreshLayerIconSizes(row.DropDownItems);
+        }
+    }
+
+    private static void DisposeLayerIcons(ToolStripItemCollection items)
+    {
+        foreach (ToolStripItem item in items)
+        {
+            if (item.Tag is LayerIconInfo) { var image = item.Image; item.Image = null; image?.Dispose(); }
+            if (item is ToolStripMenuItem row) DisposeLayerIcons(row.DropDownItems);
+        }
+    }
+
     private void ClearDoneMarks()
     {
         var count = DoneZones.Count;
@@ -1307,17 +1337,13 @@ internal sealed class MapForm : Form
             var iconSize = e.Bounds.Height - 6;
             var iconRect = new Rectangle(e.Bounds.X + 5, e.Bounds.Y + 3, iconSize, iconSize);
             var id = (_itemList.Items[e.Index] as ItemRow)?.Id ?? "";
-            var icon = string.IsNullOrEmpty(id) ? null : ItemImages.Get(id);
-            if (icon != null)
-            {
-                e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                e.Graphics.DrawImage(icon, iconRect);
-            }
-            else
+            e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            if (string.IsNullOrEmpty(id) || !ItemImages.Draw(e.Graphics,id,iconRect))
             {
                 // 还没下载好：画个占位方块，避免文字跳来跳去
                 using var slot = new SolidBrush(Color.FromArgb(30, 34, 41));
                 e.Graphics.FillRectangle(slot, iconRect);
+                if (!string.IsNullOrEmpty(id)) RequestItemImage(id);
             }
             TextRenderer.DrawText(e.Graphics, _itemList.Items[e.Index]?.ToString() ?? "", small,
                 new Rectangle(iconRect.Right + 6, e.Bounds.Y + 6, e.Bounds.Width - iconSize - 16, 18),
@@ -1591,28 +1617,23 @@ internal sealed class MapForm : Form
             // 顺手把缩略图拉下来，好了以后重画这一列
             foreach (var item in distinct)
             {
-                var id = item.Id;
-                ItemImages.Request(id, () =>
-                {
-                    if (IsDisposed || !IsHandleCreated)
-                    {
-                        return;
-                    }
-                    try
-                    {
-                        BeginInvoke(() => _itemList.Invalidate());
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        // 窗口正在关闭
-                    }
-                });
+                RequestItemImage(item.Id);
             }
         }
         _itemList.EndUpdate();
 
         _mobileItems = distinct.Select(item => new MobileItem(item.Id, item.Name)).ToList();
         UpdateSpawnPoints(row);
+    }
+
+    private void RequestItemImage(string id)
+    {
+        ItemImages.Request(id, () =>
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try { BeginInvoke(() => _itemList.Invalidate()); }
+            catch (InvalidOperationException) { /* 窗口正在关闭 */ }
+        });
     }
 
     /// <summary>"所需物品"的一行：物品 id + 显示名，列表里带缩略图。</summary>
@@ -2321,6 +2342,7 @@ internal sealed class MapForm : Form
         if (disposing)
         {
             _timer.Dispose();
+            DisposeLayerIcons(_layerMenu.Items);
         }
         base.Dispose(disposing);
     }

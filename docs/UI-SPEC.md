@@ -70,6 +70,12 @@ skill 自带的 React + Tailwind 模板代码本项目用不上，规则照用�
 
 ### 2.4 三条禁令
 
+图层图标使用 `IconOutline` / `--icon-outline: #0e1012` 作为地图上的暗色细轮廓。
+标记语义色沿用原图层配色：`PlayerSpawn` = #96c8f0、`Transport` = #78d2da、`SwitchMarker` = #ffd040，
+手机端对应 `--marker-spawn`、`--marker-transport`、`--marker-switch`。
+分类色继续来自 ContainerKinds / LootKinds，菜单和地图共用矢量形状，文字保持主题色。
+菜单图标逻辑大小为 20px，地图按缩放使用 8—18px；形状与颜色共同编码，关闭状态仍保持可辨认。
+
 - **徽章/标签禁止彩虹配色**：状态标签用 `浅底 + 深字`（暗色下是 `半透明状态色底 + 同色系亮字`），
   并且**必须带业务文案**（写"已完成"，不是只有一个小绿点）
 - **禁止渐变标题、标题内单词突兀着色**（典型 AI 模板味）

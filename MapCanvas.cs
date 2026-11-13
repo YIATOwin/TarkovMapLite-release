@@ -13,6 +13,7 @@
 //    直接改 _map 而不重算投影 → 区域整体跑到图外（踩过一次）。
 //  · 图片缓存上限 120 MB（ImageCacheBudget）：4000px 的图解码后一张 40~76 MB，
 //    这个软件的立身之本就是省内存，别随手调大。
+//    切图释放不属于新地图的图片；共用素材的变体保留，避免重复解码。
 //  · 只画屏幕内的东西，culling 一律用**屏幕坐标**判断；用图片坐标判断会在缩放时漏画。
 //  · 楼层图不存在时（很多图只有地面）自动回落到底图，不重复解码一份一样的大图。
 //  · 拖动手感：OnMouseDown 先判断是否点中左上角楼层按钮，再进入拖动。
@@ -22,9 +23,9 @@ using System.Drawing.Drawing2D;
 namespace TarkovMapLite;
 
 /// <summary>画布：底图 + 任务区域 + 点位 + 标签，负责平移缩放。</summary>
-internal sealed class MapCanvas : Control
+internal sealed partial class MapCanvas : Control
 {
-    private readonly Dictionary<string, Image> _images = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AssetImage> _images = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>图片缓存的最近使用顺序（末尾最新），用来淘汰旧图。</summary>
     private readonly List<string> _imageOrder = new();
     /// <summary>每张缓存图解码后大约占多少字节（Width * Height * 4）。</summary>
@@ -182,6 +183,14 @@ internal sealed class MapCanvas : Control
         BackColor = UiTokens.Back;
         // 玩家标记的呼吸/扩散动画：相位 0..1 循环，只在有玩家位置时运行
         _flashTimer.Tick += (_, _) => FlashTick();
+        _floorTransitionTimer.Tick += (_, _) =>
+        {
+            if (FloorTransitionElapsed >= FloorTransitionDuration)
+            {
+                StopFloorTransition();
+            }
+            Invalidate();
+        };
         _pulseTimer.Tick += (_, _) =>
         {
             _pulsePhase += 0.05f / 1.6f;
@@ -261,8 +270,11 @@ internal sealed class MapCanvas : Control
 
     public void SetMap(MapProjection? map, string displayName)
     {
+        StopFloorTransition();
+        _floorScenePainted = false;
         _map = map;
         _image = null;
+        ReleaseOtherMapImages(map);
         _layer = "";
         _zoom = 1;
         _pan = PointF.Empty;
@@ -273,19 +285,23 @@ internal sealed class MapCanvas : Control
 
     public void SetLayer(string layer)
     {
+        if (string.Equals(_layer, layer, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
         if (!string.IsNullOrEmpty(layer) && !(_map?.Layers.Any(l =>
             string.Equals(l.SvgLayer, layer, StringComparison.OrdinalIgnoreCase)) ?? false))
         {
             return;
         }
-        _layer = layer;
-        _image = null;
+        ChangeFloor(layer);
         Invalidate();
     }
 
     /// <summary>窗口大小变化时，如果用户没手动缩放过，重新适配一次。</summary>
     protected override void OnResize(EventArgs e)
     {
+        StopFloorTransition();
         base.OnResize(e);
         if (_zoom <= 1.0001)
         {
@@ -299,6 +315,7 @@ internal sealed class MapCanvas : Control
         {
             return;
         }
+        StopFloorTransition();
         _fitScale = Math.Min((double)ClientSize.Width / _map.ViewBoxWidth,
                              (double)ClientSize.Height / _map.ViewBoxHeight);
         _zoom = 1;
@@ -330,6 +347,7 @@ internal sealed class MapCanvas : Control
         {
             return;
         }
+        StopFloorTransition();
 
         var ratio = after / before;
         // 锚点对应的图像坐标在缩放后仍要落在同一个屏幕点
@@ -378,11 +396,11 @@ internal sealed class MapCanvas : Control
             if (_images.TryGetValue(stem + extension, out var hit))
             {
                 Touch(stem + extension);
-                return hit;
+                return hit.Image;
             }
         }
         string? path = null;
-        Image? image = null;
+        AssetImage? image = null;
         foreach (var extension in ImageExtensions)
         {
             image = Assets.ReadImage("maps/" + stem + extension);
@@ -402,10 +420,10 @@ internal sealed class MapCanvas : Control
             return null;
         }
         _images[path] = image;
-        _imageBytes[path] = 4L * image.Width * image.Height;
+        _imageBytes[path] = 4L * image.Image.Width * image.Image.Height;
         _imageOrder.Add(path);
         TrimImages();
-        return image;
+        return image.Image;
     }
 
     /// <summary>标记为"刚用过"，淘汰时优先丢最久没看的。</summary>
@@ -417,6 +435,22 @@ internal sealed class MapCanvas : Control
         }
         _imageOrder.Remove(path);
         _imageOrder.Add(path);
+    }
+
+    /// <summary>仅保留新地图会使用的图片；共用素材的昼夜变体仍复用缓存。</summary>
+    private void ReleaseOtherMapImages(MapProjection? map)
+    {
+        var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (map != null)
+            foreach (var layer in new[] { "" }.Concat(map.Layers.Select(l=>l.SvgLayer)))
+                foreach (var extension in ImageExtensions) keep.Add(map.ImageFor(layer)+extension);
+        foreach (var key in _images.Keys.Where(key=>!keep.Contains(key)).ToArray())
+        {
+            _images[key].Dispose();
+            _images.Remove(key);
+            _imageBytes.Remove(key);
+            _imageOrder.Remove(key);
+        }
     }
 
     /// <summary>
@@ -459,6 +493,7 @@ internal sealed class MapCanvas : Control
         {
             return;
         }
+        StopFloorTransition();
         _zoom = Math.Clamp(zoom, 1, 12);
         var scale = _fitScale * _zoom;
         var (pixelX, pixelY) = MapPack.ToImage(_map, world.X, world.Y);
@@ -513,14 +548,33 @@ internal sealed class MapCanvas : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        g.Clear(BackColor);
+        if (_fitPending && ClientSize.Width > 16 && ClientSize.Height > 16)
+        {
+            Fit();
+        }
+        if (!TryDrawFloorTransition(g))
+        {
+            DrawMapScene(g);
+        }
+        _floorScenePainted = _map != null;
         if (_map == null)
         {
             return;
         }
-        if (_fitPending && ClientSize.Width > 16 && ClientSize.Height > 16)
+        // 控件与提示不进楼层快照，点击后立即高亮目标楼层。
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        DrawFloors(g);
+        DrawZoom(g);
+        DrawAxes(g);
+        DrawDoorTip(g);
+    }
+
+    private void DrawMapScene(Graphics g)
+    {
+        g.Clear(BackColor);
+        if (_map == null)
         {
-            Fit();
+            return;
         }
         // 每次都取一遍：一是保证底图留在缓存里（不被当最旧淘汰掉），
         // 二是 ImageFor 会顺手把它的"最近使用"顺序刷到最新，代价只是一次字典查找。
@@ -599,10 +653,6 @@ internal sealed class MapCanvas : Control
             DrawSwitchPoints(g, s, origin);
         }
         DrawPlayer(g, s, origin);
-        DrawFloors(g);
-        DrawZoom(g);
-        DrawAxes(g);
-        DrawDoorTip(g);
     }
 
     /// <summary>容器 / 散落物资 / 出生点 / 危险区 / 固定武器。</summary>
@@ -650,7 +700,7 @@ internal sealed class MapCanvas : Control
                 {
                     continue;
                 }
-                DrawContainer(g, p, ContainerKinds.Resolve(kind), scale, MarkerFloors.Opacity(_map?.Key ?? "", y, _layer, floorLayer));
+                MarkerIcons.Draw(g, MarkerIcons.Container(kind), p, Math.Clamp(scale * 60f / (g.DpiX / 96f), 9, 18), ContainerKinds.Resolve(kind).Color, MarkerFloors.Opacity(_map?.Key ?? "", y, _layer, floorLayer));
             }
         }
 
@@ -668,75 +718,34 @@ internal sealed class MapCanvas : Control
                 {
                     continue;
                 }
-                using var fill = new SolidBrush(MarkerPaint.Fade(LootKinds.Dominant(loot.Mask).Color, MarkerFloors.Opacity(_map?.Key ?? "", loot.Y, _layer, loot.FloorLayer)));
-                g.FillEllipse(fill, p.X - 2.1f, p.Y - 2.1f, 4.2f, 4.2f);
+                var category = LootKinds.Dominant(loot.Mask);
+                MarkerIcons.Draw(g, MarkerIcons.Loot(category.Bit), p, Math.Clamp(scale * 42f / (g.DpiX / 96f), 8, 16), category.Color,
+                    MarkerFloors.Opacity(_map?.Key ?? "", loot.Y, _layer, loot.FloorLayer));
             }
         }
 
-        // 危险点（非雷区）：红色三角 + 感叹号太挤，就用三角
         if (ShowHazards)
-        {
-            using var fill = new SolidBrush(Color.FromArgb(210, 235, 90, 80));
-            var paints = new MarkerPaint(fill);
             foreach (var (point, _, floorLayer) in layer.Hazards)
             {
-                paints.SetOpacity(MarkerFloors.OpacityForLayer(floorLayer, _layer));
                 var p = At(point);
-                if (!visible.Contains(p))
-                {
-                    continue;
-                }
-                g.FillPolygon(fill, new[]
-                {
-                    new PointF(p.X, p.Y - 4.5f),
-                    new PointF(p.X + 4.5f, p.Y + 3.5f),
-                    new PointF(p.X - 4.5f, p.Y + 3.5f),
-                });
+                if (visible.Contains(p)) MarkerIcons.Draw(g, LayerIcon.Hazard, p, 14, UiTokens.Danger, MarkerFloors.OpacityForLayer(floorLayer,_layer));
             }
-        }
-
-        // 出生点：空心圈，颜色区分类别（玩家蓝 / AI 橙 / Boss 紫 / 狙击手深红）
         if (ShowSpawns)
-        {
-            using var playerPen = new Pen(Color.FromArgb(170, 120, 200, 255), 1.3f);
-            using var botPen = new Pen(Color.FromArgb(150, 235, 165, 90), 1.3f);
-            using var bossPen = new Pen(Color.FromArgb(190, 200, 120, 255), 1.8f);
-            using var sniperPen = new Pen(Color.FromArgb(170, 240, 90, 90), 1.3f);
-            var paints = new MarkerPaint(playerPen, botPen, bossPen, sniperPen);
-            foreach (var (point, cats, y, floorLayer) in layer.Spawns)
+            foreach (var (point, cats, _, floorLayer) in layer.Spawns)
             {
-                paints.SetOpacity(MarkerFloors.OpacityForLayer(floorLayer, _layer));
                 var p = At(point);
-                if (!visible.Contains(p))
-                {
-                    continue;
-                }
-                var pen = cats.Contains('o') ? bossPen
-                    : cats.Contains('p') ? playerPen
-                    : cats.Contains('s') ? sniperPen
-                    : botPen;
-                var r = cats.Contains('o') ? 6f : 4.5f;
-                g.DrawEllipse(pen, p.X - r, p.Y - r, r * 2, r * 2);
+                if (!visible.Contains(p)) continue;
+                var icon = cats.Contains('o') ? LayerIcon.Boss : cats.Contains('s') ? LayerIcon.Sniper : LayerIcon.Spawn;
+                var color = cats.Contains('o') ? UiTokens.Info : cats.Contains('p') ? UiTokens.PlayerSpawn
+                    : cats.Contains('s') ? UiTokens.Danger : UiTokens.Warn;
+                MarkerIcons.Draw(g,icon,p,cats.Contains('o') ? 15 : 13,color,MarkerFloors.OpacityForLayer(floorLayer,_layer));
             }
-        }
-
-        // 固定武器：灰色方块加叉
         if (ShowStatics)
-        {
-            using var fill = new SolidBrush(Color.FromArgb(180, 150, 160, 175));
-            var paints = new MarkerPaint(fill);
-            foreach (var (point, floorLayer) in layer.Statics)
+            foreach (var (point,floorLayer) in layer.Statics)
             {
-                paints.SetOpacity(MarkerFloors.OpacityForLayer(floorLayer, _layer));
                 var p = At(point);
-                if (!visible.Contains(p))
-                {
-                    continue;
-                }
-                g.FillRectangle(fill, p.X - 3.5f, p.Y - 3.5f, 7, 7);
+                if (visible.Contains(p)) MarkerIcons.Draw(g,LayerIcon.Weapon,p,14,UiTokens.TextMain,MarkerFloors.OpacityForLayer(floorLayer,_layer));
             }
-        }
-
     }
 
     /// <summary>圆角矩形，容器图标的底板。</summary>
@@ -756,65 +765,6 @@ internal sealed class MapCanvas : Control
     /// 一种容器：圆角底 + 内部象形记号。点太小（缩得很远）时只留纯色块，
     /// 因为 5px 里画笔画反而糊成一团。
     /// </summary>
-    private static void DrawContainer(Graphics g, PointF p, ContainerKinds.Kind kind, float scale, float opacity)
-    {
-        var s = Math.Clamp(scale * 30f, 3.6f, 7.2f);      // 半边长，约 7~14 px
-        var rect = new RectangleF(p.X - s, p.Y - s, s * 2, s * 2);
-        using var fill = new SolidBrush(MarkerPaint.Fade(Color.FromArgb(228, kind.Color), opacity));
-        using var edge = new Pen(MarkerPaint.Fade(Color.FromArgb(210, 18, 20, 24), opacity), 1f);
-        if (s < 4.6f)
-        {
-            g.FillRectangle(fill, rect);
-            g.DrawRectangle(edge, rect.X, rect.Y, rect.Width, rect.Height);
-            return;
-        }
-
-        using var body = RoundedRect(rect, s * 0.42f);
-        g.FillPath(fill, body);
-        g.DrawPath(edge, body);
-
-        using var ink = new Pen(MarkerPaint.Fade(Color.FromArgb(240, 20, 22, 26), opacity), Math.Max(1f, s * 0.19f));
-        var u = s;
-        switch (kind.Glyph)
-        {
-            case ContainerKinds.Icon.Crate:
-                g.DrawLine(ink, p.X - u * 0.52f, p.Y - u * 0.52f, p.X + u * 0.52f, p.Y + u * 0.52f);
-                g.DrawLine(ink, p.X + u * 0.52f, p.Y - u * 0.52f, p.X - u * 0.52f, p.Y + u * 0.52f);
-                break;
-            case ContainerKinds.Icon.Bag:
-                g.DrawArc(ink, p.X - u * 0.34f, p.Y - u * 0.78f, u * 0.68f, u * 0.6f, 195, 150);
-                g.DrawLine(ink, p.X - u * 0.6f, p.Y + u * 0.08f, p.X + u * 0.6f, p.Y + u * 0.08f);
-                break;
-            case ContainerKinds.Icon.Drawer:
-                g.DrawLine(ink, p.X - u * 0.52f, p.Y - u * 0.26f, p.X + u * 0.52f, p.Y - u * 0.26f);
-                g.DrawLine(ink, p.X - u * 0.52f, p.Y + u * 0.28f, p.X + u * 0.52f, p.Y + u * 0.28f);
-                break;
-            case ContainerKinds.Icon.Hanger:
-                g.DrawArc(ink, p.X - u * 0.17f, p.Y - u * 0.8f, u * 0.34f, u * 0.34f, 200, 200);
-                g.DrawLine(ink, p.X, p.Y - u * 0.44f, p.X - u * 0.52f, p.Y + u * 0.46f);
-                g.DrawLine(ink, p.X, p.Y - u * 0.44f, p.X + u * 0.52f, p.Y + u * 0.46f);
-                g.DrawLine(ink, p.X - u * 0.52f, p.Y + u * 0.46f, p.X + u * 0.52f, p.Y + u * 0.46f);
-                break;
-            case ContainerKinds.Icon.Dial:
-                g.DrawEllipse(ink, p.X - u * 0.42f, p.Y - u * 0.42f, u * 0.84f, u * 0.84f);
-                g.DrawLine(ink, p.X, p.Y, p.X, p.Y - u * 0.3f);
-                break;
-            case ContainerKinds.Icon.Monitor:
-                g.DrawRectangle(ink, p.X - u * 0.54f, p.Y - u * 0.52f, u * 1.08f, u * 0.72f);
-                g.DrawLine(ink, p.X, p.Y + u * 0.2f, p.X, p.Y + u * 0.48f);
-                g.DrawLine(ink, p.X - u * 0.3f, p.Y + u * 0.48f, p.X + u * 0.3f, p.Y + u * 0.48f);
-                break;
-            case ContainerKinds.Icon.Cross:
-                g.DrawLine(ink, p.X - u * 0.44f, p.Y, p.X + u * 0.44f, p.Y);
-                g.DrawLine(ink, p.X, p.Y - u * 0.44f, p.X, p.Y + u * 0.44f);
-                break;
-            case ContainerKinds.Icon.Body:
-                g.DrawEllipse(ink, p.X - u * 0.52f, p.Y - u * 0.46f, u * 0.42f, u * 0.42f);
-                g.DrawLine(ink, p.X - u * 0.1f, p.Y + u * 0.18f, p.X + u * 0.56f, p.Y + u * 0.18f);
-                break;
-        }
-    }
-
     /// <summary>当前区域是否应该显示：要过"仅进行中"和"只看选中任务"两道过滤。</summary>
     private bool IsZoneVisible(ZoneShape zone, TaskState state)
     {
@@ -848,35 +798,14 @@ internal sealed class MapCanvas : Control
                 {
                     continue;
                 }
-                using var fill = new SolidBrush(MarkerPaint.Fade(color, opacity));
-                using var ring = new Pen(MarkerPaint.Fade(Color.FromArgb(230, 20, 24, 20), opacity), 1.2f);
-                if (marker.Kind == "extract")
-                {
-                    // 方块
-                    g.FillRectangle(fill, x - 4.5f, y - 4.5f, 9, 9);
-                    g.DrawRectangle(ring, x - 4.5f, y - 4.5f, 9, 9);
-                }
-                else
-                {
-                    // 菱形
-                    g.FillPolygon(fill, new[]
-                    {
-                        new PointF(x, y - 6), new PointF(x + 6, y),
-                        new PointF(x, y + 6), new PointF(x - 6, y),
-                    });
-                    g.DrawPolygon(ring, new[]
-                    {
-                        new PointF(x, y - 6), new PointF(x + 6, y),
-                        new PointF(x, y + 6), new PointF(x - 6, y),
-                    });
-                }
+                MarkerIcons.Draw(g,marker.Kind == "extract" ? LayerIcon.Extract : LayerIcon.Transit,new PointF(x,y),16,color,opacity);
                 var text = marker.Name;
                 var size = g.MeasureString(text, font);
-                var tx = x + 8;
+                var tx = x + 10 * g.DpiX / 96f;
                 var ty = y - size.Height / 2;
                 if (tx + size.Width > ClientSize.Width)
                 {
-                    tx = x - size.Width - 8;
+                    tx = x - size.Width - 10 * g.DpiX / 96f;
                 }
                 g.FillRectangle(halo, tx - 1, ty, size.Width + 2, size.Height);
                 g.DrawString(text, font, textBrush, tx, ty);
@@ -931,15 +860,13 @@ internal sealed class MapCanvas : Control
         }
     }
 
-    /// <summary>BTR 停车点：青色小方块 + 名字（只有森林和塔科夫街区有）。</summary>
+    /// <summary>BTR 停车点：青色装甲车轮廓 + 名字（只有森林和塔科夫街区有）。</summary>
     private void DrawBtrStops(Graphics g, float scale, PointF origin)
     {
         using var font = new Font("Microsoft YaHei UI", 7.5f);
-        using var fill = new SolidBrush(Color.FromArgb(235, 90, 200, 210));
-        using var ring = new Pen(Color.FromArgb(235, 15, 40, 45), 1.2f);
         using var ink = new SolidBrush(Color.FromArgb(235, 235, 250, 252));
         using var halo = new SolidBrush(UiTokens.Scrim);
-        var paints = new MarkerPaint(fill, ring, ink, halo);
+        var paints = new MarkerPaint(ink, halo);
         foreach (var stop in BtrStops)
         {
             var opacity = MarkerFloors.OpacityForLayer(stop.FloorLayer, _layer);
@@ -950,14 +877,13 @@ internal sealed class MapCanvas : Control
             {
                 continue;
             }
-            g.FillRectangle(fill, x - 4f, y - 4f, 8, 8);
-            g.DrawRectangle(ring, x - 4f, y - 4f, 8, 8);
+            MarkerIcons.Draw(g,LayerIcon.Btr,new PointF(x,y),16,UiTokens.Transport,opacity);
             var size = g.MeasureString(stop.Name, font);
-            var tx = x + 7;
+            var tx = x + 10 * g.DpiX / 96f;
             var ty = y - size.Height / 2;
             if (tx + size.Width > ClientSize.Width)
             {
-                tx = x - size.Width - 7;
+                tx = x - size.Width - 10 * g.DpiX / 96f;
             }
             g.FillRectangle(halo, tx - 1, ty, size.Width + 2, size.Height);
             g.DrawString(stop.Name, font, ink, tx, ty);
@@ -970,9 +896,6 @@ internal sealed class MapCanvas : Control
     /// </summary>
     private void DrawDoors(Graphics g, float scale, PointF origin)
     {
-        using var fill = new SolidBrush(Color.FromArgb(235, 226, 168, 74));
-        using var ring = new Pen(Color.FromArgb(230, 42, 34, 16), 1.2f);
-        using var hole = new SolidBrush(Color.FromArgb(235, 40, 32, 14));
         using var font = new Font("Microsoft YaHei UI", 7.5f);
         using var ink = new SolidBrush(Color.FromArgb(238, 255, 243, 214));
         using var halo = new SolidBrush(UiTokens.Scrim);
@@ -989,7 +912,7 @@ internal sealed class MapCanvas : Control
         }
         var showNames = _zoom >= 1.25 || onScreen <= 12;
         var placed = new List<RectangleF>();
-        var paints = new MarkerPaint(fill, ring, hole, ink, halo);
+        var paints = new MarkerPaint(ink, halo);
         foreach (var door in Doors)
         {
             var opacity = MarkerFloors.OpacityForLayer(door.FloorLayer, _layer);
@@ -999,11 +922,7 @@ internal sealed class MapCanvas : Control
             {
                 continue;
             }
-            // 锁的形状：方底 + 锁孔
-            g.FillRectangle(fill, p.X - 4.5f, p.Y - 4.5f, 9, 9);
-            g.DrawRectangle(ring, p.X - 4.5f, p.Y - 4.5f, 9, 9);
-            g.FillEllipse(hole, p.X - 1.4f, p.Y - 2.2f, 2.8f, 2.8f);
-            g.FillRectangle(hole, p.X - 0.6f, p.Y + 0.2f, 1.2f, 2.6f);
+            MarkerIcons.Draw(g,LayerIcon.Door,p,15,UiTokens.Warn,opacity);
             if (door.NeedsPower)
             {
                 // 还要通电才开的门，右上角点一个小黄点
@@ -1015,11 +934,11 @@ internal sealed class MapCanvas : Control
                 continue;
             }
             var size = g.MeasureString(door.Name, font);
-            var tx = p.X + 7;
+            var tx = p.X + 10 * g.DpiX / 96f;
             var ty = p.Y - size.Height / 2;
             if (tx + size.Width > ClientSize.Width)
             {
-                tx = p.X - size.Width - 7;
+                tx = p.X - size.Width - 10 * g.DpiX / 96f;
             }
             var box = new RectangleF(tx - 2, ty - 1, size.Width + 4, size.Height + 2);
             if (placed.Any(other => other.IntersectsWith(box)))
@@ -1032,17 +951,15 @@ internal sealed class MapCanvas : Control
         }
     }
 
-    /// <summary>闸点：黄色闪电 + 名字（拉杆/按钮/控制台）。数量少，名字一直画。</summary>
+    /// <summary>闸点：黄色拉杆 + 名字（拉杆/按钮/控制台）。数量少，名字一直画。</summary>
     private void DrawSwitchPoints(Graphics g, float scale, PointF origin)
     {
-        using var fill = new SolidBrush(Color.FromArgb(240, 255, 208, 64));
-        using var ring = new Pen(Color.FromArgb(235, 60, 40, 0), 1.1f);
         using var font = new Font("Microsoft YaHei UI", 7.5f, FontStyle.Bold);
         using var ink = new SolidBrush(Color.FromArgb(240, 255, 232, 170));
         using var halo = new SolidBrush(Color.FromArgb(210, 0, 0, 0));
         var visible = new RectangleF(-40, -40, ClientSize.Width + 80, ClientSize.Height + 80);
         var placed = new List<RectangleF>();
-        var paints = new MarkerPaint(fill, ring, ink, halo);
+        var paints = new MarkerPaint(ink, halo);
         foreach (var sw in Switches)
         {
             var opacity = MarkerFloors.OpacityForLayer(sw.FloorLayer, _layer);
@@ -1052,26 +969,14 @@ internal sealed class MapCanvas : Control
             {
                 continue;
             }
-            // 闪电符号（自己画，不依赖字体里有没有这个字符）
-            var bolt = new[]
-            {
-                new PointF(p.X - 1.6f, p.Y - 6f),
-                new PointF(p.X + 2.4f, p.Y - 6f),
-                new PointF(p.X - 0.4f, p.Y - 0.6f),
-                new PointF(p.X + 2.6f, p.Y - 0.6f),
-                new PointF(p.X - 2.2f, p.Y + 6f),
-                new PointF(p.X - 0.2f, p.Y + 0.4f),
-                new PointF(p.X - 2.6f, p.Y + 0.4f),
-            };
-            g.FillPolygon(fill, bolt);
-            g.DrawPolygon(ring, bolt);
+            MarkerIcons.Draw(g,LayerIcon.Switch,p,15,UiTokens.SwitchMarker,opacity);
 
             var size = g.MeasureString(sw.Label, font);
-            var tx = p.X + 6;
+            var tx = p.X + 10 * g.DpiX / 96f;
             var ty = p.Y - size.Height / 2;
             if (tx + size.Width > ClientSize.Width)
             {
-                tx = p.X - size.Width - 6;
+                tx = p.X - size.Width - 10 * g.DpiX / 96f;
             }
             var box = new RectangleF(tx - 2, ty - 1, size.Width + 4, size.Height + 2);
             if (placed.Any(other => other.IntersectsWith(box)))
@@ -1697,6 +1602,7 @@ internal sealed class MapCanvas : Control
         }
         if (_dragging)
         {
+            StopFloorTransition();
             if (Math.Abs(e.X - _dragStart.X) + Math.Abs(e.Y - _dragStart.Y) > 3)
             {
                 _dragMoved = true;
@@ -1753,7 +1659,7 @@ internal sealed class MapCanvas : Control
         var origin = Origin;
         var scale = (float)Scale;
         DoorMarker? best = null;
-        var bestDistance = 16f;
+        var bestDistance = 16f * DeviceDpi / 96f;
         foreach (var door in Doors)
         {
             var x = origin.X + door.Screen.X * scale;
@@ -1815,6 +1721,10 @@ internal sealed class MapCanvas : Control
     {
         if (disposing)
         {
+            StopFloorTransition();
+            _floorTransitionTimer.Dispose();
+            _flashTimer.Dispose();
+            _pulseTimer.Dispose();
             foreach (var image in _images.Values)
             {
                 image.Dispose();

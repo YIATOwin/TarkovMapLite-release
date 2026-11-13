@@ -6,7 +6,7 @@
 //
 // 路由（完整契约；改任何一条都要同步改 Assets/mobile/app.js）：
 //   GET  /                     → index.html
-//   GET  /app.js  /app.css     → 静态资源
+//   GET  /app.js  /app.css /icons.json → 静态资源、共享矢量符号
 //   GET  /api/state            → MobileState.Json（不可变快照，Cache-Control: no-store）
 //   GET  /img/{目录}/{stem}     → 地图图片字节；stem **不带扩展名**（.jpg 优先，其次 .png）
 //   POST /api/action           → {type,value}；解析失败返回 400 + len + raw 片段
@@ -145,6 +145,13 @@ internal sealed class LocalServer : IDisposable
         _cts = null;
         _loop = null;
         _clients.Clear();
+        lock (_imageGate)
+        {
+            _images.Clear();
+            _imageTypes.Clear();
+            _imageBytes.Clear();
+            _imageOrder.Clear();
+        }
         StateChanged?.Invoke();
     }
 
@@ -217,6 +224,9 @@ internal sealed class LocalServer : IDisposable
                     case "/index.html":
                         await ServeTextAsync(stream, "index.html", "text/html; charset=utf-8").ConfigureAwait(false);
                         return;
+                    case "/icons.json":
+                        await ServeTextAsync(stream, "icons.json", "application/json; charset=utf-8").ConfigureAwait(false);
+                        break;
                     case "/app.js":
                         await ServeTextAsync(stream, "app.js", "text/javascript; charset=utf-8").ConfigureAwait(false);
                         return;
@@ -454,9 +464,9 @@ internal sealed class LocalServer : IDisposable
         {
             return null;
         }
-        using var buffer = new MemoryStream();
-        stream.CopyTo(buffer);
-        return buffer.ToArray();
+        var bytes = new byte[checked((int)stream.Length)];
+        stream.ReadExactly(bytes);
+        return bytes;
     }
 
     /// <summary>只允许字母数字和 . _ -，顺便挡掉 ../ 之类的穿越。</summary>
@@ -480,6 +490,8 @@ internal sealed class LocalServer : IDisposable
     {
         lock (_imageGate)
         {
+            // 停止以后才完成的请求不再把已清空的缓存重新填满。
+            if (!Running) return;
             _images[key] = bytes;
             _imageTypes[key] = contentType;
             _imageBytes[key] = bytes.Length;

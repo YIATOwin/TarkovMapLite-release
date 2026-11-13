@@ -26,6 +26,44 @@
 
 const canvas = document.getElementById('map');
 const ctx = canvas.getContext('2d');
+let markerDefinitions = null;
+const markerSprites = new Map();
+const markerOutline = getComputedStyle(document.documentElement).getPropertyValue('--icon-outline').trim() || '#0e1012';
+fetch('/icons.json').then(r => { if (!r.ok) throw Error('icons'); return r.json(); })
+  .then(data => { markerDefinitions = data; draw(); }).catch(() => {});
+
+// 与桌面菜单和地图使用同一份 24 单位轮廓；保留外层 globalAlpha 的楼层淡化。
+function drawMarkerIcon(name,x,y,color) {
+  const icon = markerDefinitions?.[name];
+  if (!icon) return false;
+  const dpr = Math.min(3,Math.max(1,window.devicePixelRatio || 1));
+  const key = name + color + dpr;
+  let sprite = markerSprites.get(key);
+  if (!sprite) {
+    sprite = document.createElement('canvas');
+    sprite.width = sprite.height = Math.round(16*dpr);
+    const ink = sprite.getContext('2d');
+    ink.translate(sprite.width/12,sprite.height/12);
+    ink.scale(sprite.width*5/6/24,sprite.height*5/6/24);
+    ink.beginPath();
+    for (const points of icon.lines || []) {
+      ink.moveTo(points[0],points[1]);
+      for (let i=2;i<points.length;i+=2) ink.lineTo(points[i],points[i+1]);
+      if (points[0] === points.at(-2) && points[1] === points.at(-1)) ink.closePath();
+    }
+    for (const [x,y,w,h] of icon.rects || []) ink.rect(x,y,w,h);
+    for (const [x,y,r] of icon.circles || []) { ink.moveTo(x+r,y); ink.arc(x,y,r,0,Math.PI*2); }
+    for (const [x,y,w,h] of icon.ellipses || []) { ink.moveTo(x+w,y+h/2); ink.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,Math.PI*2); }
+    ink.lineJoin=ink.lineCap='round';
+    ink.lineWidth=4.35; ink.strokeStyle=markerOutline; ink.stroke();
+    ink.lineWidth=2.1; ink.strokeStyle=color; ink.stroke();
+    markerSprites.set(key,sprite);
+    if (markerSprites.size > 64) markerSprites.delete(markerSprites.keys().next().value);
+  }
+  ctx.drawImage(sprite,x-8,y-8,16,16);
+  return true;
+}
+
 
 const ui = {
   title: document.getElementById('title'),
@@ -372,21 +410,24 @@ function drawMarks(data) {
     }
     ctx.globalAlpha = mark.a ?? 1;
     const extract = mark.k === 'e';
-    ctx.beginPath();
-    if (extract) {
-      ctx.rect(x - 4.5, y - 4.5, 9, 9);
-    } else {
-      ctx.moveTo(x, y - 6);
-      ctx.lineTo(x + 6, y);
-      ctx.lineTo(x, y + 6);
-      ctx.lineTo(x - 6, y);
-      ctx.closePath();
+    if (!drawMarkerIcon(extract ? 'Extract' : 'Transit',x,y,extract ? '#78dc96' : '#be96f5')) {
+      // 图标资源未就绪或读取失败时，保留原有点位以便继续使用。
+      ctx.beginPath();
+      if (extract) {
+        ctx.rect(x - 4.5, y - 4.5, 9, 9);
+      } else {
+        ctx.moveTo(x, y - 6);
+        ctx.lineTo(x + 6, y);
+        ctx.lineTo(x, y + 6);
+        ctx.lineTo(x - 6, y);
+        ctx.closePath();
+      }
+      ctx.fillStyle = extract ? '#78dc96' : '#be96f5';
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(20,24,20,.85)';
+      ctx.stroke();
     }
-    ctx.fillStyle = extract ? '#78dc96' : '#be96f5';
-    ctx.fill();
-    ctx.lineWidth = 1.2;
-    ctx.strokeStyle = 'rgba(20,24,20,.85)';
-    ctx.stroke();
 
     // 名字：挤不下就跳过，而不是叠成一团
     const text = mark.n;
@@ -394,10 +435,10 @@ function drawMarks(data) {
       continue;
     }
     const width = ctx.measureText(text).width;
-    let tx = x + 8;
+    let tx = x + 10;
     let ty = y;
     if (tx + width > S.w - 4) {
-      tx = x - width - 8;
+      tx = x - width - 10;
     }
     const box = { x: tx - 2, y: ty - 7, w: width + 4, h: 14 };
     if (placed.some(other => box.x < other.x + other.w && box.x + box.w > other.x

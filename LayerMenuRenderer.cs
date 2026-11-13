@@ -1,24 +1,5 @@
-// ============================================================================
-// LayerMenuRenderer.cs — 「图层」下拉的绘制规则
-//
-// 三条规则，逐条对应提出来的问题：
-//
-//  1. **悬浮不铺底色，只描边**
-//     以前 ToolStripProfessionalRenderer 的悬浮是把整行刷成蓝色，压在彩色文字上
-//     就看不清了。现在悬浮只在行内画 1px 强调色描边，底色保持面板色。
-//
-//  2. **文字颜色固定**
-//     文字只有三种：常态 TextMain、勾选 Accent、禁用 TextFaint。
-//     分类颜色不再上文字，而是画在左边 16×16 的小图标上（见 LayerMenuArt）。
-//
-//  3. **勾选另用一套底色**
-//     勾选 = 强调色 14% 实心底 + 强调色文字 + 图标全彩；
-//     未勾选 = 透明底 + 常态文字 + 图标半透明（45%）。
-//     这样"开着的层"和"关掉的层"一眼分得开，且不依赖彩色文字。
-//
-// 另外把系统默认的白色图片边距、蓝色箭头、渐变边框全部换掉，否则深色菜单里
-// 会漏出几块亮色。
-// ============================================================================
+// 深色菜单：图标和勾选分别占列，类别靠形状+颜色，开关靠勾选与半选横线。
+// 关闭项仍保留 82% 的图标亮度，避免与真正禁用项混淆；命令不按开关状态压暗。
 namespace TarkovMapLite;
 
 internal sealed class LayerMenuRenderer : ToolStripProfessionalRenderer
@@ -110,9 +91,19 @@ internal sealed class LayerMenuRenderer : ToolStripProfessionalRenderer
             e.TextColor, e.TextFormat);
     }
 
-    /// <summary>系统的勾选方块和图标打架，勾选状态已经由底色 + 文字色表达，这里不画。</summary>
+    /// <summary>独立勾选列中绘制勾和半选横线，保持类别图标完整。</summary>
     protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
     {
+        if (e.Item.Tag is not LayerIconInfo { Toggle: true } || StateOf(e.Item) == CheckState.Unchecked) return;
+        var r = e.ImageRectangle;
+        var cx = r.Left + r.Width/2f;
+        var cy = r.Top + r.Height/2f;
+        var scale = e.Graphics.DpiX/96f;
+        using var pen = new Pen(StateOf(e.Item) == CheckState.Indeterminate ? UiTokens.Warn : UiTokens.Accent,1.8f*scale)
+        { StartCap=System.Drawing.Drawing2D.LineCap.Round,EndCap=System.Drawing.Drawing2D.LineCap.Round,LineJoin=System.Drawing.Drawing2D.LineJoin.Round };
+        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        if (StateOf(e.Item) == CheckState.Indeterminate) e.Graphics.DrawLine(pen,cx-4*scale,cy,cx+4*scale,cy);
+        else e.Graphics.DrawLines(pen,new[] { new PointF(cx-4*scale,cy),new PointF(cx-scale,cy+3*scale),new PointF(cx+5*scale,cy-4*scale) });
     }
 
     /// <summary>未勾选的项把图标压淡，表示"这一层现在是关的"。</summary>
@@ -123,7 +114,8 @@ internal sealed class LayerMenuRenderer : ToolStripProfessionalRenderer
         {
             return;
         }
-        var alpha = StateOf(e.Item) is CheckState.Checked or CheckState.Indeterminate ? 1f : 0.62f;
+        var alpha = !e.Item.Enabled ? .4f : e.Item.Tag is LayerIconInfo { Toggle: false } ? 1f
+            : StateOf(e.Item) is CheckState.Checked or CheckState.Indeterminate ? 1f : .82f;
         var bounds = e.ImageRectangle;
         if (alpha >= 0.99f)
         {

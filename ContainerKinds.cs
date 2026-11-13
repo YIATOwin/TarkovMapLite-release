@@ -4,8 +4,8 @@
 // 被 MapCanvas.DrawStaticMarkers（画点）和 MapForm.BuildLayerMenu（图例）使用。
 //
 // 加一种容器：Table 里加一行，slug 就是接口里的容器类型串（drawer / jacket …）。
-// 加一种记号：Icon 枚举加值 **并且** 在 MapCanvas.DrawContainer 里补一个
-//   switch 分支——两处都要改，只改一处会画成空白。
+// 加一种记号：在 MarkerIcons.Container 中指定 LayerIcon，并在 icons.json 补充轮廓。
+// 历史 Icon 枚举用于已有数据的回退映射，菜单与地图共享同一轮廓。
 // ============================================================================
 using System.Drawing;
 
@@ -14,9 +14,8 @@ namespace TarkovMapLite;
 /// <summary>
 /// 容器类型的显示信息：一个颜色 + 一个极简象形记号。
 ///
-/// 站点的容器图标是它自己的 SVG 组件，不在资源接口里；而且那些图标缩到 10 来像素
-/// 就糊成一团。这里的做法是「圆角底 + 内部一两个笔画」——抽屉画两条横线、衣架画个
-/// 三角钩、保险箱画个转盘、医疗画十字，一眼能分出大类，具体哪一类靠颜色。
+/// 颜色及大类元数据。MarkerIcons.Container 将具体 slug 映射到共享矢量轮廓，
+/// 菜单和地图一致；武器箱、弹药箱、工具箱等使用各自的形状，不再只依赖颜色区分。
 /// </summary>
 internal static class ContainerKinds
 {

@@ -24,6 +24,10 @@ internal static class UiTokens
     // ---- 表面 ----------------------------------------------------------------
     /// <summary>画布底色。和手机端 --back 一致，图片没加载时不闪白。</summary>
     public static readonly Color Back = Color.FromArgb(14, 16, 18);
+    public static readonly Color IconOutline = Back;
+    public static readonly Color PlayerSpawn = Color.FromArgb(150, 200, 240);
+    public static readonly Color Transport = Color.FromArgb(120, 210, 218);
+    public static readonly Color SwitchMarker = Color.FromArgb(255, 208, 64);
 
     /// <summary>面板底色（顶栏、任务栏、状态栏、抽屉）。</summary>
     public static readonly Color PanelBack = Color.FromArgb(20, 23, 26);

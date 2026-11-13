@@ -24,6 +24,12 @@ internal static class ItemImages
     private static readonly Dictionary<string, Image?> Loaded = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> Pending = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object Gate = new();
+    private static readonly LinkedList<string> Recent = new();
+    private static readonly Dictionary<string,LinkedListNode<string>> Nodes = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string,DateTime> RetryAt = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly SemaphoreSlim Downloads = new(4);
+    private const int MaximumImages = 128;
+    private const int ThumbnailSize = 128; // 24px 列表图标在 400% DPI 下仍有足够分辨率。
 
     private static readonly string CacheDir = CreateCacheDir();
 
@@ -43,12 +49,40 @@ internal static class ItemImages
         return dir;
     }
 
-    /// <summary>已经拿到的图；没有就返回 null（同时不会触发下载）。</summary>
-    public static Image? Get(string itemId)
+    /// <summary>在锁内使用缓存图，避免后台淘汰与 UI 绘制并发导致使用已释放的位图。</summary>
+    public static bool Draw(Graphics graphics, string itemId, Rectangle bounds)
     {
         lock (Gate)
         {
-            return Loaded.TryGetValue(itemId, out var image) ? image : null;
+            if (!Loaded.TryGetValue(itemId,out var image) || image == null) return false;
+            Touch(itemId);
+            graphics.DrawImage(image,bounds);
+            return true;
+        }
+    }
+
+    private static void Touch(string id)
+    {
+        if (Nodes.TryGetValue(id,out var node)) Recent.Remove(node);
+        else Nodes[id] = node = new LinkedListNode<string>(id);
+        Recent.AddLast(node);
+    }
+
+    private static void Store(string id, Image? image)
+    {
+        lock (Gate)
+        {
+            if (Loaded.Remove(id,out var old) && !ReferenceEquals(old,image)) old?.Dispose();
+            Loaded[id] = image;
+            if (image == null) RetryAt[id] = DateTime.UtcNow.AddMinutes(1);
+            else RetryAt.Remove(id);
+            Touch(id);
+            while (Loaded.Count > MaximumImages)
+            {
+                var victim = Recent.First!.Value;
+                Recent.RemoveFirst(); Nodes.Remove(victim); RetryAt.Remove(victim);
+                if (Loaded.Remove(victim,out var removed)) removed?.Dispose();
+            }
         }
     }
 
@@ -64,28 +98,35 @@ internal static class ItemImages
         }
         lock (Gate)
         {
-            if (Loaded.ContainsKey(itemId) || !Pending.Add(itemId))
+            if (Loaded.TryGetValue(itemId,out var image))
             {
-                return;
+                if (image != null || !RetryAt.TryGetValue(itemId,out var retry) || DateTime.UtcNow < retry)
+                {
+                    Touch(itemId);
+                    return;
+                }
+                Loaded.Remove(itemId); RetryAt.Remove(itemId);
+                if (Nodes.Remove(itemId,out var node)) Recent.Remove(node);
             }
+            if (!Pending.Add(itemId)) return;
         }
 
         Task.Run(async () =>
         {
+            await Downloads.WaitAsync().ConfigureAwait(false);
             try
             {
                 var image = LoadFromDisk(itemId) ?? await DownloadAsync(itemId);
-                lock (Gate)
-                {
-                    Loaded[itemId] = image;
-                }
+                Store(itemId,image);
             }
             catch
             {
                 // 网络/解码失败就当没有图，图标位置留空
+                Store(itemId,null);
             }
             finally
             {
+                Downloads.Release();
                 lock (Gate)
                 {
                     Pending.Remove(itemId);
@@ -137,12 +178,19 @@ internal static class ItemImages
     {
         using var stream = new MemoryStream(bytes);
         using var source = Image.FromStream(stream);
-        var copy = new Bitmap(source.Width, source.Height);
-        using (var g = Graphics.FromImage(copy))
+        var ratio = Math.Min(1,ThumbnailSize/(double)Math.Max(source.Width,source.Height));
+        var width = Math.Max(1,(int)Math.Round(source.Width*ratio));
+        var height = Math.Max(1,(int)Math.Round(source.Height*ratio));
+        var copy = new Bitmap(width,height,System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+        try
         {
+            using var g = Graphics.FromImage(copy);
             g.Clear(Color.Transparent);
-            g.DrawImage(source, 0, 0, source.Width, source.Height);
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+            g.DrawImage(source,new Rectangle(0,0,width,height),0,0,source.Width,source.Height,GraphicsUnit.Pixel);
+            return copy;
         }
-        return copy;
+        catch { copy.Dispose(); throw; }
     }
 }

@@ -195,6 +195,9 @@ internal static class Program
         Call(button.GetType(), button, "OnClick", EventArgs.Empty);
         Check(!menu.Visible, "Second layer-button click did not close the menu");
         _checks += PointOpacityChecks.Run(output);
+        _checks += FloorTransitionChecks.Run(output);
+        _checks += LayerIconChecks.Run(output);
+        _checks += MemoryChecks.Run();
         Console.WriteLine($"PASS: {_checks} checks, {MapPack.Maps.Count} maps, " +
             $"{MapPack.Maps.Sum(m => 1 + m.Layers.Count)} native floor renders, menu state/batching and single-floor regression.");
     }
