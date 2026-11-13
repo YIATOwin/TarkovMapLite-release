@@ -28,6 +28,11 @@ internal static class UiTokens
     public static readonly Color PlayerSpawn = Color.FromArgb(150, 200, 240);
     public static readonly Color Transport = Color.FromArgb(120, 210, 218);
     public static readonly Color SwitchMarker = Color.FromArgb(255, 208, 64);
+    public static readonly Color PlayerMarker = Color.FromArgb(77,232,255);
+    public static readonly Color PlayerTail = Color.FromArgb(34,168,189);
+    public static readonly Color PlayerEdge = Color.FromArgb(246,253,255);
+    public static readonly Color PlayerOutline = Color.FromArgb(8,16,21);
+    public static readonly Color PlayerGuide = Color.FromArgb(255,186,88);
 
     /// <summary>面板底色（顶栏、任务栏、状态栏、抽屉）。</summary>
     public static readonly Color PanelBack = Color.FromArgb(20, 23, 26);

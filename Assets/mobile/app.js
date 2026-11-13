@@ -29,6 +29,13 @@ const ctx = canvas.getContext('2d');
 let markerDefinitions = null;
 const markerSprites = new Map();
 const markerOutline = getComputedStyle(document.documentElement).getPropertyValue('--icon-outline').trim() || '#0e1012';
+const playerTheme = getComputedStyle(document.documentElement);
+const playerColors = {
+  marker: playerTheme.getPropertyValue('--player-marker').trim() || '#4de8ff',
+  tail: playerTheme.getPropertyValue('--player-tail').trim() || '#22a8bd',
+  edge: playerTheme.getPropertyValue('--player-edge').trim() || '#f6fdff',
+  outline: playerTheme.getPropertyValue('--player-outline').trim() || '#081015',
+};
 fetch('/icons.json').then(r => { if (!r.ok) throw Error('icons'); return r.json(); })
   .then(data => { markerDefinitions = data; draw(); }).catch(() => {});
 
@@ -476,7 +483,7 @@ function drawPlayer(player) {
     ctx.lineTo(-6, -7);
     ctx.lineTo(-6, 7);
     ctx.closePath();
-    ctx.fillStyle = '#4de0e0';
+    ctx.fillStyle = playerColors.marker;
     ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,.6)';
     ctx.lineWidth = 1.2;
@@ -485,39 +492,33 @@ function drawPlayer(player) {
     return;
   }
 
-  // 声呐脉冲：两圈往外扩散，暗处也能一眼找到自己
+  // 与桌面一致：稳定的高亮箭头，黑白双描边；仅外圈做低频扩散。
+  const {marker,tail,edge,outline} = playerColors;
   const phase = S.pulse % 1;
-  for (let k = 0; k < 2; k++) {
-    const t = (phase + k * 0.5) % 1;
-    ctx.beginPath();
-    ctx.arc(x, y, 6 + t * 17, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(77,224,224,${((1 - t) * 0.55).toFixed(3)})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-
-  ctx.beginPath();
-  ctx.arc(x, y, 4.6, 0, Math.PI * 2);
-  ctx.fillStyle = '#4de0e0';
-  ctx.fill();
-  ctx.lineWidth = 1.4;
-  ctx.strokeStyle = 'rgba(255,255,255,.9)';
-  ctx.stroke();
-
-  // 朝向：电脑端给的就是图片像素方向，直接 atan2，不用管地图旋转了几度
   ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(Math.atan2(player.dy, player.dx));
   ctx.beginPath();
-  ctx.moveTo(14, 0);
-  ctx.lineTo(4, -6.5);
-  ctx.lineTo(4, 6.5);
-  ctx.closePath();
-  ctx.fillStyle = '#4de0e0';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.85)';
-  ctx.lineWidth = 1.1;
-  ctx.stroke();
+  ctx.arc(x,y,18+phase*18,0,Math.PI*2);
+  ctx.globalAlpha = Math.pow(1-phase,1.3)*.55;
+  ctx.strokeStyle=outline; ctx.lineWidth=3.5; ctx.stroke();
+  ctx.strokeStyle=marker; ctx.lineWidth=1.7; ctx.stroke();
+  ctx.globalAlpha=1;
+  ctx.translate(x,y);
+  const dx = Number.isFinite(player.dx) ? player.dx : 0;
+  const dy = Number.isFinite(player.dy) ? player.dy : -1;
+  ctx.rotate(Math.hypot(dx,dy)>1e-4 ? Math.atan2(dy,dx) : -Math.PI/2);
+  ctx.lineJoin='round';
+  ctx.beginPath();
+  ctx.moveTo(20,0); ctx.lineTo(-7.8,9); ctx.lineTo(-18.8,0); ctx.lineTo(-7.8,-9); ctx.closePath();
+  ctx.lineWidth=5.6; ctx.strokeStyle=outline; ctx.stroke();
+  ctx.lineWidth=2.8; ctx.strokeStyle=edge; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(20,0); ctx.lineTo(-7.8,9); ctx.lineTo(-7.8,-9); ctx.closePath();
+  ctx.fillStyle=marker; ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-7.8,9); ctx.lineTo(-18.8,0); ctx.lineTo(-7.8,-9); ctx.closePath();
+  ctx.fillStyle=tail; ctx.fill();
+  ctx.globalAlpha=.43; ctx.strokeStyle=edge;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(20,0);ctx.lineTo(-18.8,0);ctx.moveTo(-7.8,9);ctx.lineTo(-7.8,-9);ctx.stroke();
   ctx.restore();
 }
 
@@ -1106,7 +1107,7 @@ setInterval(() => {
   if (document.hidden || !S.data) {
     return;
   }
-  S.pulse = (S.pulse + 0.11) % 1;
+  S.pulse = (S.pulse + 0.09 / 1.5) % 1;
   S.dash = (S.dash + 1.1) % 22;
   draw();
 }, 90);

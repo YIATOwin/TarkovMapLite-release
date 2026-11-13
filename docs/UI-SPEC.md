@@ -73,6 +73,10 @@ skill 自带的 React + Tailwind 模板代码本项目用不上，规则照用�
 图层图标使用 `IconOutline` / `--icon-outline: #0e1012` 作为地图上的暗色细轮廓。
 标记语义色沿用原图层配色：`PlayerSpawn` = #96c8f0、`Transport` = #78d2da、`SwitchMarker` = #ffd040，
 手机端对应 `--marker-spawn`、`--marker-transport`、`--marker-switch`。
+玩家位置使用独立语义色：`PlayerMarker` / `--player-marker` = #4de8ff，
+`PlayerTail` / `--player-tail` = #22a8bd，`PlayerEdge` / `--player-edge` = #f6fdff，
+`PlayerOutline` / `--player-outline` = #081015，`PlayerGuide` / `--player-guide` = #ffba58。
+箭头采用白色内轮廓和深色外轮廓；只有扩散圈缓慢变化，本体保持稳定明亮。
 分类色继续来自 ContainerKinds / LootKinds，菜单和地图共用矢量形状，文字保持主题色。
 菜单图标逻辑大小为 20px，地图按缩放使用 8—18px；形状与颜色共同编码，关闭状态仍保持可辨认。
 

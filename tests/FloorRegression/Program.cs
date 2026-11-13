@@ -40,6 +40,13 @@ internal static class Program
     private static void Main(string[] args)
     {
         Application.SetHighDpiMode(HighDpiMode.DpiUnaware);
+        if (args.FirstOrDefault() == "--player-only")
+        {
+            var folder = args.ElementAtOrDefault(1);
+            if (folder != null) Directory.CreateDirectory(folder);
+            PlayerMarkerChecks.Run(folder);
+            return;
+        }
         var svg = MapPack.Find("reserve")!;
         var tiles = MapPack.Find("reserve-tiles")!;
         Check(svg.Layers.Count == 5 && tiles.Layers.Count == 5, "Both variants need six floors");
@@ -198,6 +205,7 @@ internal static class Program
         _checks += FloorTransitionChecks.Run(output);
         _checks += LayerIconChecks.Run(output);
         _checks += MemoryChecks.Run();
+        _checks += PlayerMarkerChecks.Run(output);
         Console.WriteLine($"PASS: {_checks} checks, {MapPack.Maps.Count} maps, " +
             $"{MapPack.Maps.Sum(m => 1 + m.Layers.Count)} native floor renders, menu state/batching and single-floor regression.");
     }

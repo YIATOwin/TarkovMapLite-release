@@ -155,7 +155,8 @@ internal sealed partial class MapCanvas : Control
             _playerPosition = value;
             if (value.HasValue && !had)
             {
-                _pulseTimer.Start();
+                _playerPulseStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (Visible) _pulseTimer.Start();
             }
             else if (!value.HasValue && had)
             {
@@ -191,15 +192,7 @@ internal sealed partial class MapCanvas : Control
             }
             Invalidate();
         };
-        _pulseTimer.Tick += (_, _) =>
-        {
-            _pulsePhase += 0.05f / 1.6f;
-            if (_pulsePhase >= 1f)
-            {
-                _pulsePhase -= 1f;
-            }
-            Invalidate();
-        };
+        _pulseTimer.Tick += (_, _) => PlayerPulseTick();
     }
 
     public MapProjection? Map => _map;
@@ -547,7 +540,17 @@ internal sealed partial class MapCanvas : Control
     }
     protected override void OnPaint(PaintEventArgs e)
     {
-        var g = e.Graphics;
+        var state = e.Graphics.Save();
+        try
+        {
+            e.Graphics.SetClip(e.ClipRectangle, CombineMode.Intersect);
+            PaintCanvas(e.Graphics);
+        }
+        finally { e.Graphics.Restore(state); }
+    }
+
+    private void PaintCanvas(Graphics g)
+    {
         if (_fitPending && ClientSize.Width > 16 && ClientSize.Height > 16)
         {
             Fit();
@@ -571,7 +574,8 @@ internal sealed partial class MapCanvas : Control
 
     private void DrawMapScene(Graphics g)
     {
-        g.Clear(BackColor);
+        // Clear 会清空整个缓冲区；填充尊重脉冲动画的小块重绘区域。
+        using (var background = new SolidBrush(BackColor)) g.FillRectangle(background,ClientRectangle);
         if (_map == null)
         {
             return;
@@ -1125,7 +1129,7 @@ internal sealed partial class MapCanvas : Control
                     g.DrawEllipse(badgePen, bx - badge, by - badge, badge * 2, badge * 2);
                     TextRenderer.DrawText(g, (index + 1).ToString(), numFont,
                         new Rectangle((int)bx - 6, (int)by - 7, 12, 14), Color.White,
-                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+                        TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
                 }
             }
         }
@@ -1184,10 +1188,10 @@ internal sealed partial class MapCanvas : Control
     };
 
     /// <summary>地图上玩家标记的颜色（青色）；楼层按钮旁的小人标记也用它，保证是同一个语义。</summary>
-    private static readonly Color PlayerMarkerColor = Color.FromArgb(64, 156, 255);
+    private static readonly Color PlayerMarkerColor = UiTokens.PlayerMarker;
 
     /// <summary>取景框 + 十字延长线的颜色（橙黄）：这是"标注"，和箭头本身的颜色分开，一眼能分清哪个是玩家。</summary>
-    private static readonly Color PlayerGuideColor = Color.FromArgb(255, 186, 88);
+    private static readonly Color PlayerGuideColor = UiTokens.PlayerGuide;
 
     private void DrawFloors(Graphics g)
     {
@@ -1227,7 +1231,7 @@ internal sealed partial class MapCanvas : Control
             }
             TextRenderer.DrawText(g, label, font, rect,
                 active ? UiTokens.Accent : hover ? UiTokens.TextMain : UiTokens.TextDim,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
 
             // 玩家所在楼层：按钮右边画一个小人（圆 + 倒三角）。
             // 以前这里是一个 7px 的青色圆点，和地图上的玩家标记语义不连贯，换成人形更好认。
@@ -1259,91 +1263,6 @@ internal sealed partial class MapCanvas : Control
             new PointF(cx + 4.2f, cy - 1.4f),
             new PointF(cx, cy + 6.4f),
         });
-    }
-    /// <summary>
-    /// 玩家位置：青色圆点 + 指向朝向的三角。只有「截图所属地图」和当前显示的地图
-    /// 一致时才画——玩家手动切到别的地图时，位置就不会被错误地标上去。
-    /// </summary>
-    private void DrawPlayer(Graphics g, float scale, PointF origin)
-    {
-        if (_map == null || PlayerPosition is not { } position)
-        {
-            return;
-        }
-        if (!string.Equals(PlayerMapKey, _map.Key, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-        var x = origin.X + position.X * scale;
-        var y = origin.Y + position.Y * scale;
-        if (x < -40 || y < -40 || x > ClientSize.Width + 40 || y > ClientSize.Height + 40)
-        {
-            return;
-        }
-        // 玩家不在当前浏览的楼层：整体压淡（楼层由 MapForm 用世界高度推算）
-        var offFloor = PlayerFloor.HasValue && PlayerFloor.Value != CurrentFloor;
-        var alpha = offFloor ? 90 : 255;
-
-        var forward = PlayerForward ?? new PointF(0, -1);
-        var length = (float)Math.Sqrt(forward.X * forward.X + forward.Y * forward.Y);
-        forward = length > 1e-4f
-            ? new PointF(forward.X / length, forward.Y / length)
-            : new PointF(0, -1);
-        var right = new PointF(-forward.Y, forward.X);
-
-        // 取景框 + 十字延长线（按草图）：橙色只做"标注"，箭头保持玩家自己的蓝色。
-        // 框线的透明度随相位呼吸（130..225），是最轻的一种动态提示，不抢地图信息。
-        var breathe = (float)(0.5 + 0.5 * Math.Sin(_pulsePhase * Math.PI * 2));
-        var frameAlpha = offFloor ? 60 : (int)(130 + 95 * breathe);
-        const float half = 32f;
-        var box = new RectangleF(x - half, y - half, half * 2, half * 2);
-
-        using (var frame = new Pen(Color.FromArgb(frameAlpha, PlayerGuideColor), 1.4f))
-        {
-            g.DrawRectangle(frame, box.X, box.Y, box.Width, box.Height);
-        }
-
-        // 四条延长线：从框的边一直到画布边缘，中间不穿过框（像取景器刻度）
-        using (var guide = new Pen(Color.FromArgb(offFloor ? 35 : 95, PlayerGuideColor), 1f))
-        {
-            g.DrawLine(guide, x, 0, x, box.Top);
-            g.DrawLine(guide, x, box.Bottom, x, ClientSize.Height);
-            g.DrawLine(guide, 0, y, box.Left, y);
-            g.DrawLine(guide, box.Right, y, ClientSize.Width, y);
-        }
-
-        // 箭头本体：长三角是朝向，后面一个尾翼三角，中间横杠 + 脊线（第一张草图）
-        PointF At(float forwardOffset, float sideOffset) => new(
-            x + forward.X * forwardOffset + right.X * sideOffset,
-            y + forward.Y * forwardOffset + right.Y * sideOffset);
-
-        var tip = At(18f, 0f);
-        var wingLeft = At(-7f, 8f);
-        var wingRight = At(-7f, -8f);
-        var tail = At(-17f, 0f);
-        var nose = new[] { tip, wingLeft, wingRight };
-        var tailFin = new[] { wingLeft, tail, wingRight };
-
-        // 深色描边打底：浅色地形上也不会糊
-        using (var outline = new Pen(Color.FromArgb(Math.Min(alpha, 235), 8, 14, 18), 4.2f)
-        {
-            LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
-        })
-        {
-            g.DrawPolygon(outline, nose);
-            g.DrawPolygon(outline, tailFin);
-        }
-
-        using (var noseBrush = new SolidBrush(Color.FromArgb(Math.Min(alpha, 235), PlayerMarkerColor)))
-        using (var finBrush = new SolidBrush(Color.FromArgb(Math.Min(alpha, 170), PlayerMarkerColor)))
-        {
-            g.FillPolygon(noseBrush, nose);
-            g.FillPolygon(finBrush, tailFin);
-        }
-
-        using var edge = new Pen(Color.FromArgb(Math.Min(alpha, 190), 240, 248, 255), 1.4f);
-        g.DrawLine(edge, wingLeft, wingRight);
-        g.DrawLine(edge, tip, tail);
     }
     /// <summary>候选刷新点：小琥珀色圆点，带白边，方便和任务区域区分。</summary>
     private void DrawSpawnPoints(Graphics g, float scale, PointF origin)
@@ -1553,7 +1472,8 @@ internal sealed partial class MapCanvas : Control
             _map?.Layers.FirstOrDefault(l => string.Equals(l.SvgLayer, _layer, StringComparison.OrdinalIgnoreCase))?.Name ?? "");
         var text = $"{_zoom * _fitScale * 100:F0}%   {floorName}";
         TextRenderer.DrawText(g, text, font,
-            new Rectangle(10, ClientSize.Height - 26, 160, 20), Color.FromArgb(180, 200, 220));
+            new Rectangle(10, ClientSize.Height - 26, 160, 20), Color.FromArgb(180, 200, 220),
+            TextFormatFlags.PreserveGraphicsClipping);
     }
 
 

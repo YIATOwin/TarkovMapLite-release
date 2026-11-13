@@ -12,6 +12,11 @@
   --marker-spawn: #96c8f0;
   --marker-transport: #78d2da;
   --marker-switch: #ffd040;
+  --player-marker: #4de8ff;
+  --player-tail: #22a8bd;
+  --player-edge: #f6fdff;
+  --player-outline: #081015;
+  --player-guide: #ffba58;
   --back: #0d0f11;
   --panel: rgba(20, 23, 27, 0.92);
   --line: #2c3138;

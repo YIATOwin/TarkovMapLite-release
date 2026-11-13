@@ -138,14 +138,23 @@ internal sealed partial class MapCanvas
     {
         if (!Visible)
         {
+            _pulseTimer.Stop();
             StopFloorTransition();
             _floorScenePainted = false;
         }
+        else if (PlayerPosition.HasValue) _pulseTimer.Start();
         base.OnVisibleChanged(e);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        if (Visible && PlayerPosition.HasValue) _pulseTimer.Start();
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+        _pulseTimer.Stop();
         StopFloorTransition();
         _floorScenePainted = false;
         base.OnHandleDestroyed(e);
