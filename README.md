@@ -21,6 +21,8 @@ items they need, and shows every extract.
 
 ### 功能
 
+显示偏好会自动保存在 `%LOCALAPPDATA%\TarkovMapLite\settings.json`：包括图层与子分类、任务筛选、撤离点，以及上次查看的地图版本和楼层。关闭后再次打开会恢复这些选择；玩家位置仍以当前对局的新截图为准。任务目标说明支持鼠标悬停后直接用滚轮滚动。
+
 | 功能 | 说明 |
 | --- | --- |
 | 自动切图 | 读 `Logs\*.log` 里的 `scene preset path`，进图自动切到对应地图（含 Streets、Interchange、Reserve 等触发名不同步的图） |

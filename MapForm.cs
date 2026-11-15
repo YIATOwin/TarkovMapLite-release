@@ -33,6 +33,7 @@ internal sealed class MapForm : Form
     private static readonly Color TextDim = UiTokens.TextDim;
 
     private readonly MapCanvas _canvas = new() { Dock = DockStyle.Fill };
+    private readonly MapViewSettings _viewSettings = MapViewSettings.Load();
     /// <summary>只当状态用（隐藏）：索引对应 MapPack.Maps，界面由 _mapButton 呈现。</summary>
     private readonly ComboBox _mapSelect = new();
     private readonly Chip _onlyActive = new();
@@ -44,7 +45,7 @@ internal sealed class MapForm : Form
     private readonly Label _dataStatus = new();
     private readonly Label _header = new();
     private readonly ListBox _taskList = new();
-    private readonly RichTextBox _detail = new();
+    private readonly TaskDescriptionBox _detail = new();
     private readonly ListBox _itemList = new();
     private readonly Label _itemHeader = new();
     private readonly System.Windows.Forms.Timer _toastTimer = new() { Interval = 1600 };
@@ -104,7 +105,9 @@ internal sealed class MapForm : Form
         KeyPreview = true;
         DoubleBuffered = true;
 
+        _viewSettings.ApplyLayers(_canvas);
         BuildLayout();
+        RestoreWindowBounds();
 
         _canvas.Log = _log;
         _canvas.OnlyActive = _onlyActive.Active;
@@ -152,6 +155,7 @@ internal sealed class MapForm : Form
         });
 
         Load += async (_, _) => await StartAsync();
+        FormClosing += (_, _) => SaveViewSettings();
         FormClosed += (_, _) => SaveWindowBounds();
         FormClosed += (_, _) =>
         {
@@ -201,7 +205,7 @@ internal sealed class MapForm : Form
         _mapMenu.ShowCheckMargin = false;
         _ = new MenuButtonBinding(_mapButton, _mapMenu, RefreshMapMenu);
 
-        _onlyActive.Active = true;
+        _onlyActive.Active = _viewSettings.OnlyActive;
         _onlyActive.Text = "仅进行中";
         _onlyActive.Click += (_, _) =>
         {
@@ -209,19 +213,20 @@ internal sealed class MapForm : Form
             _canvas.OnlyActive = _onlyActive.Active;
             RefreshTaskList();
             _canvas.Invalidate();
+            SaveViewSettings();
         };
 
         _showExtracts.Text = "撤离点";
         _showExtracts.Location = new Point(312, 10);
         _showExtracts.Size = new Size(64, 26);
         // 默认打开：开图第一眼要能看见撤离点
-        _showExtracts.Active = true;
-        _canvas.ShowExtracts = true;
+        _showExtracts.Active = _canvas.ShowExtracts;
         _showExtracts.Click += (_, _) =>
         {
             _showExtracts.Active = !_showExtracts.Active;
             _canvas.ShowExtracts = _showExtracts.Active;
             _canvas.Invalidate();
+            SaveViewSettings();
         };
 
         // 同一张图的另一种画法：默认隐藏，ApplyMap 里按当前地图决定要不要显示
@@ -240,6 +245,7 @@ internal sealed class MapForm : Form
         };
 
         _noZone.Text = "任意地区";
+        _noZone.Active = _viewSettings.AnyRegion;
         _noZone.Click += (_, _) =>
         {
             _noZone.Active = !_noZone.Active;
@@ -250,6 +256,7 @@ internal sealed class MapForm : Form
             _canvas.SelectedTaskId = null;
             ShowTaskDetail(null);
             _canvas.Invalidate();
+            SaveViewSettings();
         };
 
         // 图层下拉：多选，勾哪个画哪个
@@ -443,7 +450,8 @@ internal sealed class MapForm : Form
         _detail.BackColor = UiTokens.Sunken;
         _detail.ForeColor = Color.FromArgb(200, 208, 218);
         _detail.Font = new Font("Microsoft YaHei UI", 9f);
-        _detail.ScrollBars = RichTextBoxScrollBars.None;
+        // 保留原生垂直滚动能力；右侧滚动条仍由 ClipScrollbar 裁在容器外。
+        _detail.ScrollBars = RichTextBoxScrollBars.Vertical;
         _detail.TabStop = false;
 
         var detailPanel = new Panel { Dock = DockStyle.Fill, BackColor = UiTokens.Sunken };
@@ -593,7 +601,8 @@ internal sealed class MapForm : Form
         }
         foreach (var lootKind in LootKinds.All)
         {
-            var sub = Create(lootKind.Name, MarkerIcons.Loot(lootKind.Bit), lootKind.Color, CheckState.Checked);
+            var sub = Create(lootKind.Name, MarkerIcons.Loot(lootKind.Bit), lootKind.Color,
+                _canvas.HiddenLootKinds.Contains(lootKind.Bit) ? CheckState.Unchecked : CheckState.Checked);
             var bit = lootKind.Bit;
             sub.Click += (_, _) =>
             {
@@ -685,7 +694,8 @@ internal sealed class MapForm : Form
         {
             var info = ContainerKinds.Resolve(kind);
             var slug = kind;
-            var sub = Create($"{info.Name}（{count}）", MarkerIcons.Container(kind), info.Color, CheckState.Checked);
+            var sub = Create($"{info.Name}（{count}）", MarkerIcons.Container(kind), info.Color,
+                _canvas.HiddenContainerKinds.Contains(slug) ? CheckState.Unchecked : CheckState.Checked);
             sub.Click += (_, _) =>
             {
                 var on = sub.CheckState != CheckState.Checked;
@@ -706,7 +716,7 @@ internal sealed class MapForm : Form
         };
 
         // 子项建好以后再同步父项与画布，避免初始化发生在空列表上。
-        SetAll(true);
+        RefreshContainerState(containerItem, kinds);
         SyncLoot();
         UpdateLayerButtonText();
     }
@@ -823,6 +833,7 @@ internal sealed class MapForm : Form
             if (IsDisposed) return;
             UpdateLayerButtonText();
             _canvas.Invalidate();
+            SaveViewSettings();
         });
     }
 
@@ -883,6 +894,7 @@ internal sealed class MapForm : Form
         // 启动时如果已经在局内，用日志里最后一次进图的地图来绑玩家位置
         _raidMapKey = _log.LastSceneMapKey;
         ApplyMap(keepView: false);
+        RestoreMapLayer();
 
         var stale = TarkovData.FetchedAt == DateTime.MinValue
                     || TarkovData.Schema < TarkovData.CurrentSchema
@@ -976,7 +988,10 @@ internal sealed class MapForm : Form
         var previous = _mapSelect.SelectedIndex;
         if (previous < 0)
         {
-            previous = Math.Max(0, MapPack.Maps.ToList().FindIndex(m => m.Key == "customs"));
+            previous = MapPack.Maps.ToList().FindIndex(m =>
+                string.Equals(m.Key, _viewSettings.MapKey, StringComparison.OrdinalIgnoreCase));
+            if (previous < 0)
+                previous = Math.Max(0, MapPack.Maps.ToList().FindIndex(m => m.Key == "customs"));
         }
         _suppressMapChange = true;
         _mapSelect.BeginUpdate();
@@ -1044,7 +1059,10 @@ internal sealed class MapForm : Form
         {
             return;
         }
+        var previousLayer = keepView && string.Equals(_canvas.Map?.Key, map.Key, StringComparison.OrdinalIgnoreCase)
+            ? _canvas.CurrentLayer : "";
         _canvas.SetMap(map, map.DisplayName);
+        _canvas.SetLayer(previousLayer);
         // 本图已做完的任务：画布上直接不画它们
         _canvas.HiddenTasks = DoneZones.TasksForMap(map.Data);
         _canvas.Zones = TarkovData.ZonesByMap.TryGetValue(map.Data, out var zones)
@@ -1068,8 +1086,8 @@ internal sealed class MapForm : Form
         _canvas.Invalidate();
         RefreshTaskList();
         UpdateSpawnPoints(null);
+        UpdatePlayerMarker();
         UpdateStatus();
-        GC.KeepAlive(keepView);
     }
 
     // ------------------------------------------------------------------ 手机端
@@ -1653,7 +1671,12 @@ internal sealed class MapForm : Form
         var realMap = string.IsNullOrEmpty(_raidMapKey) ? null : MapPack.Find(_raidMapKey);
         if (real != null && realMap != null)
         {
-            ApplyFix(realMap, real.X, real.Y, real.Z, real.ForwardX, real.ForwardZ);
+            // 对局绑定逻辑地图；同一地图的 SVG/瓦片版必须用当前版本的标定和 key。
+            // 查看不相关地图时仍保留原局 key，让画布继续隐藏该位置。
+            var projection = CurrentMap is { } viewingMap &&
+                string.Equals(viewingMap.Data, realMap.Data, StringComparison.OrdinalIgnoreCase)
+                ? viewingMap : realMap;
+            ApplyFix(projection, real.X, real.Y, real.Z, real.ForwardX, real.ForwardZ);
             return;
         }
         // 2) 测试截图：按"当前正在看的地图"投影，方便确认截图目录和投影是否正常
@@ -2159,6 +2182,24 @@ internal sealed class MapForm : Form
         }
         var max = WindowState == FormWindowState.Maximized ? "1" : "0";
         PlayerLocator.SetSetting("window", $"{rect.X},{rect.Y},{rect.Width},{rect.Height},{max}");
+    }
+
+    private void RestoreMapLayer()
+    {
+        if (string.Equals(CurrentMap?.Key, _viewSettings.MapKey, StringComparison.OrdinalIgnoreCase))
+            _canvas.SetLayer(_viewSettings.Layer ?? "");
+    }
+
+    private void SaveViewSettings()
+    {
+        var settings = MapViewSettings.Capture(_canvas, _onlyActive.Active, _noZone.Active);
+        // 图层在首张地图加载前也可以调整，不要丢掉上次保存的地图与楼层。
+        if (_canvas.Map == null)
+        {
+            settings.MapKey = _viewSettings.MapKey;
+            settings.Layer = _viewSettings.Layer;
+        }
+        settings.Save();
     }
     /// <summary>把这张图的门锁按钥匙归组，弹「钥匙」列表；选中就飞到那把锁并闪一下。</summary>
     private void OpenKeyList()

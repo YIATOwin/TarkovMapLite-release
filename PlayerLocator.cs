@@ -48,6 +48,14 @@ public sealed class PlayerLocator
     {
         get
         {
+            // 回归测试使用独立设置文件，避免读写真实用户的界面偏好。
+            var custom = Environment.GetEnvironmentVariable("TARKOVMAPLITE_SETTINGS");
+            if (!string.IsNullOrWhiteSpace(custom))
+            {
+                var path = Path.GetFullPath(custom);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                return path;
+            }
             var dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TarkovMapLite");
             try { Directory.CreateDirectory(dir); } catch { }

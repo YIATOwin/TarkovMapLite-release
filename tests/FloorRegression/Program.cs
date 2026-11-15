@@ -39,7 +39,27 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        var previous = Environment.GetEnvironmentVariable("TARKOVMAPLITE_SETTINGS");
+        var directory = Path.Combine(Path.GetTempPath(), "TarkovMapLite-tests-" + Guid.NewGuid().ToString("N"));
+        var settings = Path.Combine(directory, "settings.json");
+        Environment.SetEnvironmentVariable("TARKOVMAPLITE_SETTINGS", settings);
+        try { Run(args); }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TARKOVMAPLITE_SETTINGS", previous);
+            if (File.Exists(settings)) File.Delete(settings);
+            if (Directory.Exists(directory)) Directory.Delete(directory);
+        }
+    }
+
+    private static void Run(string[] args)
+    {
         Application.SetHighDpiMode(HighDpiMode.DpiUnaware);
+        if (args.FirstOrDefault() == "--behavior-only")
+        {
+            MapBehaviorChecks.Run();
+            return;
+        }
         if (args.FirstOrDefault() == "--player-only")
         {
             var folder = args.ElementAtOrDefault(1);
@@ -206,6 +226,7 @@ internal static class Program
         _checks += LayerIconChecks.Run(output);
         _checks += MemoryChecks.Run();
         _checks += PlayerMarkerChecks.Run(output);
+        _checks += MapBehaviorChecks.Run();
         Console.WriteLine($"PASS: {_checks} checks, {MapPack.Maps.Count} maps, " +
             $"{MapPack.Maps.Sum(m => 1 + m.Layers.Count)} native floor renders, menu state/batching and single-floor regression.");
     }
