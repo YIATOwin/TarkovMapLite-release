@@ -163,17 +163,30 @@ internal static class MapBehaviorChecks
             other.Focus();
             Application.DoEvents();
             var screen = detail.PointToScreen(new Point(40, 40));
+            // Windows CI 服务会话没有可交互输入桌面，WindowFromPoint 无法命中测试窗口。
+            // 该环境仍验证真实 RichEdit 的滚轮、增量和焦点；实际悬停路由在本地桌面验证。
+            var interactive = WindowFromPoint(screen) == detail.Handle;
+            var otherWasFocused = other.Focused;
+            if (!interactive)
+                Console.WriteLine("INFO: No interactive desktop hit-test; validating native RichEdit wheel delivery.");
             IntPtr Pack(Point point) => (IntPtr)unchecked((int)((uint)(ushort)point.X | ((uint)(ushort)point.Y << 16)));
             Message Wheel(IntPtr target, int delta, Point point) =>
                 Message.Create(target, 0x020A, (IntPtr)(delta << 16), Pack(point));
+            void Deliver(ref Message wheel)
+            {
+                var routed = Application.FilterMessage(ref wheel);
+                Check(routed == interactive, "Wheel routing disagrees with the actual hit window");
+                if (!interactive)
+                    SendMessage(detail.Handle, wheel.Msg, wheel.WParam, wheel.LParam);
+            }
             var before = SendMessage(detail.Handle, 0xCE, IntPtr.Zero, IntPtr.Zero).ToInt32();
             var down = Wheel(other.Handle, -120, screen);
-            Check(Application.FilterMessage(ref down), "Hover wheel was not routed to task description");
+            Deliver(ref down);
             var after = SendMessage(detail.Handle, 0xCE, IntPtr.Zero, IntPtr.Zero).ToInt32();
             Check(after > before, "Long task description did not scroll down");
-            Check(other.Focused && !detail.Focused, "Scrolling stole keyboard focus");
+            Check(other.Focused == otherWasFocused && !detail.Focused, "Scrolling stole keyboard focus");
             var up = Wheel(other.Handle, 120, screen);
-            Check(Application.FilterMessage(ref up), "Upward wheel was not routed");
+            Deliver(ref up);
             Check(SendMessage(detail.Handle, 0xCE, IntPtr.Zero, IntPtr.Zero).ToInt32() < after,
                 "Task description did not scroll up");
             var outside = Wheel(other.Handle, -120, other.PointToScreen(new Point(10, 10)));
@@ -187,11 +200,11 @@ internal static class MapBehaviorChecks
             detail.Select(0, 0);
             detail.ScrollToCaret();
             var half = Wheel(other.Handle, -60, screen);
-            Check(Application.FilterMessage(ref half), "High-resolution wheel was not routed");
+            Deliver(ref half);
             Check(SendMessage(detail.Handle, 0xCE, IntPtr.Zero, IntPtr.Zero).ToInt32() == 0,
                 "A half-notch should wait for the remaining delta");
             var secondHalf = Wheel(other.Handle, -60, screen);
-            Check(Application.FilterMessage(ref secondHalf), "Second high-resolution wheel delta was lost");
+            Deliver(ref secondHalf);
             Check(SendMessage(detail.Handle, 0xCE, IntPtr.Zero, IntPtr.Zero).ToInt32() > 0,
                 "High-resolution wheel deltas were not accumulated");
             using (var overlay = new Panel { Bounds = detail.Bounds })
@@ -211,4 +224,7 @@ internal static class MapBehaviorChecks
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(Point point);
 }
