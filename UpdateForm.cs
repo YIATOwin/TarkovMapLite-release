@@ -18,6 +18,7 @@ internal sealed class UpdateForm : Form
     public UpdateForm(MapForm owner)
     {
         _owner = owner; Text = "软件更新"; ClientSize = new Size(600, 550); MinimumSize = new Size(500, 460);
+        Icon = owner.Icon;
         StartPosition = FormStartPosition.Manual; ShowInTaskbar = false;
         BackColor = UiTokens.PanelBack; ForeColor = UiTokens.TextMain; Font = new Font("Microsoft YaHei UI", UiTokens.FontBody);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 8, Padding = new Padding(16) };

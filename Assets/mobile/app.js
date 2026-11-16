@@ -360,7 +360,7 @@ function drawZones(data) {
       continue;
     }
     const state = S.taskIndex[zone.i] || 0;
-    if (!zone.story && S.onlyActive && state !== 1) {
+    if (!zone.story && !selected && S.onlyActive && state !== 1) {
       continue;
     }
     const points = zone.p;
@@ -566,7 +566,7 @@ function drawConnectors(data) {
       continue;
     }
     const state = S.taskIndex[zone.i] || 0;
-    if (!zone.story && S.onlyActive && state !== 1) {
+    if (!zone.story && !selected && S.onlyActive && state !== 1) {
       continue;
     }
     const count = zone.p.length / 2;

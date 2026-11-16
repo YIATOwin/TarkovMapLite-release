@@ -1,5 +1,7 @@
 # 任务面板回归
 
+任务坐标专项：先运行 `dotnet run --project tests/FloorRegression -c Release -- --locations-only C:\temp\locations-checks`，再运行 `node tests/mobile/task-locations.cjs C:\temp\locations-checks`。验证真实邮递员工厂点位与楼层、未记录／完成／失败任务的显式选中预览、取消选中后的仅进行中过滤，以及多点连线。
+
 先运行 Windows 桌面测试，生成真实手机状态快照：
 
 ```powershell

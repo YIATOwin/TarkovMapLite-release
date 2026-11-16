@@ -79,6 +79,7 @@ public sealed class MapExtras
 /// <summary>任务的一个目标：描述、类型、数量，以及需要的物品/钥匙（id）。</summary>
 public sealed class ObjectiveInfo
 {
+    public string Id { get; init; } = "";
     public required string Description { get; init; }
     public required string Type { get; init; }
     public int? Count { get; init; }
@@ -165,6 +166,9 @@ public static class TarkovData
         ["5704e5fad2720bc05b8b4567"] = "reserve",
         ["5714dbc024597771384a510d"] = "interchange",
         ["5714dc692459777137212e12"] = "streets-of-tarkov",
+        ["5b0fc42d86f7744a585f9105"] = "the-lab",
+        ["6a294a5b5eb5f9a1700417b7"] = "the-lab-dark",
+        ["6733700029c367a3d40b02af"] = "the-labyrinth",
         ["653e6760052c01c1c805532f"] = "ground-zero",
         ["65b8d6f5cdde2479cb2a3125"] = "ground-zero-21",
         ["68236e8153654e8c1200798a"] = "ground-zero-tutorial",
@@ -198,7 +202,7 @@ public static class TarkovData
     /// <summary>当前用的是打包进 exe 的静态数据（没有缓存、也没联网时）。</summary>
     public static bool FromSeed { get; private set; }
     /// <summary>缓存格式版本：老的内置数据升到这里就要强制刷新一次。</summary>
-    public const int CurrentSchema = 13;   // 13: 任务筛选元数据；旧缓存缺失值仍保留 unknown
+    public const int CurrentSchema = 14;   // 14: 目标 ID 和任务坐标补全；旧缓存启动时也合并离线坐标
     public static int Schema { get; private set; }
 
     private static string CachePath
@@ -311,9 +315,9 @@ public static class TarkovData
                 traders[id] = t["trader"] is JsonObject traderNode
                     ? traderNode["id"]?.ToString() ?? "" : t["trader"]?.ToString() ?? "";
 
-                var zones = new List<object>();
+                var zones = TaskLocations.ReadApi(t);
                 var objectives = new List<object>();
-                foreach (var objective in (t["objectives"] as JsonArray) ?? new JsonArray())
+                foreach (var objective in TaskLocations.Objects(t["objectives"]))
                 {
                     var type = objective?["type"]?.GetValue<string>() ?? "";
                     var description = objective?["description"]?.GetValue<string>() ?? "";
@@ -354,53 +358,12 @@ public static class TarkovData
                     {
                         objectives.Add(new
                         {
+                            id = objective?["id"]?.ToString() ?? "",
                             d = description,
                             t = type,
                             c = objective?["count"]?.GetValue<int?>(),
                             i = itemIds,
                             k = keys,
-                        });
-                    }
-                    foreach (var zone in (objective?["zones"] as JsonArray) ?? new JsonArray())
-                    {
-                        var mapId = zone?["map"]?.GetValue<string>() ?? "";
-                        if (!MapIdToKey.TryGetValue(mapId, out var mapKey))
-                        {
-                            continue;
-                        }
-                        var pts = new List<double[]>();
-                        foreach (var p in (zone?["outline"] as JsonArray) ?? new JsonArray())
-                        {
-                            pts.Add(new[]
-                            {
-                                p?["x"]?.GetValue<double>() ?? 0,
-                                p?["z"]?.GetValue<double>() ?? 0,
-                            });
-                        }
-                        if (pts.Count == 0 && zone?["position"] is JsonObject pos)
-                        {
-                            var x = pos["x"]?.GetValue<double>() ?? 0;
-                            var z = pos["z"]?.GetValue<double>() ?? 0;
-                            const double r = 4;
-                            pts.Add(new[] { x - r, z - r });
-                            pts.Add(new[] { x + r, z - r });
-                            pts.Add(new[] { x + r, z + r });
-                            pts.Add(new[] { x - r, z + r });
-                        }
-                        if (pts.Count < 3)
-                        {
-                            continue;
-                        }
-                        zones.Add(new
-                        {
-                            m = mapKey,
-                            t = type,
-                            // objective id：手动标记"已完成"靠它做稳定 key
-                            o = objective?["id"]?.GetValue<string>() ?? "",
-                            p = pts,
-                            f = FloorFromZone(zone),
-                            // 区域中心的世界高度：用来建"高度 → 楼层"对照，判断玩家在几层
-                            y = ZoneHeight(zone),
                         });
                     }
                 }
@@ -511,8 +474,9 @@ public static class TarkovData
             var name = t["name"]?.GetValue<string>() ?? id;
             names[id] = name;
             traders[id] = t["trader"]?.GetValue<string>() ?? "";
-            var meta = t["meta"]?.Deserialize<TaskMetadata>() ?? SeedMetadata.Value.GetValueOrDefault(id) ?? new();
-            var regionKeys = meta.Regions.Concat((t["zones"] as JsonArray ?? [])
+            var taskZones = TaskLocations.Merge(t);
+            var meta = TaskLocations.CorrectMetadata(id, t["meta"]?.Deserialize<TaskMetadata>() ?? SeedMetadata.Value.GetValueOrDefault(id) ?? new());
+            var regionKeys = meta.Regions.Concat(taskZones
                 .Select(z => TarkovMapLite.TaskMetadata.RegionKey(z?["m"]?.ToString())))
                 .Where(k => !string.IsNullOrEmpty(k)).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray();
             var traderLabel = TarkovMapLite.TaskMetadata.TraderLabel(traders[id]);
@@ -543,6 +507,7 @@ public static class TarkovData
                     }
                     list.Add(new ObjectiveInfo
                     {
+                        Id = o?["id"]?.ToString() ?? "",
                         Description = description,
                         Type = o?["t"]?.GetValue<string>() ?? "",
                         Count = o?["c"]?.GetValue<int?>(),
@@ -558,7 +523,7 @@ public static class TarkovData
                     objectivesByTask[id] = list;
                 }
             }
-            foreach (var zone in (t["zones"] as JsonArray) ?? new JsonArray())
+            foreach (var zone in taskZones)
             {
                 var mapKey = zone?["m"]?.GetValue<string>() ?? "";
                 // 只保留我们有地图的那些；不支持的地图直接丢掉，省内存
@@ -597,6 +562,7 @@ public static class TarkovData
                     ObjectiveId = zone?["o"]?.GetValue<string>() ?? "",
                     WorldPoints = world.ToArray(),
                     Floor = zoneFloor,
+                    FloorKnown = zone?["floorKnown"]?.GetValue<bool?>() ?? true,
                 };
                 if (!zones.TryGetValue(mapKey, out var list))
                 {
@@ -696,7 +662,7 @@ public static class TarkovData
         return Math.Clamp(best.Floor + delta, -2, 5);
     }
 
-    private static int FloorFromZone(JsonNode? zone)
+    internal static int FloorFromZone(JsonNode? zone)
     {
         if (zone == null)
         {

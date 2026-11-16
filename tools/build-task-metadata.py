@@ -17,6 +17,8 @@ source = json.loads(Path(args.source).read_text(encoding='utf-8-sig'))
 source = source if isinstance(source, list) else list(source.get('data', source).get('tasks', {}).values())
 seed_path = root / 'Assets/data-seed.json'
 seed = json.loads(seed_path.read_text(encoding='utf-8-sig'))
+location_path = root / 'Assets/task-locations.json'
+locations = json.loads(location_path.read_text(encoding='utf-8')) if location_path.exists() else {}
 maps = json.loads((root / 'Assets/maps/maps.json').read_text(encoding='utf-8'))['maps']
 aliases = {'Streets': 'streets-of-tarkov', 'Labs': 'the-lab', 'Ground Zero 21+': 'ground-zero-21', 'The Lab (Dark)': 'the-lab-dark'}
 
@@ -45,6 +47,9 @@ for task in seed['tasks']:
             'RegionKnown': 'map' in raw and all('maps' in o for o in objectives),
             'MinLevel': raw.get('minPlayerLevel'), 'Faction': raw.get('factionName'),
             'Kappa': raw.get('kappaRequired'), 'Lightkeeper': raw.get('lightkeeperRequired'), 'AsOf': args.as_of}
+    if meta['AsOf'] == locations.get('asOf'):
+        exclusions = locations.get('regionExclusions', {}).get(task['id'], [])
+        meta['Regions'] = [m for m in meta['Regions'] if m not in exclusions]
     task['meta'] = meta
     count += 1
 seed['schema'] = 13

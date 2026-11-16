@@ -777,7 +777,7 @@ internal sealed partial class MapCanvas : Control
         {
             return false;
         }
-        return zone.IsStory ? ShowStory : !OnlyActive || state == TaskState.Started;
+        return zone.IsStory ? ShowStory : SelectedTaskId == zone.TaskId || !OnlyActive || state == TaskState.Started;
     }
 
     /// <summary>撤离点（绿）和转移点（紫），带名字。</summary>

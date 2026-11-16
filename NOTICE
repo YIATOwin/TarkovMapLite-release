@@ -49,6 +49,14 @@ remain from the sources below. Unmatched fields stay unknown. Reproduce the
 metadata import with tools/build-task-metadata.py; pass the actual snapshot date
 using --as-of and its pinned source URL using --source-url.
 
+Assets/task-locations.json also imports factual objective IDs, map keys and x/y/z
+positions from that same pinned snapshot. Reproduce with tools/build-task-locations.py.
+Existing task text and area outlines are retained; positions fill missing locations.
+One conflicting Oil Run point (-334.93, -101.46, -163.46) labelled Reserve is retained
+in the exclusion list: the same snapshot contains its Customs counterpart at y=2.22,
+matching the Customs objective text and the original polygon. Its snapshot-only
+Reserve region tag is excluded as well. No invented replacement coordinate is used.
+
 Assets/point-heights.json includes factual position heights from the public
 tarkov.dev API snapshots distributed in sayser/TarkovTracker, Config/:
 https://github.com/sayser/TarkovTracker/tree/f17c54542e78fb8ef3f3cd40081c84c321a69825/Config

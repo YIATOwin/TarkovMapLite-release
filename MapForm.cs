@@ -44,6 +44,7 @@ internal sealed partial class MapForm : Form
     private readonly Label _status = new();
     private readonly Label _dataStatus = new();
     private readonly Label _header = new();
+    private readonly Icon? _applicationIcon = AppIdentity.LoadIcon();
     private readonly TaskListControl _taskList = new();
     private readonly TaskDescriptionBox _detail = new();
     private readonly ListBox _itemList = new();
@@ -98,6 +99,7 @@ internal sealed partial class MapForm : Form
     public MapForm()
     {
         Text = "Tarkov 地图";
+        if (_applicationIcon != null) Icon = _applicationIcon;
         BackColor = UiTokens.Back;
         MinimumSize = new Size(760, 480);
         ClientSize = new Size(1120, 700);
@@ -2216,6 +2218,6 @@ internal sealed partial class MapForm : Form
             DisposeLayerIcons(_layerMenu.Items);
         }
         base.Dispose(disposing);
-        if (disposing) { _taskTitleFont.Dispose(); _taskTagFont.Dispose(); }
+        if (disposing) { _taskTitleFont.Dispose(); _taskTagFont.Dispose(); _applicationIcon?.Dispose(); }
     }
 }

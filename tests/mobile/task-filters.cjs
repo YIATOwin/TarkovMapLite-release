@@ -69,6 +69,7 @@ const assert = require('node:assert/strict');
     check(state.taskFilters.trader === trader, 'Phone filter did not reach shared state');
     state.taskFilters.faction = 'USEC'; state.rev++;
     await page.waitForFunction(() => document.getElementById('taskFaction').value === 'USEC');
+    await peer.waitForFunction(() => document.getElementById('taskFaction').value === 'USEC');
     check(await peer.locator('#taskFaction').inputValue() === 'USEC', 'Desktop-side changes did not reach both clients');
 
     const search = page.locator('#taskSearch');
