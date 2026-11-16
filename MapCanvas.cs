@@ -61,6 +61,7 @@ internal sealed partial class MapCanvas : Control
     public event Action<string>? CopyRequested;
 
     public bool OnlyActive { get; set; }
+    public bool ShowStory { get; set; }
     public TaskLog? Log { get; set; }
     public bool ShowZones { get; set; } = true;
 
@@ -776,7 +777,7 @@ internal sealed partial class MapCanvas : Control
         {
             return false;
         }
-        return !OnlyActive || state == TaskState.Started;
+        return zone.IsStory ? ShowStory : !OnlyActive || state == TaskState.Started;
     }
 
     /// <summary>撤离点（绿）和转移点（紫），带名字。</summary>
@@ -1007,11 +1008,11 @@ internal sealed partial class MapCanvas : Control
             {
                 continue;
             }
-            var dim = state is TaskState.Finished or TaskState.Failed;
+            var dim = !zone.IsStory && state is TaskState.Finished or TaskState.Failed;
             // 不在当前楼层的区域画成半透明：储备站/实验室这种多层图，一眼就能分出
             // 哪些是脚下这层的（Floor 由接口的 top/bottom 推算，见 TarkovData.FloorFromZone）
-            var offFloor = zone.Floor != CurrentFloor;
-            var color = ColorOf(state);
+            var offFloor = zone.FloorKnown && zone.Floor != CurrentFloor;
+            var color = TaskColor(zone.TaskId, state);
             using var path = new GraphicsPath();
             var pts = zone.Points.Select(p => new PointF(origin.X + p.X * scale, origin.Y + p.Y * scale)).ToArray();
             path.AddPolygon(pts);
@@ -1056,7 +1057,7 @@ internal sealed partial class MapCanvas : Control
                 }
                 if (hit < 0)
                 {
-                    places.Add((p, zone.Floor, 1));
+                    places.Add((p, zone.FloorKnown ? zone.Floor : currentFloor, 1));
                 }
                 else
                 {
@@ -1076,7 +1077,7 @@ internal sealed partial class MapCanvas : Control
             {
                 continue;
             }
-            var color = ColorOf(log?.StateOf(taskId) ?? TaskState.None);
+            var color = TaskColor(taskId, log?.StateOf(taskId) ?? TaskState.None);
             using var link = new Pen(Color.FromArgb(205, color), 2.1f)
             {
                 DashStyle = DashStyle.Custom,
@@ -1089,7 +1090,7 @@ internal sealed partial class MapCanvas : Control
         foreach (var (taskId, places) in placesByTask)
         {
             var state = log?.StateOf(taskId) ?? TaskState.None;
-            var color = ColorOf(state);
+            var color = TaskColor(taskId, state);
             var multi = places.Count > 1;
             using var dotBrush = new SolidBrush(color);
             // 序号角标用深一点的颜色，压在圆点右上角，和箭头互不干扰
@@ -1147,6 +1148,7 @@ internal sealed partial class MapCanvas : Control
         foreach (var group in ordered)
         {
             var zone = group.First();
+            textBrush.Color = zone.IsStory ? UiTokens.StoryMarker : Color.White;
             var state = log?.StateOf(zone.TaskId) ?? TaskState.None;
             if (!IsZoneVisible(zone, state))
             {
@@ -1159,6 +1161,11 @@ internal sealed partial class MapCanvas : Control
             var x = places[0].Point.X + 10;
             var y = places[0].Point.Y - 8;
             var size = g.MeasureString(text, label);
+            if (zone.IsStory)
+            {
+                x = Math.Clamp(x, 4, Math.Max(4, ClientSize.Width - size.Width - 4));
+                y = Math.Clamp(y, 4, Math.Max(4, ClientSize.Height - size.Height - 4));
+            }
             var box = new RectangleF(x - 2, y - 2, size.Width + 4, size.Height + 4);
             if (!box.IntersectsWith(new RectangleF(0, 0, ClientSize.Width, ClientSize.Height)))
             {
@@ -1179,6 +1186,7 @@ internal sealed partial class MapCanvas : Control
     }
 
     /// <summary>任务状态对应的颜色，画区域、点位、连线都共用。</summary>
+    private static Color TaskColor(string id, TaskState state) => StoryTasks.IsTask(id) ? UiTokens.StoryMarker : ColorOf(state);
     private static Color ColorOf(TaskState state) => state switch
     {
         TaskState.Started => Color.FromArgb(76, 154, 255),
@@ -1328,7 +1336,7 @@ internal sealed partial class MapCanvas : Control
             var state2 = g.Save();
             g.TranslateTransform(ax, ay);
             g.RotateTransform(angle);
-            using var arrowBrush = new SolidBrush(Color.FromArgb(220, 120, 180, 255));
+            using var arrowBrush = new SolidBrush(zone.IsStory ? UiTokens.StoryMarker : Color.FromArgb(220, 120, 180, 255));
             g.FillPolygon(arrowBrush, new[]
             {
                 new PointF(6, 0),

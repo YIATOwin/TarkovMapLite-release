@@ -55,6 +55,34 @@ internal static class Program
     private static void Run(string[] args)
     {
         Application.SetHighDpiMode(HighDpiMode.DpiUnaware);
+        if (args.FirstOrDefault() == "--update-live")
+        {
+            using var updater = new AppUpdate(new UpdateSettings { ProxyMode = args.Length > 1 ? "custom" : "system", ProxyUrl = args.ElementAtOrDefault(1) ?? "" });
+            var check = updater.CheckAsync(AppUpdate.CurrentVersion, default).GetAwaiter().GetResult();
+            Console.WriteLine($"Live GitHub latest: {check.LatestTag}, current: {AppUpdate.DisplayVersion(AppUpdate.CurrentVersion)}, newer: {check.Offer != null}");
+            return;
+        }
+        if (args.FirstOrDefault() == "--update-integration" && args.Length == 5)
+        {
+            UpdateIntegrationChecks.Run(args[1], args[2], args[3], args[4]);
+            return;
+        }
+        if (args.FirstOrDefault() == "--updates-only")
+        {
+            UpdateChecks.Run(args.ElementAtOrDefault(1));
+            return;
+        }
+        if (args.FirstOrDefault() == "--tasks-only")
+        {
+            TaskFilterChecks.Run(args.ElementAtOrDefault(1));
+            return;
+        }
+        if (args.FirstOrDefault() == "--story-only")
+        {
+            TarkovData.LoadCached();
+            StoryTaskChecks.Run(args.ElementAtOrDefault(1));
+            return;
+        }
         if (args.FirstOrDefault() == "--behavior-only")
         {
             MapBehaviorChecks.Run();
@@ -227,6 +255,9 @@ internal static class Program
         _checks += MemoryChecks.Run();
         _checks += PlayerMarkerChecks.Run(output);
         _checks += MapBehaviorChecks.Run();
+        _checks += TaskFilterChecks.Run(output);
+        _checks += StoryTaskChecks.Run(output);
+        _checks += UpdateChecks.Run(output);
         Console.WriteLine($"PASS: {_checks} checks, {MapPack.Maps.Count} maps, " +
             $"{MapPack.Maps.Sum(m => 1 + m.Layers.Count)} native floor renders, menu state/batching and single-floor regression.");
     }

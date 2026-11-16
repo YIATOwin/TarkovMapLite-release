@@ -3,7 +3,7 @@
 //
 // 界面结构（BuildLayout）：
 //   顶栏：地图下拉 / 撤离点 / 图层 / 刷新数据 / 复位 / 瓦片版 / 手机端
-//   右侧：筛选（仅进行中、任意地区）+ 任务列表 + 目标 + 所需物品
+//   右侧：搜索与任务筛选 + 标签列表 + 目标/目的地 + 所需物品
 //   底部：状态栏（本图进行中、区域数、数据来源、玩家坐标）
 //
 // 事件流（记住这条就不容易改错）：
@@ -12,8 +12,8 @@
 //   两个 Timer：_timer 3s（读日志/读截图）、_mobileTimer 250ms（推手机端状态）
 //
 // 改动须知：
-//  · 任务选中态的唯一真相是画布的 SelectedTaskId；改选中一般走
-//    _taskList.SelectedIndex（会顺带刷新目标、自动切楼层）。手机端也走这条路。
+//  · 任务选中态来自 _taskList.SelectedIndex。跨图任务仍可选中，但只有本图区域
+//    才写入画布 SelectedTaskId，避免选中跨图任务时把本图的区域全隐藏。
 //  · ShowTaskDetail 必须从 _detail.Clear() 开始：AppendDetail 只追加，
 //    不清空的话新任务的目标会接在上一个后面（踩过）。
 //  · 顶栏按钮是绝对坐标，加按钮要自己挪位置；窄窗口会被裁掉。
@@ -25,7 +25,7 @@ using System.Runtime.InteropServices;
 
 namespace TarkovMapLite;
 
-internal sealed class MapForm : Form
+internal sealed partial class MapForm : Form
 {
     private static readonly Color PanelBack = UiTokens.PanelBack;
     private static readonly Color PanelLine = UiTokens.Line;
@@ -44,7 +44,7 @@ internal sealed class MapForm : Form
     private readonly Label _status = new();
     private readonly Label _dataStatus = new();
     private readonly Label _header = new();
-    private readonly ListBox _taskList = new();
+    private readonly TaskListControl _taskList = new();
     private readonly TaskDescriptionBox _detail = new();
     private readonly ListBox _itemList = new();
     private readonly Label _itemHeader = new();
@@ -246,18 +246,8 @@ internal sealed class MapForm : Form
 
         _noZone.Text = "任意地区";
         _noZone.Active = _viewSettings.AnyRegion;
-        _noZone.Click += (_, _) =>
-        {
-            _noZone.Active = !_noZone.Active;
-            // 切换分类时清掉选中：刷新列表会触发 SelectedIndexChanged，
-            // 顺序很重要，否则旧任务的过滤会残留（地图上什么都不显示）
-            RefreshTaskList();
-            _taskList.ClearSelected();
-            _canvas.SelectedTaskId = null;
-            ShowTaskDetail(null);
-            _canvas.Invalidate();
-            SaveViewSettings();
-        };
+        _noZone.Click += (_, _) => ChangeTaskFilter(_taskFilter with
+        { Region = _taskFilter.Region == "any" ? "current" : "any" });
 
         // 图层下拉：多选，勾哪个画哪个
         _layerButton.Text = "图层";
@@ -345,8 +335,9 @@ internal sealed class MapForm : Form
         bottom.Controls.Add(_dataStatus);
         bottom.Controls.Add(_shotsButton);
         bottom.Controls.Add(_testButton);
+        BuildUpdateButton(bottom);
 
-        var right = new Panel { Dock = DockStyle.Right, Width = 250, BackColor = UiTokens.Sunken, Padding = new Padding(0) };
+        var right = new Panel { Dock = DockStyle.Right, Width = 336, BackColor = UiTokens.Sunken, Padding = new Padding(0) };
         _header.Dock = DockStyle.Top;
         _header.Height = 32;
         _header.ForeColor = TextMain;
@@ -356,20 +347,16 @@ internal sealed class MapForm : Form
         _header.Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold);
 
         _taskList.Dock = DockStyle.Fill;
-        _taskList.BorderStyle = BorderStyle.None;
         _taskList.BackColor = UiTokens.Sunken;
         _taskList.ForeColor = TextMain;
-        _taskList.DrawMode = DrawMode.OwnerDrawFixed;
-        _taskList.ItemHeight = 34;
-        _taskList.Font = new Font("Microsoft YaHei UI", 9f);
+        _taskList.MeasureItem += MeasureTaskRow;
+        _taskList.Font = _taskTitleFont;
         _taskList.DrawItem += DrawTaskRow;
         // 列表为空时画一段说明 + 两个可点出口（规范五态里的"空态要给出口"）
         _taskList.Paint += PaintEmptyTaskHint;
         _taskList.MouseClick += ClickEmptyTaskHint;
         // 单击已选中的任务 = 取消选中（恢复显示所有任务的区域）。
-        // 注意 WinForms 在 MouseDown 之前就已经改好了 SelectedIndex，所以不能拿它
-        // 和当前选中项比较——那样每次点击都会被当成"点的就是已选中的"，立刻取消。
-        // 用"上一次点的是同一行"来判断，才符合直觉。
+        // 记录上次点击行，区分首次选中和重复点击取消。
         _taskList.MouseDown += (_, e) =>
         {
             if (e.Button == MouseButtons.Right)
@@ -399,6 +386,7 @@ internal sealed class MapForm : Form
         };
         _taskList.SelectedIndexChanged += (_, _) =>
         {
+            if (_refreshingTasks) return;
             var row = _taskList.SelectedItem as TaskRow;
             ShowTaskDetail(row);
             if (row != null)
@@ -458,6 +446,11 @@ internal sealed class MapForm : Form
         var detailHost = ClipScrollbar(_detail);
         detailHost.Dock = DockStyle.Fill;
         detailPanel.Controls.Add(detailHost);
+        _taskJump.Dock = DockStyle.Top;
+        _taskJump.AutoSize = true;
+        _taskJump.WrapContents = true;
+        _taskJump.Visible = false;
+        detailPanel.Controls.Add(_taskJump);
         detailPanel.Controls.Add(detailHeaderPanel);
         // 目标与所需物品之间：6px 空隙 + 2px 亮线。
         // Dock 是"后加的先贴边"，所以要按 空隙 → 亮线 → 物品面板 的顺序加，
@@ -489,14 +482,7 @@ internal sealed class MapForm : Form
         split.Controls.Add(taskHost, 0, 0);
         split.Controls.Add(detailPanel, 0, 1);
 
-        // 任务筛选按钮放在任务列表正上方
-        var filters = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = UiTokens.PanelBack };
-        _onlyActive.Location = new Point(10, 7);
-        _onlyActive.Size = new Size(78, 26);
-        _noZone.Location = new Point(96, 7);
-        _noZone.Size = new Size(78, 26);
-        filters.Controls.Add(_onlyActive);
-        filters.Controls.Add(_noZone);
+        var filters = BuildTaskFilters();
 
         right.Controls.Add(split);
         right.Controls.Add(_header);
@@ -648,6 +634,9 @@ internal sealed class MapForm : Form
         };
 
         // 手动标记：清空（换赛季/重做任务时用）
+        AddToggle("任务区域：仅进行中", LayerIcon.Label, UiTokens.TextDim, _canvas.OnlyActive,
+            value => { _canvas.OnlyActive = value; _onlyActive.Active = value; });
+        _layerMenu.Items[^1].Name = "onlyActiveTaskZones";
         AddCommand("清空已完成标记", LayerIcon.ClearMarks, UiTokens.TextDim, ClearDoneMarks);
         AddToggle("出生点", LayerIcon.Spawn, UiTokens.PlayerSpawn, _canvas.ShowSpawns,
             value => _canvas.ShowSpawns = value);
@@ -814,7 +803,7 @@ internal sealed class MapForm : Form
         var count = 0;
         foreach (ToolStripItem item in _layerMenu.Items)
         {
-            if (item is ToolStripMenuItem item2 && item2.CheckState != CheckState.Unchecked)
+            if (item is ToolStripMenuItem item2 && item2.Name != "onlyActiveTaskZones" && item2.CheckState != CheckState.Unchecked)
             {
                 count++;
             }
@@ -837,41 +826,9 @@ internal sealed class MapForm : Form
         });
     }
 
-    private void DrawTaskRow(object? sender, DrawItemEventArgs e)
-    {
-        e.DrawBackground();
-        if (e.Index < 0 || e.Index >= _taskList.Items.Count)
-        {
-            return;
-        }
-        var item = (TaskRow)_taskList.Items[e.Index]!;
-        var selected = (e.State & DrawItemState.Selected) != 0;
-        using var back = new SolidBrush(selected ? Color.FromArgb(40, 48, 60) : UiTokens.Sunken);
-        e.Graphics.FillRectangle(back, e.Bounds);
+    private void DrawTaskRow(object? sender, DrawItemEventArgs e) => DrawFilteredTaskRow(e);
 
-        var dotColor = item.State switch
-        {
-            TaskState.Started => Color.FromArgb(76, 154, 255),
-            TaskState.Finished => UiTokens.Ok,
-            TaskState.Failed => Color.FromArgb(220, 110, 110),
-            _ => Color.FromArgb(110, 116, 126),
-        };
-        using var dot = new SolidBrush(dotColor);
-        e.Graphics.FillEllipse(dot, e.Bounds.X + 10, e.Bounds.Y + 13, 8, 8);
-
-        var title = TextRenderer.MeasureText(_taskList.Items[e.Index].ToString(), _taskList.Font);
-        using var titleFont = new Font(_taskList.Font, FontStyle.Regular);
-        TextRenderer.DrawText(e.Graphics, item.Name, titleFont,
-            new Rectangle(e.Bounds.X + 26, e.Bounds.Y + 3, e.Bounds.Width - 32, 16), TextMain,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-        using var small = new Font("Microsoft YaHei UI", 7.5f);
-        TextRenderer.DrawText(e.Graphics, item.Subtitle, small,
-            new Rectangle(e.Bounds.X + 26, e.Bounds.Y + 18, e.Bounds.Width - 32, 14), TextDim,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-        GC.KeepAlive(title);
-    }
-
-    private sealed record TaskRow(string Id, string Name, string Subtitle, TaskState State)
+    private sealed record TaskRow(string Id, string Name, string Subtitle, TaskState State, string[]? Tags = null)
     {
         public override string ToString() => Name;
     }
@@ -1085,7 +1042,6 @@ internal sealed class MapForm : Form
         UpdateVariantChip(map);
         _canvas.Invalidate();
         RefreshTaskList();
-        UpdateSpawnPoints(null);
         UpdatePlayerMarker();
         UpdateStatus();
     }
@@ -1156,6 +1112,11 @@ internal sealed class MapForm : Form
         var map = CurrentMap;
         if (row == null || map == null)
         {
+            return;
+        }
+        if (!_canvas.Zones.Any(z => z.TaskId == row.Id))
+        {
+            _status.Text = "这个任务在当前地图没有区域，请先选择任务目的地";
             return;
         }
         var now = DoneZones.Toggle(row.Id, map.Data);
@@ -1245,9 +1206,15 @@ internal sealed class MapForm : Form
             ? new PointF((float)fix.X, (float)fix.Z)
             : null;
         state.PlayerMapKey = _canvas.PlayerMapKey;
-        state.SelectedTaskId = _canvas.SelectedTaskId;
+        state.SelectedTaskId = (_taskList.SelectedItem as TaskRow)?.Id;
         state.OnlyActive = _onlyActive.Active;
         state.Tasks = _mobileTasks;
+        state.TaskFiltersJson = System.Text.Json.JsonSerializer.Serialize(_taskFilter, TaskJson);
+        state.TaskOptionsJson = _taskOptionsJson;
+        state.TaskStatesJson = _taskStatesJson;
+        state.TaskSummary = _taskSummary.Text;
+        state.TaskContentVersion = _taskContentVersion;
+        state.TaskDestinations = TaskDestinations(state.SelectedTaskId);
         state.Objectives = _mobileObjectives;
         state.Items = _mobileItems;
         state.Flush();
@@ -1267,6 +1234,17 @@ internal sealed class MapForm : Form
                 break;
             case MobileAction.SetMap:
                 SelectMap(action.Value, preferDefault: false);
+                break;
+            case "setTaskFilter":
+                try
+                {
+                    var patch = System.Text.Json.Nodes.JsonNode.Parse(action.Value);
+                    PatchTaskFilter(patch?["field"]?.GetValue<string>() ?? "", patch?["value"]?.GetValue<string>() ?? "");
+                }
+                catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) { }
+                break;
+            case "jumpTaskMap":
+                JumpToTaskMap(action.Value, (_taskList.SelectedItem as TaskRow)?.Id ?? "");
                 break;
         }
     }
@@ -1305,7 +1283,7 @@ internal sealed class MapForm : Form
         {
             if (item is TaskRow row)
             {
-                tasks.Add(new MobileTask(row.Id, row.Name, row.Subtitle, row.State));
+                tasks.Add(new MobileTask(row.Id, row.Name, row.Subtitle, row.State, row.Tags ?? []));
             }
         }
         _mobileTasks = tasks;
@@ -1503,7 +1481,7 @@ internal sealed class MapForm : Form
     {
         var menu = new ContextMenuStrip { Font = new Font("Microsoft YaHei UI", 9f) };
 
-        if (!string.IsNullOrEmpty(_currentTaskId))
+        if (!string.IsNullOrEmpty(_currentTaskId) && !StoryTasks.IsTask(_currentTaskId))
         {
             menu.Items.Add("中文 Wiki（eftarkov.com）", null,
                 (_, _) => OpenUrl($"https://www.eftarkov.com/task/{_currentTaskId}"));
@@ -1531,7 +1509,7 @@ internal sealed class MapForm : Form
     private List<(string Label, string Url)> CurrentTaskLinks()
     {
         var links = new List<(string Label, string Url)>();
-        if (!string.IsNullOrEmpty(_currentTaskId))
+        if (!string.IsNullOrEmpty(_currentTaskId) && !StoryTasks.IsTask(_currentTaskId))
         {
             links.Add(("中文 Wiki", $"https://www.eftarkov.com/task/{_currentTaskId}"));
         }
@@ -1548,6 +1526,7 @@ internal sealed class MapForm : Form
 
     private void ShowTaskDetail(TaskRow? row)
     {
+        UpdateTaskJumpLinks(row?.Id);
         if (row == null)
         {
             _detail.Clear();
@@ -1559,6 +1538,11 @@ internal sealed class MapForm : Form
             _wikiButton.Visible = false;
             _mobileObjectives = Array.Empty<string>();
             _mobileItems = Array.Empty<MobileItem>();
+            return;
+        }
+        if (StoryTasks.Get(row.Id) is { } story)
+        {
+            ShowStoryTaskDetail(row, story);
             return;
         }
         // 换任务必须先清空：AppendDetail 只追加，不清空的话新任务的目标会接在上一个
@@ -1782,11 +1766,11 @@ internal sealed class MapForm : Form
     private void FocusTaskFloor(string taskId)
     {
         var map = CurrentMap;
-        if (map == null || !TarkovData.ZonesByMap.TryGetValue(map.Data, out var zones))
+        if (map == null)
         {
             return;
         }
-        var zone = zones.FirstOrDefault(z => string.Equals(z.TaskId, taskId, StringComparison.OrdinalIgnoreCase));
+        var zone = _canvas.ProjectedZones.FirstOrDefault(z => z.FloorKnown && string.Equals(z.TaskId, taskId, StringComparison.OrdinalIgnoreCase));
         if (zone == null)
         {
             return;
@@ -1806,7 +1790,7 @@ internal sealed class MapForm : Form
     /// <summary>选中任务后只显示它的区域；取消选中恢复显示全部。</summary>
     private void RevealSelectedTask(TaskRow? row)
     {
-        _canvas.SelectedTaskId = row?.Id;
+        _canvas.SelectedTaskId = row != null && _canvas.ProjectedZones.Any(z => z.TaskId == row.Id) ? row.Id : null;
         _canvas.Invalidate();
     }
 
@@ -1814,184 +1798,28 @@ internal sealed class MapForm : Form
     // 任务列表的空状态（UI-SPEC §9：五态里"空态必须解释为什么空 + 给出口"）
     //
     // 为什么用 Paint 而不是往列表里塞一条假行：
-    //   列表是 OwnerDrawFixed + 单击取消选中，塞假行会污染选中逻辑、手机端任务同步，
+    //   不向实际任务集合塞假行，避免污染选中逻辑和手机端同步，
     //   还要在四五处加特判。直接画在空白处、自己处理点击，副作用最小。
     //   注意：有内容时这里一律不画，正常绘制完全不受影响。
     // ------------------------------------------------------------------------
 
-    private enum EmptyAction
-    {
-        None,
-        DropActiveFilter,   // 关掉「仅进行中」
-        ShowAnyRegion,      // 切到「任意地区」
-        BackToMap,          // 从「任意地区」切回本图
-    }
-
-    /// <summary>空列表时第 1/2 个出口的文字和动作。两个方法必须同源，改文案例子时一起改。</summary>
-    private static (string Text, EmptyAction Action) EmptyOption(int index, bool anyRegion, bool onlyActive)
-    {
-        if (index == 0)
-        {
-            if (anyRegion)
-            {
-                return ("· 回到本图任务", EmptyAction.BackToMap);
-            }
-            return onlyActive
-                ? ("· 关掉「仅进行中」，看本图全部任务", EmptyAction.DropActiveFilter)
-                : ("· 看「任意地区」任务", EmptyAction.ShowAnyRegion);
-        }
-        return !anyRegion && onlyActive
-            ? ("· 看「任意地区」任务（跨图任务）", EmptyAction.ShowAnyRegion)
-            : ("", EmptyAction.None);
-    }
-
-    /// <summary>三块可点区域的矩形（标题 / 出口一 / 出口二）。绘制和点击都用它。</summary>
-    private Rectangle[] EmptyHintRects()
-    {
-        var width = Math.Max(40, _taskList.ClientSize.Width - 32);
-        return new[]
-        {
-            new Rectangle(16, 18, width, 24),
-            new Rectangle(16, 54, width, 22),
-            new Rectangle(16, 78, width, 22),
-        };
-    }
-
     private void PaintEmptyTaskHint(object? sender, PaintEventArgs e)
     {
-        if (_taskList.Items.Count > 0)
-        {
-            return;
-        }
-        var rects = EmptyHintRects();
-        var title = _noZone.Active ? "没有符合条件的任意地区任务" : "本图没有进行中的任务";
-        TextRenderer.DrawText(e.Graphics, title, _taskList.Font, rects[0], UiTokens.TextMain);
-        for (var i = 0; i < 2; i++)
-        {
-            var (text, _) = EmptyOption(i, _noZone.Active, _onlyActive.Active);
-            if (text.Length == 0)
-            {
-                continue;
-            }
-            TextRenderer.DrawText(e.Graphics, text, _taskList.Font, rects[i + 1], UiTokens.Accent);
-        }
+        if (_taskList.Items.Count > 0) return;
+        var width = Math.Max(40, _taskList.ClientSize.Width - 32);
+        TextRenderer.DrawText(e.Graphics, "没有符合条件的任务", _taskTagFont,
+            new Rectangle(16, 16, width, 32), TextMain);
+        TextRenderer.DrawText(e.Graphics, "清除筛选，回到本图进行中任务", _taskTagFont,
+            new Rectangle(16, 56, width, 48), UiTokens.Accent, TextFormatFlags.WordBreak);
+        TextRenderer.DrawText(e.Graphics, "也可以选择全部地区或全部状态", _taskTagFont,
+            new Rectangle(16, 112, width, 48), TextDim, TextFormatFlags.WordBreak);
     }
-
     private void ClickEmptyTaskHint(object? sender, MouseEventArgs e)
     {
-        if (_taskList.Items.Count > 0)
-        {
-            return;
-        }
-        var rects = EmptyHintRects();
-        for (var i = 0; i < 2; i++)
-        {
-            if (!rects[i + 1].Contains(e.Location))
-            {
-                continue;
-            }
-            var (_, action) = EmptyOption(i, _noZone.Active, _onlyActive.Active);
-            if (action == EmptyAction.None)
-            {
-                return;
-            }
-            switch (action)
-            {
-                case EmptyAction.DropActiveFilter:
-                    _onlyActive.Active = false;
-                    _canvas.OnlyActive = false;
-                    break;
-                case EmptyAction.ShowAnyRegion:
-                    _noZone.Active = true;
-                    break;
-                case EmptyAction.BackToMap:
-                    _noZone.Active = false;
-                    break;
-            }
-            RefreshTaskList();
-            _taskList.ClearSelected();
-            _canvas.SelectedTaskId = null;
-            ShowTaskDetail(null);
-            _canvas.Invalidate();
-            return;
-        }
+        if (_taskList.Items.Count == 0 && new Rectangle(16, 56, _taskList.ClientSize.Width - 32, 48).Contains(e.Location))
+            ChangeTaskFilter(new());
     }
-    private void RefreshTaskList()
-    {
-        var map = CurrentMap;
-        _lastClickedRow = -1;
-        _taskList.BeginUpdate();
-        _taskList.Items.Clear();
-        if (_noZone.Active)
-        {
-            // 任意地区：有目标、但任何地图都没有区域的任务
-            var withZones = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var list in TarkovData.ZonesByMap.Values)
-            {
-                foreach (var zone in list)
-                {
-                    withZones.Add(zone.TaskId);
-                }
-            }
-            foreach (var (taskId, objectives) in TarkovData.TaskObjectives)
-            {
-                if (withZones.Contains(taskId))
-                {
-                    continue;
-                }
-                var state = _log.StateOf(taskId);
-                if (_onlyActive.Active && state != TaskState.Started)
-                {
-                    continue;
-                }
-                var name = TarkovData.TaskNames.TryGetValue(taskId, out var known) ? known : taskId;
-                var subtitle = state switch
-                {
-                    TaskState.Started => $"进行中 · 任意地区 · {objectives.Count} 个目标",
-                    TaskState.Finished => "已完成",
-                    TaskState.Failed => "已失败",
-                    _ => $"未开始 · 任意地区 · {objectives.Count} 个目标",
-                };
-                _taskList.Items.Add(new TaskRow(taskId, name, subtitle, state));
-            }
-            _taskList.EndUpdate();
-            SyncMobileTasks();
-            _header.Text = $"任意地区任务 · {_taskList.Items.Count}";
-            return;
-        }
-        if (map != null && TarkovData.ZonesByMap.TryGetValue(map.Data, out var zones))
-        {
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var zone in zones)
-            {
-                if (!seen.Add(zone.TaskId))
-                {
-                    continue;
-                }
-                var state = _log.StateOf(zone.TaskId);
-                if (_onlyActive.Active && state != TaskState.Started)
-                {
-                    continue;
-                }
-                var subtitle = state switch
-                {
-                    TaskState.Started => "进行中 · " + zone.Type,
-                    TaskState.Finished => "已完成",
-                    TaskState.Failed => "已失败",
-                    _ => "未开始 · " + zone.Type,
-                };
-                // 手动标记：这个任务在本图已经做完了（右键任务列表切换）
-                if (DoneZones.IsDone(zone.TaskId, CurrentMap?.Data ?? ""))
-                {
-                    subtitle += " · 本图已完成 ✓";
-                }
-                _taskList.Items.Add(new TaskRow(zone.TaskId, zone.TaskName, subtitle, state));
-            }
-        }
-        _taskList.EndUpdate();
-        SyncMobileTasks();
-        _header.Text = $"任务 · {_taskList.Items.Count}";
-    }
+    private void RefreshTaskList() => RefreshFilteredTasks();
 
     /// <summary>
     /// 手动指定游戏截图目录：有些人的截图不在默认的「文档\Escape From Tarkov\Screenshots」，
@@ -2364,6 +2192,7 @@ internal sealed class MapForm : Form
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (ActiveControl is TextBoxBase or ComboBox or UpDownBase) return;
         if (e.KeyCode == Keys.R)
         {
             _canvas.Fit();
@@ -2383,8 +2212,10 @@ internal sealed class MapForm : Form
         if (disposing)
         {
             _timer.Dispose();
+            _taskSearchTimer.Dispose();
             DisposeLayerIcons(_layerMenu.Items);
         }
         base.Dispose(disposing);
+        if (disposing) { _taskTitleFont.Dispose(); _taskTagFont.Dispose(); }
     }
 }

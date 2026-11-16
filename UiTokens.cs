@@ -33,6 +33,7 @@ internal static class UiTokens
     public static readonly Color PlayerEdge = Color.FromArgb(246,253,255);
     public static readonly Color PlayerOutline = Color.FromArgb(8,16,21);
     public static readonly Color PlayerGuide = Color.FromArgb(255,186,88);
+    public static readonly Color StoryMarker = Color.FromArgb(255,109,61);
 
     /// <summary>面板底色（顶栏、任务栏、状态栏、抽屉）。</summary>
     public static readonly Color PanelBack = Color.FromArgb(20, 23, 26);

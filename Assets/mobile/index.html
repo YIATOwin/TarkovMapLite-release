@@ -51,6 +51,30 @@
     <span id="chevron">▴</span>
   </div>
   <div id="drawerBody">
+    <section id="taskFilters" aria-label="任务筛选">
+      <div class="task-search-row">
+        <input id="taskSearch" class="filter-input" type="search" maxlength="256" placeholder="搜索任务、目标、物品或钥匙" aria-label="搜索任务">
+        <button id="taskReset" class="filter-button" type="button">重置</button>
+      </div>
+      <div class="task-basic-row">
+        <select id="taskRegion" aria-label="任务地区"></select>
+        <select id="taskStatus" aria-label="任务状态"></select>
+        <button id="taskFilterToggle" class="filter-button" type="button" aria-expanded="false" aria-controls="taskAdvanced">筛选</button>
+      </div>
+      <div class="task-story-row">
+        <button id="taskStoryToggle" class="filter-button" type="button" aria-pressed="false">主线：关闭</button>
+        <select id="taskStorySeries" aria-label="主线任务系列" disabled></select>
+      </div>
+      <div id="taskAdvanced" hidden>
+        <select id="taskTrader" aria-label="任务商人"></select>
+        <select id="taskCategory" aria-label="任务类别"></select>
+        <select id="taskFaction" aria-label="任务阵营"></select>
+        <input id="taskLevel" class="filter-input" type="number" min="1" max="100" step="1" inputmode="numeric" placeholder="角色等级（不限）" aria-label="角色等级，只筛选最低等级要求">
+        <select id="taskKappa" aria-label="Kappa 必需性"></select>
+        <select id="taskLightkeeper" aria-label="灯塔商人必需性"></select>
+      </div>
+      <div id="taskFilterSummary" role="status" aria-live="polite"></div>
+    </section>
     <div id="taskList"></div>
     <div id="taskDetail"></div>
   </div>

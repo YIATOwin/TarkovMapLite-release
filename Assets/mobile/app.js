@@ -36,6 +36,7 @@ const playerColors = {
   edge: playerTheme.getPropertyValue('--player-edge').trim() || '#f6fdff',
   outline: playerTheme.getPropertyValue('--player-outline').trim() || '#081015',
 };
+const storyColor = playerTheme.getPropertyValue('--story-marker').trim() || '#ff6d3d';
 fetch('/icons.json').then(r => { if (!r.ok) throw Error('icons'); return r.json(); })
   .then(data => { markerDefinitions = data; draw(); }).catch(() => {});
 
@@ -158,9 +159,10 @@ function applyState(data) {
 
   S.data = data;
   S.taskIndex = Object.create(null);
-  for (const task of data.tasks) {
-    S.taskIndex[task.id] = task.s;
-  }
+  if (data.taskStates) Object.assign(S.taskIndex, data.taskStates);
+  else for (const task of data.tasks) S.taskIndex[task.id] = task.s;
+  if (S.sel && (S.sel === data.sel || !data.tasks.some(t => t.id === S.sel))) S.sel = null;
+  renderTaskFilters(data);
 
   if (data.map) {
     ui.title.textContent = data.map.name + (floorLabel(data.map) ? ' · ' + floorLabel(data.map) : '');
@@ -349,20 +351,24 @@ function draw() {
 }
 
 function drawZones(data) {
-  const selected = S.sel || data.sel || null;
+  const requestedTask = S.sel || data.sel || null;
+  const selected = data.zones.some(z => z.i === requestedTask) ? requestedTask : null;
   const scale = S.scale;
   for (const zone of data.zones) {
+    if (zone.story && !data.taskFilters?.showStory) continue;
     if (selected && zone.i !== selected) {
       continue;
     }
     const state = S.taskIndex[zone.i] || 0;
-    if (S.onlyActive && state !== 1) {
+    if (!zone.story && S.onlyActive && state !== 1) {
       continue;
     }
     const points = zone.p;
     if (points.length < 6) {
       continue;
     }
+    const originalAlpha = ctx.globalAlpha;
+    if (zone.story && zone.floorKnown !== false && zone.f !== (data.map?.floor ?? 0)) ctx.globalAlpha *= .35;
     ctx.beginPath();
     let visible = false;
     for (let i = 0; i < points.length; i += 2) {
@@ -378,16 +384,40 @@ function drawZones(data) {
       }
     }
     if (!visible) {
+      ctx.globalAlpha = originalAlpha;
       continue;
     }
     ctx.closePath();
-    const dim = state === 2 || state === 3;
-    ctx.fillStyle = stateColor(state, dim ? 0.1 : 0.22);
+    const dim = !zone.story && (state === 2 || state === 3);
+    ctx.fillStyle = zone.story ? storyColor : stateColor(state, dim ? 0.1 : 0.22);
+    if (zone.story) ctx.globalAlpha *= .22;
     ctx.fill();
+    if (zone.story) ctx.globalAlpha /= .22;
     // 线宽按屏幕像素算，缩小时不会糊成一条边
-    ctx.lineWidth = Math.max(1.2 / scale, 0.6);
-    ctx.strokeStyle = dim ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.92)';
+    ctx.lineWidth = zone.story ? 1.5 : Math.max(1.2 / scale, 0.6);
+    ctx.strokeStyle = zone.story ? storyColor : dim ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.92)';
     ctx.stroke();
+    if (zone.story) {
+      let x = 0, y = 0;
+      for (let i=0;i<points.length;i+=2) { x += toX(points[i]); y += toY(points[i+1]); }
+      x /= points.length/2; y /= points.length/2;
+      ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fillStyle=storyColor; ctx.fill();
+      ctx.lineWidth=1.5; ctx.strokeStyle=playerColors.outline; ctx.stroke();
+      if (selected) {
+        ctx.save(); ctx.font='12px system-ui, sans-serif'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+        let text=zone.n || '主线子任务';
+        const maxWidth=Math.max(80,Math.min(220,S.w-16));
+        if (ctx.measureText(text).width > maxWidth) {
+          while (text.length && ctx.measureText(text+'…').width > maxWidth) text=text.slice(0,-1);
+          text += '…';
+        }
+        const tx=Math.max(8,Math.min(x+10,S.w-ctx.measureText(text).width-8));
+        const ty=Math.max(16,Math.min(y-10,S.h-8));
+        ctx.strokeStyle=playerColors.outline; ctx.lineWidth=3; ctx.strokeText(text,tx,ty);
+        ctx.fillStyle=storyColor; ctx.fillText(text,tx,ty); ctx.restore();
+      }
+    }
+    ctx.globalAlpha = originalAlpha;
   }
 }
 
@@ -527,14 +557,16 @@ function drawPlayer(player) {
 // 同一个任务分散在多处时，用虚线连起来并编号（和电脑端同一个做法）。
 // 屏幕上挨得很近的几块（同一个房间里的 5 个 zone）先合并成一处，否则线会绕成一团。
 function drawConnectors(data) {
-  const selected = S.sel || data.sel || null;
+  const requestedTask = S.sel || data.sel || null;
+  const selected = data.zones.some(z => z.i === requestedTask) ? requestedTask : null;
   const groups = new Map();
   for (const zone of data.zones) {
+    if (zone.story && !data.taskFilters?.showStory) continue;
     if (selected && zone.i !== selected) {
       continue;
     }
     const state = S.taskIndex[zone.i] || 0;
-    if (S.onlyActive && state !== 1) {
+    if (!zone.story && S.onlyActive && state !== 1) {
       continue;
     }
     const count = zone.p.length / 2;
@@ -548,7 +580,7 @@ function drawConnectors(data) {
       cy += zone.p[i + 1];
     }
     if (!groups.has(zone.i)) {
-      groups.set(zone.i, { state, points: [] });
+      groups.set(zone.i, { state, story: !!zone.story, points: [] });
     }
     groups.get(zone.i).points.push({ x: toX(cx / count), y: toY(cy / count) });
   }
@@ -577,7 +609,7 @@ function drawConnectors(data) {
     if (!selected && groups.size > 4) {
       continue;
     }
-    const color = stateColor(group.state, 0.9);
+    const color = group.story ? storyColor : stateColor(group.state, 0.9);
     ctx.setLineDash([6, 5]);
     ctx.lineDashOffset = -S.dash;
     ctx.strokeStyle = color;
@@ -728,30 +760,123 @@ function addLayerChip(text, active, onChange) {
 
 // ---------------------------------------------------------------- 任务抽屉
 
+const taskFilterFields = {
+  region: ['taskRegion', 'regions'], status: ['taskStatus', 'states'], trader: ['taskTrader', 'traders'],
+  category: ['taskCategory', 'categories'], faction: ['taskFaction', 'factions'],
+  kappa: ['taskKappa', 'kappa'], lightkeeper: ['taskLightkeeper', 'lightkeeper'],
+  search: ['taskSearch'], playerLevel: ['taskLevel'],
+  storySeries: ['taskStorySeries', 'storySeries'],
+};
+const pendingTaskFilters = new Map();
+let taskFilterQueue = Promise.resolve();
+const taskFilterTimers = new Map();
+let taskSearchComposing = false;
+
+function updateTaskFilter(field, value) {
+  value = String(value ?? '');
+  pendingTaskFilters.set(field, { value, until: Date.now() + 5000 });
+  taskFilterQueue = taskFilterQueue.then(async () => {
+    const ok = await sendAction('setTaskFilter', JSON.stringify({ field, value }));
+    if (!ok && pendingTaskFilters.get(field)?.value === value) pendingTaskFilters.delete(field);
+  });
+}
+
+function renderTaskFilters(data) {
+  const filters = data.taskFilters;
+  if (!filters) return;
+  const storyToggle = document.getElementById('taskStoryToggle');
+  storyToggle.textContent = filters.showStory ? '主线：已开启' : '主线：关闭';
+  storyToggle.setAttribute('aria-pressed', String(!!filters.showStory));
+  document.getElementById('taskStorySeries').disabled = !filters.showStory;
+  for (const id of ['taskStatus','taskLevel','taskFaction','taskKappa','taskLightkeeper'])
+    document.getElementById(id).disabled = filters.trader === 'story';
+  for (const [field, [id, optionsKey]] of Object.entries(taskFilterFields)) {
+    const input = document.getElementById(id);
+    if (optionsKey) {
+      const options = data.taskOptions?.[optionsKey] || [];
+      const key = JSON.stringify(options);
+      if (input.dataset.options !== key) {
+        input.replaceChildren(...options.map(option => new Option(option.label, option.value)));
+        input.dataset.options = key;
+      }
+    }
+    const serverValue = String(filters[field] ?? '');
+    const pending = pendingTaskFilters.get(field);
+    if (pending && (pending.value === serverValue || pending.until < Date.now())) pendingTaskFilters.delete(field);
+    // Polls must not overwrite an in-flight edit, reset IME, or move the caret.
+    if ((optionsKey || document.activeElement !== input) && !pendingTaskFilters.has(field) && input.value !== serverValue)
+      input.value = serverValue;
+  }
+  document.getElementById('taskFilterSummary').textContent = data.taskSummary || '';
+}
+
+for (const [field, [id, optionsKey]] of Object.entries(taskFilterFields)) {
+  const input = document.getElementById(id);
+  if (optionsKey) input.addEventListener('change', () => updateTaskFilter(field, input.value));
+  else {
+    const clearTimer = () => { clearTimeout(taskFilterTimers.get(field)); taskFilterTimers.delete(field); };
+    const send = () => {
+      if (taskSearchComposing) return;
+      clearTimer();
+      taskFilterTimers.set(field, setTimeout(() => {
+        const level = document.getElementById('taskLevel');
+        if (field === 'playerLevel' && !level.checkValidity()) {
+          document.getElementById('taskFilterSummary').textContent = '角色等级请输入 1～100；留空表示不限';
+          return;
+        }
+        updateTaskFilter(field, input.value);
+      }, 200));
+    };
+    input.addEventListener('input', send);
+    input.addEventListener('compositionstart', () => { taskSearchComposing = true; clearTimer(); });
+    input.addEventListener('compositionend', () => { taskSearchComposing = false; send(); });
+    input.addEventListener('blur', () => { if (S.data && !taskSearchComposing) renderTaskFilters(S.data); });
+  }
+}
+document.getElementById('taskReset').addEventListener('click', () => {
+  for (const timer of taskFilterTimers.values()) clearTimeout(timer);
+  taskFilterTimers.clear(); pendingTaskFilters.clear();
+  const defaults = { search: '', playerLevel: '', region: 'current', status: '1', trader: '', category: '', faction: '', kappa: '', lightkeeper: '' };
+  for (const [field, value] of Object.entries(defaults)) pendingTaskFilters.set(field, { value, until: Date.now() + 5000 });
+  document.getElementById('taskSearch').value = ''; document.getElementById('taskLevel').value = '';
+  updateTaskFilter('reset', '');
+});
+document.getElementById('taskStoryToggle').addEventListener('click', () =>
+  updateTaskFilter('showStory', String(!S.data?.taskFilters?.showStory)));
+document.getElementById('taskFilterToggle').addEventListener('click', event => {
+  const advanced = document.getElementById('taskAdvanced');
+  advanced.hidden = !advanced.hidden;
+  event.currentTarget.setAttribute('aria-expanded', String(!advanced.hidden));
+  event.currentTarget.textContent = advanced.hidden ? '筛选' : '收起';
+});
+
 function renderTasks() {
   const data = S.data;
   if (!data) {
     return;
   }
   const selected = S.sel || data.sel || '';
-  const key = data.tasks.map(task => task.id + ':' + task.s).join('|') + '#' + selected + '#' + data.map.key;
+  const key = JSON.stringify(data.tasks) + '#' + selected + '#' + (data.map?.key || '');
   if (key === S.tasksKey) {
     return;
   }
   S.tasksKey = key;
 
   ui.drawerCount.textContent = (() => {
-    const picked = data.tasks.find(task => task.id === selected);
-    if (picked) {
-      return picked.n;
-    }
-    return data.tasks.length ? data.tasks.length + ' 个' : '';
+    return data.tasks.length + ' 个';
   })();
+  const previousScroll = ui.taskList.scrollTop;
   ui.taskList.textContent = '';
   if (!data.tasks.length) {
     const empty = document.createElement('div');
     empty.className = 'task';
-    empty.innerHTML = '<div class="name">这张图上没有任务</div>';
+    const hint = document.createElement('div');
+    hint.className = 'name';
+    hint.textContent = '没有符合条件的任务，可选择全部地区或全部状态';
+    const reset = document.createElement('button');
+    reset.className = 'filter-button'; reset.type = 'button'; reset.textContent = '清除筛选';
+    reset.addEventListener('click', () => updateTaskFilter('reset', ''));
+    empty.append(hint, reset);
     ui.taskList.appendChild(empty);
     return;
   }
@@ -759,14 +884,20 @@ function renderTasks() {
     const row = document.createElement('div');
     row.className = 'task'
       + (task.id === selected ? ' sel' : '')
+      + (task.s === 1 ? ' s-active' : '')
       + (task.s === 3 ? ' s-done' : '')
       + (task.s === 2 ? ' s-fail' : '');
     const name = document.createElement('div');
     name.className = 'name';
     name.textContent = task.n;
     const sub = document.createElement('div');
-    sub.className = 'sub';
-    sub.textContent = task.sub;
+    sub.className = 'task-tags';
+    for (const text of task.tags || [task.sub]) {
+      const tag = document.createElement('span');
+      tag.className = 'task-tag';
+      if (['进行中','已完成','已失败','日志未记录'].includes(text)) tag.classList.add('task-state');
+      tag.textContent = text; sub.appendChild(tag);
+    }
     row.appendChild(name);
     row.appendChild(sub);
     row.addEventListener('click', () => {
@@ -777,9 +908,7 @@ function renderTasks() {
       sendAction('selectTask', next);
       if (next) {
         focusTask(next);
-        // 选完就把抽屉收起来：手机端最想看到的是"往哪走"，目标文字点一下还有
-        ui.drawer.classList.remove('open');
-        document.body.classList.remove('drawer-open');
+        // Keep the details and explicit cross-map destinations visible. Selection never switches maps.
       } else {
         fit();
       }
@@ -788,6 +917,7 @@ function renderTasks() {
     });
     ui.taskList.appendChild(row);
   }
+  ui.taskList.scrollTop = previousScroll;
 }
 
 function renderDetail() {
@@ -796,7 +926,7 @@ function renderDetail() {
     return;
   }
   const selected = S.sel || data.sel || '';
-  const revKey = data.rev + '#' + selected;
+  const revKey = JSON.stringify([selected, data.detail, data.wiki, data.taskDestinations]);
   if (revKey === S.detailRev) {
     return;
   }
@@ -809,6 +939,15 @@ function renderDetail() {
     ui.taskDetail.appendChild(empty);
     return;
   }
+  const destinations = document.createElement('div');
+  destinations.className = 'wiki';
+  for (const map of data.taskDestinations || []) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'filter-button'; button.textContent = '前往' + map.name;
+    button.addEventListener('click', () => sendAction('jumpTaskMap', map.key));
+    destinations.appendChild(button);
+  }
+  if (destinations.childElementCount) ui.taskDetail.appendChild(destinations);
   const detail = data.detail || { obj: [], items: [] };
   if (!detail.obj.length) {
     const empty = document.createElement('div');
@@ -859,14 +998,17 @@ function renderDetail() {
 
 async function sendAction(type, value) {
   try {
-    await fetch('/api/action', {
+    const response = await fetch('/api/action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: type, value: value || '' }),
       cache: 'no-store',
     });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return true;
   } catch (error) {
     toast('电脑端没有响应');
+    return false;
   }
 }
 
@@ -1091,6 +1233,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('resize', () => draw());
 window.addEventListener('orientationchange', () => setTimeout(draw, 220));
 window.addEventListener('keydown', event => {
+  if (event.isComposing) return;
   if (event.key === 'Escape') {
     ui.drawer.classList.remove('open');
     document.body.classList.remove('drawer-open');

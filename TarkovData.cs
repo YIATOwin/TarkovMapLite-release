@@ -107,6 +107,8 @@ public sealed class ZoneShape
     public RectangleF Bounds { get; init; }
     /// <summary>推断出来的楼层：0 地面，1 二层，2 三层，-1 地下。</summary>
     public int Floor { get; init; }
+    public bool FloorKnown { get; init; } = true;
+    public bool IsStory { get; init; }
 
     /// <summary>按 <paramref name="map"/> 的投影算出一份可以直接画的副本（世界坐标不变）。</summary>
     public ZoneShape Project(MapProjection map)
@@ -131,6 +133,8 @@ public sealed class ZoneShape
             Bounds = new RectangleF(minX, minY,
                 points.Max(p => p.X) - minX, points.Max(p => p.Y) - minY),
             Floor = Floor,
+            FloorKnown = FloorKnown,
+            IsStory = IsStory,
         };
     }
 }
@@ -181,6 +185,8 @@ public static class TarkovData
     /// <summary>BTR 停车点（只有森林和塔科夫街区有）。</summary>
     public static Dictionary<string, List<MapMarker>> BtrStops { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     public static Dictionary<string, string> TaskTrader { get; private set; } = new();
+    public static Dictionary<string, TaskMetadata> TaskMetadata { get; private set; } = new();
+    internal static bool TryMapKey(string id, out string key) => MapIdToKey.TryGetValue(id, out key!);
     /// <summary>任务 id → wiki 链接（地点照片都在 wiki 页上）。</summary>
     public static Dictionary<string, string> TaskWiki { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>任务 id → tarkov.dev 的 slug（任务页地址 /task/&lt;slug&gt;）。</summary>
@@ -192,7 +198,7 @@ public static class TarkovData
     /// <summary>当前用的是打包进 exe 的静态数据（没有缓存、也没联网时）。</summary>
     public static bool FromSeed { get; private set; }
     /// <summary>缓存格式版本：老的内置数据升到这里就要强制刷新一次。</summary>
-    public const int CurrentSchema = 12;   // 12: 撤离点/转移点/BTR 保留真实高度
+    public const int CurrentSchema = 13;   // 13: 任务筛选元数据；旧缓存缺失值仍保留 unknown
     public static int Schema { get; private set; }
 
     private static string CachePath
@@ -302,7 +308,8 @@ public static class TarkovData
                 }
                 var name = t["name"]?.GetValue<string>() ?? id;
                 names[id] = name;
-                traders[id] = t["trader"]?.ToString() ?? "";
+                traders[id] = t["trader"] is JsonObject traderNode
+                    ? traderNode["id"]?.ToString() ?? "" : t["trader"]?.ToString() ?? "";
 
                 var zones = new List<object>();
                 var objectives = new List<object>();
@@ -399,7 +406,7 @@ public static class TarkovData
                 }
                 if (zones.Count > 0 || objectives.Count > 0)
                 {
-                    records.Add(new { id, name, trader = traders[id], wiki = t["wikiLink"]?.GetValue<string>() ?? "", slug = t["normalizedName"]?.GetValue<string>() ?? "", zones, obj = objectives });
+                    records.Add(new { id, name, trader = traders[id], wiki = t["wikiLink"]?.GetValue<string>() ?? "", slug = t["normalizedName"]?.GetValue<string>() ?? "", zones, obj = objectives, meta = TarkovMapLite.TaskMetadata.FromApi(t) });
                 }
             }
 
@@ -474,11 +481,23 @@ public static class TarkovData
         }
     }
 
+    private static readonly Lazy<Dictionary<string, TaskMetadata>> SeedMetadata = new(() =>
+    {
+        var result = new Dictionary<string, TaskMetadata>(StringComparer.OrdinalIgnoreCase);
+        using var doc = JsonDocument.Parse(Assets.ReadText("data-seed.json") ?? "{}");
+        if (doc.RootElement.TryGetProperty("tasks", out var tasks))
+            foreach (var task in tasks.EnumerateArray())
+                if (task.TryGetProperty("meta", out var meta) && task.TryGetProperty("id", out var id))
+                    result[id.GetString()!] = meta.Deserialize<TaskMetadata>() ?? new();
+        return result;
+    });
+
     private static void ParseRecords(JsonArray? tasks)
     {
         var zones = new Dictionary<string, List<ZoneShape>>(StringComparer.OrdinalIgnoreCase);
         var names = new Dictionary<string, string>();
         var traders = new Dictionary<string, string>();
+        var metadata = new Dictionary<string, TaskMetadata>(StringComparer.OrdinalIgnoreCase);
         var objectivesByTask = new Dictionary<string, List<ObjectiveInfo>>();
         var wikis = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var slugs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -492,6 +511,17 @@ public static class TarkovData
             var name = t["name"]?.GetValue<string>() ?? id;
             names[id] = name;
             traders[id] = t["trader"]?.GetValue<string>() ?? "";
+            var meta = t["meta"]?.Deserialize<TaskMetadata>() ?? SeedMetadata.Value.GetValueOrDefault(id) ?? new();
+            var regionKeys = meta.Regions.Concat((t["zones"] as JsonArray ?? [])
+                .Select(z => TarkovMapLite.TaskMetadata.RegionKey(z?["m"]?.ToString())))
+                .Where(k => !string.IsNullOrEmpty(k)).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray();
+            var traderLabel = TarkovMapLite.TaskMetadata.TraderLabel(traders[id]);
+            metadata[id] = meta with
+            {
+                TraderName = traderLabel != traders[id] ? traderLabel : meta.TraderName,
+                Regions = regionKeys, RegionKnown = meta.RegionKnown || regionKeys.Length > 0,
+                Faction = TarkovMapLite.TaskMetadata.NormalizeFaction(meta.Faction),
+            };
             if (t["wiki"]?.GetValue<string>() is { Length: > 0 } wiki)
             {
                 wikis[id] = wiki;
@@ -592,6 +622,7 @@ public static class TarkovData
         TaskObjectives = objectivesByTask;
         TaskNames = names;
         TaskTrader = traders;
+        TaskMetadata = metadata;
         TaskWiki = wikis;
         TaskSlug = slugs;
     }

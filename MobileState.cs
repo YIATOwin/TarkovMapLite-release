@@ -19,6 +19,7 @@
 // ============================================================================
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
 namespace TarkovMapLite;
 
@@ -34,7 +35,8 @@ internal sealed class MobileAction
 }
 
 /// <summary>手机端任务列表的一行（状态用枚举数字发过去，手机自己上色）。</summary>
-internal sealed record MobileTask(string Id, string Name, string Subtitle, TaskState State);
+internal sealed record MobileTask(string Id, string Name, string Subtitle, TaskState State, string[]? Tags = null);
+internal sealed record MobileTaskMap(string Key, string Name);
 
     /// <summary>任务资料站链接（中文 Wiki / tarkov.dev / fandom），手机端照桌面那份渲染成按钮。</summary>
     internal sealed record MobileLink(string Label, string Url);
@@ -72,6 +74,12 @@ internal sealed class MobileState
     public IReadOnlyList<MobileTask> Tasks { get; set; } = Array.Empty<MobileTask>();
     public string? SelectedTaskId { get; set; }
     public bool OnlyActive { get; set; }
+    public string TaskFiltersJson { get; set; } = "{}";
+    public string TaskOptionsJson { get; set; } = "{}";
+    public string TaskStatesJson { get; set; } = "{}";
+    public string TaskSummary { get; set; } = "";
+    public int TaskContentVersion { get; set; }
+    public IReadOnlyList<MobileTaskMap> TaskDestinations { get; set; } = [];
 
     /// <summary>选中任务的目标文字（没有选中任务时是空的）。</summary>
     public IReadOnlyList<string> Objectives { get; set; } = Array.Empty<string>();
@@ -143,6 +151,9 @@ internal sealed class MobileState
             sb.Append(link.Url).Append('~');
         }
         sb.Append('|');
+        sb.Append(TaskContentVersion).Append('|').Append(TaskFiltersJson).Append('|')
+            .Append(TaskOptionsJson).Append('|').Append(TaskStatesJson).Append('|').Append(TaskSummary);
+        foreach (var destination in TaskDestinations) sb.Append('|').Append(destination.Key);
         // 任务状态会变（完成/失败），数量和顺序不变，所以把状态一起算进指纹
         foreach (var task in Tasks)
         {
@@ -165,6 +176,7 @@ internal sealed class MobileState
               .Append(",\"w\":").Append(Num(map.ViewBoxWidth))
               .Append(",\"h\":").Append(Num(map.ViewBoxHeight))
               .Append(",\"layer\":").Append(Quote(Layer))
+              .Append(",\"floor\":").Append(Layer.Length == 0 ? 0 : MapFloors.FloorOf(map.Key, Layer))
               .Append(",\"floors\":[");
             var first = true;
             AppendFloor(sb, "", "地面", ref first);
@@ -236,6 +248,9 @@ internal sealed class MobileState
             AppendComma(sb, ref comma);
             sb.Append("{\"i\":").Append(Quote(zone.TaskId))
               .Append(",\"f\":").Append(zone.Floor)
+              .Append(",\"story\":").Append(zone.IsStory ? "true" : "false")
+              .Append(",\"floorKnown\":").Append(zone.FloorKnown ? "true" : "false")
+              .Append(",\"n\":").Append(Quote(zone.IsStory ? zone.TaskName : ""))
               .Append(",\"p\":[");
             for (var i = 0; i < zone.Points.Length; i++)
             {
@@ -284,7 +299,21 @@ internal sealed class MobileState
               .Append(",\"n\":").Append(Quote(task.Name))
               .Append(",\"s\":").Append((int)task.State)
               .Append(",\"sub\":").Append(Quote(task.Subtitle))
+              .Append(",\"tags\":").Append(JsonSerializer.Serialize(task.Tags ?? []))
               .Append('}');
+        }
+        sb.Append(']');
+
+        sb.Append(",\"taskFilters\":").Append(TaskFiltersJson)
+            .Append(",\"taskOptions\":").Append(TaskOptionsJson)
+            .Append(",\"taskStates\":").Append(TaskStatesJson)
+            .Append(",\"taskSummary\":").Append(Quote(TaskSummary))
+            .Append(",\"taskDestinations\":[");
+        comma = false;
+        foreach (var destination in TaskDestinations)
+        {
+            AppendComma(sb, ref comma);
+            sb.Append("{\"key\":").Append(Quote(destination.Key)).Append(",\"name\":").Append(Quote(destination.Name)).Append('}');
         }
         sb.Append(']');
 

@@ -27,6 +27,28 @@ deleted.
 2. Game data
 ------------
 
+Assets/story-tasks.json contains a factual story-objective catalogue derived from
+szepiz/tarkov-quest-data/mapdata/story.json (2026-08-11 snapshot), which credits
+tarkovtracker-org/tarkov-data-overlay for chapter structure and game objective
+text. Chapter text is not claimed as CC0 or relicensed as this project's code.
+https://github.com/szepiz/tarkov-quest-data/blob/16ca34ade3e4a874b83553ffc2f2e577be966fa9/mapdata/story.json
+Hand-placed story coordinates are CC0-1.0 by szepiz, snapshot 2026-08-26:
+https://github.com/szepiz/tarkov-quest-data/blob/main/api/firstparty/story-marks.json
+https://github.com/szepiz/tarkov-quest-data/blob/main/LICENSE.md
+Floor array order is factual map metadata from szepiz/tarkov-questing-companion,
+mapdata.js, originating from tarkov.dev (the-hideout). No companion source code
+or additional map artwork is shipped. tools/build-story-tasks.py reproduces the
+join and converts floor indexes to layer IDs without executing JavaScript.
+
+Task metadata in Assets/data-seed.json (471 matching task IDs) is supplemented
+with factual trader, map, minimum-level, faction and Kappa/Lightkeeper fields
+from the public tarkov.dev API snapshot dated 2026-09-14, preserved at:
+https://github.com/sayser/TarkovTracker/blob/f4ad6a50be49bbba3c3791fd52aa042d99ce3cfd/tools/data/tarkov_tasks_raw.json
+Only factual metadata is imported. The task text, item names and map geometry
+remain from the sources below. Unmatched fields stay unknown. Reproduce the
+metadata import with tools/build-task-metadata.py; pass the actual snapshot date
+using --as-of and its pinned source URL using --source-url.
+
 Assets/point-heights.json includes factual position heights from the public
 tarkov.dev API snapshots distributed in sayser/TarkovTracker, Config/:
 https://github.com/sayser/TarkovTracker/tree/f17c54542e78fb8ef3f3cd40081c84c321a69825/Config

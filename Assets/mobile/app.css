@@ -17,6 +17,7 @@
   --player-edge: #f6fdff;
   --player-outline: #081015;
   --player-guide: #ffba58;
+  --story-marker: #ff6d3d;
   --back: #0d0f11;
   --panel: rgba(20, 23, 27, 0.92);
   --line: #2c3138;
@@ -222,8 +223,9 @@ html, body {
 }
 
 #drawer.open {
-  height: calc(var(--safe-bottom) + 58vh);
+  height: calc(var(--safe-bottom) + 76vh);
 }
+@supports (height: 100dvh) { #drawer.open { height: calc(var(--safe-bottom) + 76dvh); } }
 
 /* 抽屉拉起来的时候按钮让位，不然会压在任务目标和物品上 */
 body.drawer-open #hud {
@@ -279,15 +281,37 @@ body.drawer-open #hud {
   display: flex;
 }
 
+/* Task filters share semantic theme colors; native inputs retain keyboard/IME behavior. */
+#taskFilters { flex: none; padding: 8px 12px; border-bottom: 1px solid var(--line-subtle); max-height: 46%; overflow-y: auto; }
+.task-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.task-basic-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 8px; margin-top: 8px; }
+.task-story-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; margin-top: 8px; }
+#taskFilters :disabled { color: var(--dim); opacity: .7; }
+#taskAdvanced:not([hidden]) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+#taskFilters select, .filter-input, .filter-button {
+  min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 4px;
+  font: inherit; font-size: 14px; line-height: 1.5; background: var(--raised); color: var(--text);
+}
+.filter-input { width: 100%; user-select: text; }
+.filter-button { cursor: pointer; padding-inline: 12px; }
+#taskFilters :focus-visible, .filter-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+#taskFilterSummary { margin-top: 8px; font-size: 12px; line-height: 1.5; color: var(--dim); white-space: pre-line; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.task-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.task-tag { font-size: 12px; line-height: 1.5; padding: 2px 4px; background: var(--raised); color: var(--dim); overflow-wrap: anywhere; }
+.task-tag.task-state { color: var(--dim); }
+.s-active .task-tag.task-state { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
+.s-done .task-tag.task-state { color: var(--ok); }
+.s-fail .task-tag.task-state { color: var(--danger); }
+
 #taskList {
-  flex: 1 1 55%;
+  flex: 1 1 60%;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .task {
-  padding: 9px 14px;
+  padding: 12px;
   border-bottom: 1px solid rgba(44, 49, 56, 0.6);
 }
 
@@ -297,9 +321,10 @@ body.drawer-open #hud {
 }
 
 .task .name {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text);
-  line-height: 1.35;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .task .sub {
@@ -317,7 +342,7 @@ body.drawer-open #hud {
 }
 
 #taskDetail {
-  flex: 0 0 45%;
+  flex: 1 1 40%;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
