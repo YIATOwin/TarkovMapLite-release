@@ -82,6 +82,16 @@ internal static class Program
             TaskLocationChecks.Run(args.ElementAtOrDefault(1));
             return;
         }
+        if (args.FirstOrDefault() == "--task-map-only")
+        {
+            TaskMapVisualChecks.Run(args.ElementAtOrDefault(1));
+            return;
+        }
+        if (args.FirstOrDefault() == "--drawer-only")
+        {
+            TaskDrawerChecks.Run(args.ElementAtOrDefault(1));
+            return;
+        }
         if (args.FirstOrDefault() == "--story-only")
         {
             TarkovData.LoadCached();
@@ -262,6 +272,8 @@ internal static class Program
         _checks += MapBehaviorChecks.Run();
         _checks += TaskFilterChecks.Run(output);
         _checks += TaskLocationChecks.Run(output);
+        _checks += TaskMapVisualChecks.Run(output);
+        _checks += TaskDrawerChecks.Run(output);
         _checks += StoryTaskChecks.Run(output);
         _checks += UpdateChecks.Run(output);
         Console.WriteLine($"PASS: {_checks} checks, {MapPack.Maps.Count} maps, " +

@@ -250,7 +250,9 @@ internal sealed class MobileState
               .Append(",\"f\":").Append(zone.Floor)
               .Append(",\"story\":").Append(zone.IsStory ? "true" : "false")
               .Append(",\"floorKnown\":").Append(zone.FloorKnown ? "true" : "false")
-              .Append(",\"n\":").Append(Quote(zone.IsStory ? zone.TaskName : ""))
+              .Append(",\"n\":").Append(Quote(zone.TaskName))
+              .Append(",\"o\":").Append(Quote(zone.ObjectiveId))
+              .Append(",\"t\":").Append(Quote(zone.Type))
               .Append(",\"p\":[");
             for (var i = 0; i < zone.Points.Length; i++)
             {

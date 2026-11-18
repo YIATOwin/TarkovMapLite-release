@@ -10,7 +10,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>TarkovMapLite</AssemblyName>
     <RootNamespace>TarkovMapLite</RootNamespace>
-    <Version>0.4.13</Version>
+    <Version>0.4.14</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- 画布控件只在本程序里用，不进设计器，不需要给属性配序列化器 -->
     <NoWarn>$(NoWarn);WFO1000</NoWarn>

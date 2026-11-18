@@ -1025,8 +1025,7 @@ internal sealed partial class MapCanvas : Control
         }
 
         // 点位 + 连线。
-        // 一个任务经常有好几个分散区域（"去这几个地方"类任务），只画点很难看出是一件事，
-        // 所以同任务的多个"地方"之间用虚线连起来，并给每处标上序号。
+        // 分散区域用任务名和编号标明关联；只有选中任务时才画当前楼层非候选点之间的虚线。
         // 屏幕上挨得很近的区域（同一个房间里的 5 个 zone）先合并成一处，
         // 否则圆点和序号会叠成一团，什么也看不清。
         var currentFloor = CurrentFloor;
@@ -1038,52 +1037,21 @@ internal sealed partial class MapCanvas : Control
             .ToList();
         var groups = visible.GroupBy(z => z.TaskId).ToList();
 
-        // 任务 → 合并后的若干"处"（屏幕坐标 + 代表楼层）
-        var placesByTask = new Dictionary<string, List<(PointF Point, int Floor)>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var group in groups)
-        {
-            var places = new List<(PointF Point, int Floor, int Count)>();
-            foreach (var zone in group)
-            {
-                var p = new PointF(origin.X + zone.Center.X * scale, origin.Y + zone.Center.Y * scale);
-                var hit = -1;
-                for (var i = 0; i < places.Count; i++)
-                {
-                    if (Math.Abs(places[i].Point.X - p.X) <= 22 && Math.Abs(places[i].Point.Y - p.Y) <= 22)
-                    {
-                        hit = i;
-                        break;
-                    }
-                }
-                if (hit < 0)
-                {
-                    places.Add((p, zone.FloorKnown ? zone.Floor : currentFloor, 1));
-                }
-                else
-                {
-                    // 多点平均，合并后的标记落在它们中间
-                    var (old, floor, count) = places[hit];
-                    var merged = new PointF((old.X * count + p.X) / (count + 1), (old.Y * count + p.Y) / (count + 1));
-                    places[hit] = (merged, floor, count + 1);
-                }
-            }
-            placesByTask[group.Key] = places.Select(x => (x.Point, x.Floor)).ToList();
-        }
+        var placesByTask = groups.ToDictionary(group => group.Key,
+            group => TaskMapLayout.Build(group, scale, origin, currentFloor), StringComparer.OrdinalIgnoreCase);
 
         // 先画连线，压在多边形上面、点位下面
         foreach (var (taskId, places) in placesByTask)
         {
-            if (places.Count < 2)
-            {
-                continue;
-            }
+            var links = TaskMapLayout.LinkPoints(places, currentFloor);
+            if (taskId != SelectedTaskId || links.Length < 2) continue;
             var color = TaskColor(taskId, log?.StateOf(taskId) ?? TaskState.None);
             using var link = new Pen(Color.FromArgb(205, color), 2.1f)
             {
                 DashStyle = DashStyle.Custom,
                 DashPattern = new[] { 6f, 4f },
             };
-            g.DrawLines(link, places.Select(p => p.Point).ToArray());
+            g.DrawLines(link, links);
         }
 
         using var numFont = new Font("Segoe UI", 6.5f, FontStyle.Bold);
@@ -1099,7 +1067,7 @@ internal sealed partial class MapCanvas : Control
             using var badgePen = new Pen(Color.FromArgb(220, 12, 16, 20), 1f);
             for (var index = 0; index < places.Count; index++)
             {
-                var (point, floor) = places[index];
+                var point = places[index].Point; var floor = places[index].Floor;
                 var x = point.X;
                 var y = point.Y;
                 const float radius = 7.5f;
@@ -1135,53 +1103,38 @@ internal sealed partial class MapCanvas : Control
             }
         }
 
-        // 标签：每个任务一个，字号固定为屏幕像素；重叠的就让位，
-        // 优先显示进行中的任务。多区域的任务在名字后面标出总共有几处。
+        // Far-apart places each keep a name and matching number; crowded labels try four sides.
         using var label = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold);
         using var textBrush = new SolidBrush(Color.White);
         using var halo = new SolidBrush(Color.FromArgb(220, 0, 0, 0));
         var placed = new List<RectangleF>();
-        var ordered = groups
-            .OrderByDescending(g => log?.StateOf(g.Key) == TaskState.Started)
-            .ThenByDescending(g => placesByTask.TryGetValue(g.Key, out var pl) ? pl.Count : 0)
-            .ToList();
-        foreach (var group in ordered)
+        foreach (var group in groups.OrderByDescending(g => g.Key == SelectedTaskId)
+            .ThenByDescending(g => log?.StateOf(g.Key) == TaskState.Started))
         {
             var zone = group.First();
             textBrush.Color = zone.IsStory ? UiTokens.StoryMarker : Color.White;
-            var state = log?.StateOf(zone.TaskId) ?? TaskState.None;
-            if (!IsZoneVisible(zone, state))
+            var places = placesByTask[group.Key];
+            for (var index=0; index<places.Count; index++)
             {
-                continue;
+                var point = places[index].Point;
+                if (point.X < 0 || point.Y < 0 || point.X > ClientSize.Width || point.Y > ClientSize.Height) continue;
+                var text = TaskMapLayout.Label(zone.TaskName,index,places.Count,places[index].Candidate);
+                var size = g.MeasureString(text,label);
+                RectangleF? chosen = null;
+                foreach (var (dx,dy) in new[] { (12f,-size.Height-4), (12f,10f), (-size.Width-12,-size.Height-4), (-size.Width-12,10f) })
+                {
+                    var x = Math.Clamp(point.X+dx,4,Math.Max(4,ClientSize.Width-size.Width-4));
+                    var y = Math.Clamp(point.Y+dy,4,Math.Max(4,ClientSize.Height-size.Height-4));
+                    var box = new RectangleF(x-2,y-2,size.Width+4,size.Height+4);
+                    if (!placed.Any(other=>other.IntersectsWith(box))) { chosen=box; break; }
+                }
+                if (chosen is not { } bounds) continue; // The numbered marker remains visible.
+                placed.Add(bounds);
+                var tx=bounds.X+2; var ty=bounds.Y+2;
+                foreach (var (dx,dy) in new[] { (-1,0),(1,0),(0,-1),(0,1) })
+                    g.DrawString(text,label,halo,tx+dx,ty+dy);
+                g.DrawString(text,label,textBrush,tx,ty);
             }
-            var places = placesByTask.TryGetValue(zone.TaskId, out var list) && list.Count > 0
-                ? list
-                : new List<(PointF Point, int Floor)> { (new PointF(origin.X + zone.Center.X * scale, origin.Y + zone.Center.Y * scale), zone.Floor) };
-            var text = places.Count > 1 ? $"{zone.TaskName}（{places.Count} 处）" : zone.TaskName;
-            var x = places[0].Point.X + 10;
-            var y = places[0].Point.Y - 8;
-            var size = g.MeasureString(text, label);
-            if (zone.IsStory)
-            {
-                x = Math.Clamp(x, 4, Math.Max(4, ClientSize.Width - size.Width - 4));
-                y = Math.Clamp(y, 4, Math.Max(4, ClientSize.Height - size.Height - 4));
-            }
-            var box = new RectangleF(x - 2, y - 2, size.Width + 4, size.Height + 4);
-            if (!box.IntersectsWith(new RectangleF(0, 0, ClientSize.Width, ClientSize.Height)))
-            {
-                continue;
-            }
-            var blocked = placed.Any(other => other.IntersectsWith(box));
-            if (blocked)
-            {
-                continue;
-            }
-            placed.Add(box);
-            foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
-            {
-                g.DrawString(text, label, halo, x + dx, y + dy);
-            }
-            g.DrawString(text, label, textBrush, x, y);
         }
     }
 

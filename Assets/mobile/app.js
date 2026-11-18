@@ -403,19 +403,6 @@ function drawZones(data) {
       x /= points.length/2; y /= points.length/2;
       ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fillStyle=storyColor; ctx.fill();
       ctx.lineWidth=1.5; ctx.strokeStyle=playerColors.outline; ctx.stroke();
-      if (selected) {
-        ctx.save(); ctx.font='12px system-ui, sans-serif'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-        let text=zone.n || '主线子任务';
-        const maxWidth=Math.max(80,Math.min(220,S.w-16));
-        if (ctx.measureText(text).width > maxWidth) {
-          while (text.length && ctx.measureText(text+'…').width > maxWidth) text=text.slice(0,-1);
-          text += '…';
-        }
-        const tx=Math.max(8,Math.min(x+10,S.w-ctx.measureText(text).width-8));
-        const ty=Math.max(16,Math.min(y-10,S.h-8));
-        ctx.strokeStyle=playerColors.outline; ctx.lineWidth=3; ctx.strokeText(text,tx,ty);
-        ctx.fillStyle=storyColor; ctx.fillText(text,tx,ty); ctx.restore();
-      }
     }
     ctx.globalAlpha = originalAlpha;
   }
@@ -554,80 +541,76 @@ function drawPlayer(player) {
 
 // ---------------------------------------------------------------- 多地点连线
 
-// 同一个任务分散在多处时，用虚线连起来并编号（和电脑端同一个做法）。
+// 分散点位各自显示名称和编号；选中任务后才画关联线。
 // 屏幕上挨得很近的几块（同一个房间里的 5 个 zone）先合并成一处，否则线会绕成一团。
-function drawConnectors(data) {
-  const requestedTask = S.sel || data.sel || null;
-  const selected = data.zones.some(z => z.i === requestedTask) ? requestedTask : null;
+function taskMapGroups(data) {
+  const requested = S.sel || data.sel || null;
+  const selected = data.zones.some(z => z.i === requested) ? requested : null;
   const groups = new Map();
   for (const zone of data.zones) {
     if (zone.story && !data.taskFilters?.showStory) continue;
-    if (selected && zone.i !== selected) {
-      continue;
-    }
+    if (selected && zone.i !== selected) continue;
     const state = S.taskIndex[zone.i] || 0;
-    if (!zone.story && !selected && S.onlyActive && state !== 1) {
-      continue;
-    }
-    const count = zone.p.length / 2;
-    if (!count) {
-      continue;
-    }
-    let cx = 0;
-    let cy = 0;
-    for (let i = 0; i < zone.p.length; i += 2) {
-      cx += zone.p[i];
-      cy += zone.p[i + 1];
-    }
-    if (!groups.has(zone.i)) {
-      groups.set(zone.i, { state, story: !!zone.story, points: [] });
-    }
-    groups.get(zone.i).points.push({ x: toX(cx / count), y: toY(cy / count) });
+    if (!zone.story && !selected && S.onlyActive && state !== 1) continue;
+    if (zone.p.length < 6) continue;
+    if (!groups.has(zone.i)) groups.set(zone.i,{id:zone.i,name:zone.n || '',state,story:!!zone.story,rows:[],places:[]});
+    groups.get(zone.i).rows.push(zone);
   }
-  if (groups.size === 0) {
-    return;
-  }
-
-  ctx.save();
-  ctx.font = 'bold 11px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
   for (const group of groups.values()) {
-    const places = [];
-    for (const point of group.points) {
-      const near = places.find(q => Math.hypot(q.x - point.x, q.y - point.y) < 18);
-      if (near) {
-        near.w += 1;
-      } else {
-        places.push({ x: point.x, y: point.y, w: 1 });
+    const counts = new Map();
+    for (const z of group.rows) if(z.t === 'findQuestItem') counts.set(z.o || '',(counts.get(z.o || '') || 0)+1);
+    for (const z of group.rows) {
+      let x=0,y=0;
+      for(let i=0;i<z.p.length;i+=2){x+=z.p[i];y+=z.p[i+1];}
+      x=toX(x/(z.p.length/2));y=toY(y/(z.p.length/2));
+      const known=z.floorKnown!==false, floor=known?z.f:(data.map?.floor || 0);
+      const candidate=z.t==='findQuestItem' && (!z.o || counts.get(z.o)>1);
+      const near=group.places.find(p=>p.floor===floor && p.known===known && Math.hypot(p.x-x,p.y-y)<=22);
+      if(near){near.x=(near.x*near.count+x)/(near.count+1);near.y=(near.y*near.count+y)/(near.count+1);near.count++;near.candidate ||= candidate;}
+      else group.places.push({x,y,floor,known,candidate,count:1});
+    }
+  }
+  return {selected,groups};
+}
+
+// Overview keeps named/numbered points. Only an explicitly selected task gets association lines.
+function drawConnectors(data) {
+  const {selected,groups}=taskMapGroups(data), occupied=[];
+  ctx.save();ctx.font='bold 11px system-ui, sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
+  for(const group of groups.values()){
+    const places=group.places, color=group.story?storyColor:stateColor(group.state,.9);
+    const links=places.filter(p=>p.known && p.floor===(data.map?.floor || 0) && !p.candidate);
+    if(group.id===selected && links.length>1){
+      ctx.setLineDash([6,5]);ctx.lineDashOffset=-S.dash;ctx.strokeStyle=color;ctx.lineWidth=1.6;ctx.beginPath();
+      links.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.setLineDash([]);
+    }
+    places.forEach((p,index)=>{
+      if(p.x<0 || p.y<0 || p.x>S.w || p.y>S.h)return;
+      ctx.beginPath();ctx.arc(p.x,p.y,7.5,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+      ctx.strokeStyle=playerColors.outline;ctx.lineWidth=1.5;ctx.stroke();
+      if(places.length>1){
+        ctx.beginPath();ctx.arc(p.x+7,p.y-9,6.5,0,Math.PI*2);ctx.fillStyle=playerColors.outline;ctx.fill();
+        ctx.fillStyle='white';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(index+1),p.x+7,p.y-9);
+        ctx.textAlign='left';ctx.textBaseline='top';
       }
-    }
-    if (places.length < 2) {
-      continue;
-    }
-    // 只在选中这个任务、或同时没几个任务时画，否则满屏虚线
-    if (!selected && groups.size > 4) {
-      continue;
-    }
-    const color = group.story ? storyColor : stateColor(group.state, 0.9);
-    ctx.setLineDash([6, 5]);
-    ctx.lineDashOffset = -S.dash;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    places.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
-    ctx.setLineDash([]);
-    places.forEach((p, i) => {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(12,16,22,.85)';
-      ctx.fill();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-      ctx.fillStyle = '#fff';
-      ctx.fillText(String(i + 1), p.x, p.y + 0.5);
+      let text=group.name+(places.length>1?' · '+(p.candidate?'候选 ':'')+(index+1):'');
+      if(!text)return;
+      const maxWidth=Math.max(50,Math.min(240,S.w-16));
+      if(ctx.measureText(text).width>maxWidth){
+        const suffix=places.length>1?' · '+(p.candidate?'候选 ':'')+(index+1):'';
+        let name=group.name;while(name.length && ctx.measureText(name+'…'+suffix).width>maxWidth)name=name.slice(0,-1);
+        text=name+'…'+suffix;
+      }
+      const width=ctx.measureText(text).width,height=14;
+      let box=null;
+      for(const [dx,dy] of [[12,-height-4],[12,10],[-width-12,-height-4],[-width-12,10]]){
+        const x=Math.max(4,Math.min(p.x+dx,S.w-width-4)),y=Math.max(4,Math.min(p.y+dy,S.h-height-4));
+        const trial={x:x-2,y:y-2,w:width+4,h:height+4};
+        if(!occupied.some(b=>trial.x<b.x+b.w && trial.x+trial.w>b.x && trial.y<b.y+b.h && trial.y+trial.h>b.y)){box=trial;break;}
+      }
+      if(!box)return;
+      occupied.push(box);ctx.lineWidth=3;ctx.strokeStyle=playerColors.outline;ctx.strokeText(text,box.x+2,box.y+2);
+      ctx.fillStyle=group.story?storyColor:'white';ctx.fillText(text,box.x+2,box.y+2);
     });
   }
   ctx.restore();

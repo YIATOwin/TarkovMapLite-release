@@ -428,11 +428,16 @@ internal sealed partial class MapForm : Form
         var detailHeaderPanel = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 26,
+            Height = TaskPx(52),
             BackColor = UiTokens.PanelBack,
         };
         detailHeaderPanel.Controls.Add(_detailHeader);
         detailHeaderPanel.Controls.Add(_wikiButton);
+        var closeDetail = new Button { Text="×", Dock=DockStyle.Right, Width=32, FlatStyle=FlatStyle.Flat,
+            BackColor=UiTokens.ButtonBack, ForeColor=UiTokens.TextDim, AccessibleName="取消选择并关闭任务详情", TabStop=true };
+        closeDetail.FlatAppearance.BorderSize=0;
+        closeDetail.Click+=(_,_)=>SelectTaskFromMobile("");
+        detailHeaderPanel.Controls.Add(closeDetail);
 
         _detail.Dock = DockStyle.Fill;
         _detail.ReadOnly = true;
@@ -466,27 +471,15 @@ internal sealed partial class MapForm : Form
         };
         detailPanel.Controls.Add(gap);
         detailPanel.Controls.Add(separator);
-        detailPanel.Controls.Add(BuildItemList());
+        var itemsPanel = BuildItemList();
+        detailPanel.Controls.Add(itemsPanel);
 
-        var split = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-            BackColor = UiTokens.Sunken,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-        };
-        split.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
-        split.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
         var taskHost = ClipScrollbar(_taskList);
         taskHost.Dock = DockStyle.Fill;
-        split.Controls.Add(taskHost, 0, 0);
-        split.Controls.Add(detailPanel, 0, 1);
 
         var filters = BuildTaskFilters();
 
-        right.Controls.Add(split);
+        right.Controls.Add(taskHost);
         right.Controls.Add(_header);
         right.Controls.Add(filters);
 
@@ -494,6 +487,7 @@ internal sealed partial class MapForm : Form
         Controls.Add(right);
         Controls.Add(bottom);
         Controls.Add(top);
+        BuildTaskDrawer(right, detailPanel, itemsPanel);
     }
 
     private void BuildLayerMenu()
@@ -1295,7 +1289,7 @@ internal sealed partial class MapForm : Form
     private Control BuildItemList()
     {
         _itemHeader.Text = "所需物品 · 点击复制";
-        _itemHeader.Dock = DockStyle.Bottom;
+        _itemHeader.Dock = DockStyle.Top;
         _itemHeader.Height = 24;
         _itemHeader.ForeColor = TextDim;
         _itemHeader.BackColor = UiTokens.PanelBack;
@@ -1387,8 +1381,7 @@ internal sealed partial class MapForm : Form
 
         var panel = new Panel { Dock = DockStyle.Bottom, Height = 128, BackColor = Color.FromArgb(19, 22, 26) };
         var itemHost = ClipScrollbar(_itemList);
-        itemHost.Dock = DockStyle.Bottom;
-        itemHost.Height = 104;
+        itemHost.Dock = DockStyle.Fill;
         panel.Controls.Add(itemHost);
         panel.Controls.Add(_itemHeader);
         return panel;
@@ -1528,6 +1521,7 @@ internal sealed partial class MapForm : Form
 
     private void ShowTaskDetail(TaskRow? row)
     {
+        SetTaskDrawerVisible(row != null);
         UpdateTaskJumpLinks(row?.Id);
         if (row == null)
         {
@@ -2194,6 +2188,8 @@ internal sealed partial class MapForm : Form
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (e.KeyCode==Keys.Escape && _taskDrawerOpen && ActiveControl is not ComboBox { DroppedDown:true } && !_layerMenu.Visible && !_mapMenu.Visible)
+        { SelectTaskFromMobile(""); e.Handled=true; e.SuppressKeyPress=true; return; }
         if (ActiveControl is TextBoxBase or ComboBox or UpDownBase) return;
         if (e.KeyCode == Keys.R)
         {
@@ -2215,6 +2211,7 @@ internal sealed partial class MapForm : Form
         {
             _timer.Dispose();
             _taskSearchTimer.Dispose();
+            _taskDrawerTimer.Dispose();
             DisposeLayerIcons(_layerMenu.Items);
         }
         base.Dispose(disposing);
