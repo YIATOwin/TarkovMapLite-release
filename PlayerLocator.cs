@@ -27,12 +27,17 @@ namespace TarkovMapLite;
 /// </summary>
 public sealed class PlayerLocator
 {
+    private const string Number = @"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?";
     private static readonly Regex NamePattern = new(
-        @"^\d{4}-\d{2}-\d{2}\[\d{2}-\d{2}\]_(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)_" +
-        @"(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)_",
-        RegexOptions.Compiled);
-
+        @"^\d{4}-\d{2}-\d{2}\[\d{2}-\d{2}(?:-\d{2})?\]_" +
+        $@"({Number}),\s*({Number}),\s*({Number})_({Number}),\s*({Number}),\s*({Number}),\s*({Number})_",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private string _lastFile = "";
+    private long _lastWriteTicks, _lastLength;
+    private DateTime _notBefore = DateTime.Now;
+    public DateTime LastPollAt {get;private set;}
+    public string ScanReport {get;private set;} = "尚未扫描";
+    public bool ReadProblem {get;private set;}
 
     public sealed record Fix(double X, double Y, double Z, double ForwardX, double ForwardZ, DateTime CapturedAt, string File);
 
@@ -40,7 +45,7 @@ public sealed class PlayerLocator
     public Fix? Current { get; private set; }
 
     public string Folder { get; private set; } = "";
-    public string Status { get; private set; } = "";
+    public string Status { get; private set; } = "等待游戏内截图…";
 
     public event Action? Changed;
 
@@ -152,6 +157,8 @@ public sealed class PlayerLocator
     {
         Folder = folder;
         _lastFile = "";
+        Current = null;
+        ReadProblem=false;
         Status = "已切换截图目录，进游戏按截图键即可定位";
         Changed?.Invoke();
     }
@@ -174,101 +181,71 @@ public sealed class PlayerLocator
     }
 
     /// <summary>只认应用启动之后新建的截图，避免把几天前的老图当成当前位置。</summary>
-    public DateTime NotBefore { get; set; } = DateTime.Now;
+    public DateTime NotBefore
+    {
+        get => _notBefore;
+        set { _notBefore=value; Current=null; _lastFile=""; Status="等待本局新截图…"; }
+    }
 
     public void Poll()
     {
-        if (string.IsNullOrEmpty(Folder))
-        {
-            Folder = ResolveFolder();
-        }
-        if (!Directory.Exists(Folder))
-        {
-            Status = "截图目录不存在（游戏内按截图键后自动出现）";
-            return;
-        }
-
-        FileInfo? newest = null;
-        try
-        {
-            foreach (var path in Directory.EnumerateFiles(Folder, "*.png"))
-            {
-                var info = new FileInfo(path);
-                if (info.LastWriteTime < NotBefore)
-                {
-                    continue;
-                }
-                if (newest == null || info.LastWriteTime > newest.LastWriteTime)
-                {
-                    newest = info;
-                }
-            }
-        }
-        catch
-        {
-            Status = "读取截图目录失败";
-            return;
-        }
-
-        if (newest == null || newest.FullName == _lastFile)
-        {
-            Status = Current == null ? "等待游戏内截图…" : $"已定位：{Current.File}";
-            return;
-        }
-
-        _lastFile = newest.FullName;
-        var match = NamePattern.Match(Path.GetFileNameWithoutExtension(newest.Name));
-        if (!match.Success)
-        {
-            Status = "最新截图文件名里没有坐标";
-            return;
-        }
-
-        var x = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-        // 第二个数是高度（世界 y）：判断玩家在哪一层要用它
-        var y = double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
-        var z = double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
-        var (forwardX, forwardZ) = Forward(
-            double.Parse(match.Groups[4].Value, CultureInfo.InvariantCulture),
-            double.Parse(match.Groups[5].Value, CultureInfo.InvariantCulture),
-            double.Parse(match.Groups[6].Value, CultureInfo.InvariantCulture),
-            double.Parse(match.Groups[7].Value, CultureInfo.InvariantCulture));
-
-        Current = new Fix(x, y, z, forwardX, forwardZ, newest.LastWriteTime, newest.Name);
-        Status = $"已定位：{newest.Name}";
-        Changed?.Invoke();
+        LastPollAt=DateTime.Now;
+        if(string.IsNullOrEmpty(Folder))Folder=ResolveFolder();
+        var selected=FindNewest(Folder,NotBefore,LastPollAt,out var note);
+        if(selected==null){ReadProblem=true;Status=note;return;}
+        ReadProblem=false;
+        var info=selected.Value.File;var fix=selected.Value.Fix;
+        // A path alone is not a file version: overwritten screenshots must be observed again.
+        if(info.FullName==_lastFile && info.LastWriteTimeUtc.Ticks==_lastWriteTicks && info.Length==_lastLength)
+        { Status=$"位置截图 {fix.CapturedAt:HH:mm:ss}"+note;return; }
+        _lastFile=info.FullName;_lastWriteTicks=info.LastWriteTimeUtc.Ticks;_lastLength=info.Length;
+        Current=fix;Status=$"位置截图 {fix.CapturedAt:HH:mm:ss}"+note;Changed?.Invoke();
     }
 
-    /// <summary>
-    /// 读目录里最新的一张截图——**不看本次启动时间**，给界面上的「测试截图」用。
-    /// 目录里没有截图（或最新那张文件名里没坐标）时返回 null。
-    /// </summary>
-    public Fix? NewestInFolder(string? folder = null)
+    // Evaluate each PNG independently. A non-coordinate image, inaccessible entry or bad clock
+    // cannot mask every valid screenshot in the directory, including after a restart.
+    private (FileInfo File,Fix Fix)? FindNewest(string folder,DateTime notBefore,DateTime now,out string note)
     {
-        var dir = !string.IsNullOrWhiteSpace(folder)
-            ? folder
-            : (Folder.Length > 0 ? Folder : ResolveFolder());
-        if (!Directory.Exists(dir))
-        {
-            return null;
-        }
-        FileInfo? newest = null;
+        int count=0,invalid=0,old=0,future=0,unreadable=0;
+        (FileInfo File,Fix Fix)? best=null;
         try
         {
-            foreach (var path in Directory.EnumerateFiles(dir, "*.png"))
+            if(!Directory.Exists(folder)){note="截图目录不存在";ScanReport=$"目录：{folder}\n{note}";return null;}
+            foreach(var path in Directory.EnumerateFiles(folder,"*.png"))
             {
-                var info = new FileInfo(path);
-                if (newest == null || info.LastWriteTime > newest.LastWriteTime)
+                count++;
+                try
                 {
-                    newest = info;
+                    var info=new FileInfo(path);var time=info.LastWriteTime;
+                    if(time>now.AddSeconds(30)){future++;continue;}
+                    if(time<notBefore){old++;continue;}
+                    var fix=Parse(info);if(fix==null){invalid++;continue;}
+                    if(best==null || time>best.Value.File.LastWriteTime ||
+                        (time==best.Value.File.LastWriteTime && (info.CreationTimeUtc>best.Value.File.CreationTimeUtc ||
+                        (info.CreationTimeUtc==best.Value.File.CreationTimeUtc && string.CompareOrdinal(info.Name,best.Value.File.Name)>0))))best=(info,fix);
                 }
+                catch(IOException){unreadable++;}
+                catch(UnauthorizedAccessException){unreadable++;}
             }
         }
-        catch
-        {
-            return null;
-        }
-        return newest == null ? null : Parse(newest);
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException)
+        {note="读取截图目录失败："+ex.Message;ScanReport=note;return null;}
+        note=best!=null ? (invalid+future+unreadable>0?$" · 忽略 {invalid+future+unreadable} 个无效/异常文件":"") :
+            count==0?"等待游戏内截图（目录内无 PNG）":
+            future>0?"截图文件时间异常，等待新截图":
+            invalid>0?"新截图文件名无法解析坐标":
+            unreadable>0?"截图文件暂不可读取，将自动重试":"等待本局新截图（已有截图早于开始时间）";
+        ScanReport=$"目录：{folder}\n本次扫描：{now:O}\n读取下限：{notBefore:O}\nPNG：{count}，过早：{old}，格式无效：{invalid}，未来时间：{future}，读取失败：{unreadable}\n选中：{best?.File.Name??"无"}\n{note}";
+        return best;
+    }
+
+    /// <summary>Manual diagnostic preview: newest parseable screenshot, regardless of launch time.</summary>
+    public Fix? NewestInFolder(string? folder=null)
+    {
+        var dir=!string.IsNullOrWhiteSpace(folder)?folder:(Folder.Length>0?Folder:ResolveFolder());
+        var best=FindNewest(dir,DateTime.MinValue,DateTime.Now,out var note);
+        if(best==null)Status=note;
+        return best?.Fix;
     }
 
     /// <summary>文件名是否符合游戏截图的坐标命名（清理时只认这种，避免误删别的 PNG）。</summary>
@@ -282,19 +259,19 @@ public sealed class PlayerLocator
         {
             return null;
         }
-        var x = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-        var y = double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
-        var z = double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
-        var (forwardX, forwardZ) = Forward(
-            double.Parse(match.Groups[4].Value, CultureInfo.InvariantCulture),
-            double.Parse(match.Groups[5].Value, CultureInfo.InvariantCulture),
-            double.Parse(match.Groups[6].Value, CultureInfo.InvariantCulture),
-            double.Parse(match.Groups[7].Value, CultureInfo.InvariantCulture));
+        var values=new double[7];
+        for(var i=0;i<values.Length;i++)
+            if(!double.TryParse(match.Groups[i+1].Value,NumberStyles.Float,CultureInfo.InvariantCulture,out values[i]) || !double.IsFinite(values[i]))return null;
+        var x=values[0];var y=values[1];var z=values[2];
+        if(Math.Abs(x)>float.MaxValue || Math.Abs(y)>float.MaxValue || Math.Abs(z)>float.MaxValue)return null;
+        var (forwardX,forwardZ)=Forward(values[3],values[4],values[5],values[6]);
         return new Fix(x, y, z, forwardX, forwardZ, file.LastWriteTime, file.Name);
     }
     /// <summary>把朝向四元数（Unity 的 qx,qy,qz,qw）换成世界坐标里的前方向量（只看水平面）。</summary>
     private static (double X, double Z) Forward(double qx, double qy, double qz, double qw)
     {
+        var largest=Math.Max(Math.Max(Math.Abs(qx),Math.Abs(qy)),Math.Max(Math.Abs(qz),Math.Abs(qw)));
+        if(largest>0){qx/=largest;qy/=largest;qz/=largest;qw/=largest;}
         var length = Math.Sqrt(qx * qx + qy * qy + qz * qz + qw * qw);
         if (length < 1e-9)
         {

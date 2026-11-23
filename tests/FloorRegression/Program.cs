@@ -55,6 +55,8 @@ internal static class Program
     private static void Run(string[] args)
     {
         Application.SetHighDpiMode(HighDpiMode.DpiUnaware);
+        if(args.FirstOrDefault()=="--screenshots-only"){ScreenshotChecks.Run();return;}
+        if(args.FirstOrDefault()=="--editor-only"){TaskEditorChecks.Run(args.ElementAtOrDefault(1));return;}
         if (args.FirstOrDefault() == "--update-live")
         {
             using var updater = new AppUpdate(new UpdateSettings { ProxyMode = args.Length > 1 ? "custom" : "system", ProxyUrl = args.ElementAtOrDefault(1) ?? "" });
@@ -270,10 +272,12 @@ internal static class Program
         _checks += MemoryChecks.Run();
         _checks += PlayerMarkerChecks.Run(output);
         _checks += MapBehaviorChecks.Run();
+        _checks += ScreenshotChecks.Run();
         _checks += TaskFilterChecks.Run(output);
         _checks += TaskLocationChecks.Run(output);
         _checks += TaskMapVisualChecks.Run(output);
         _checks += TaskDrawerChecks.Run(output);
+        _checks += TaskEditorChecks.Run(output);
         _checks += StoryTaskChecks.Run(output);
         _checks += UpdateChecks.Run(output);
         Console.WriteLine($"PASS: {_checks} checks, {MapPack.Maps.Count} maps, " +

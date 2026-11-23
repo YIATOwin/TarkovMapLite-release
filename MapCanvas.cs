@@ -571,6 +571,7 @@ internal sealed partial class MapCanvas : Control
         DrawZoom(g);
         DrawAxes(g);
         DrawDoorTip(g);
+        DrawEditor(g);
     }
 
     private void DrawMapScene(Graphics g)
@@ -1461,6 +1462,7 @@ internal sealed partial class MapCanvas : Control
                 }
             }
         }
+        if(EditorDown(e))return;
         if (e.Button is MouseButtons.Left or MouseButtons.Middle)
         {
             _pressedDoor = e.Button == MouseButtons.Left && ShowDoors ? DoorAt(e.Location) : null;
@@ -1475,6 +1477,7 @@ internal sealed partial class MapCanvas : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        if(EditorMove(e))return;
         _mousePoint = e.Location;
         // 楼层按钮在左上角 10..94 x 10..200：悬停要重绘，否则没有悬浮反馈
         if (e.X <= 110 && e.Y <= 220)
@@ -1519,6 +1522,7 @@ internal sealed partial class MapCanvas : Control
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
+        if(_editorDrag>=0){_editorDrag=-1;Capture=false;Cursor=Cursors.Default;return;}
         var pressed = _pressedDoor;
         _pressedDoor = null;
         _dragging = false;

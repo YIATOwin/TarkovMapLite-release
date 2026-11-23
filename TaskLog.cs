@@ -43,6 +43,7 @@ public sealed class TaskLog
 
     /// <summary>日志里最后一次出现的地图（回放也会记录，用于启动时已经在局内的情况）。</summary>
     public string LastSceneMapKey { get; private set; } = "";
+    public DateTime? LastSceneAt {get;private set;}
 
     public event Action? Changed;
     public event Action<string>? MapLoading;
@@ -168,6 +169,7 @@ public sealed class TaskLog
         }
         _offsets.Clear();
         _pending.Clear();
+        LastSceneMapKey="";LastSceneAt=null;
 
         var sessions = Directory.GetDirectories(folder, "log_*")
             .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
@@ -266,6 +268,7 @@ public sealed class TaskLog
         {
             return false;
         }
+        if(length<offset){offset=0;_pending.Remove(path);}
         if (length <= offset)
         {
             return false;
@@ -437,7 +440,7 @@ public sealed class TaskLog
                 return exact;
             }
         }
-        var key = scene.Replace("_preset", "").Replace("-preset", "");
+        var key = scene.Replace("_preset", "",StringComparison.OrdinalIgnoreCase).Replace("-preset", "",StringComparison.OrdinalIgnoreCase);
         var direct = MapPack.Find(key);
         if (direct != null)
         {
@@ -463,7 +466,7 @@ public sealed class TaskLog
         foreach (var line in text.Split('\n'))
         {
             const string marker = "scene preset path:maps/";
-            var at = line.IndexOf(marker, StringComparison.Ordinal);
+            var at = line.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
             if (at < 0)
             {
                 continue;
@@ -479,6 +482,9 @@ public sealed class TaskLog
             if (map != null)
             {
                 LastSceneMapKey = map.Key;
+                var stamp=line.Split('|')[0].Trim();
+                LastSceneAt=DateTimeOffset.TryParse(stamp,System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AllowWhiteSpaces,out var date)?date.LocalDateTime:null;
                 if (publish)
                 {
                     MapLoading?.Invoke(map.Key);

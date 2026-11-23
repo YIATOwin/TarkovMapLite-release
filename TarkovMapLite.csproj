@@ -10,7 +10,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>TarkovMapLite</AssemblyName>
     <RootNamespace>TarkovMapLite</RootNamespace>
-    <Version>0.4.14</Version>
+    <Version>0.4.15</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- 画布控件只在本程序里用，不进设计器，不需要给属性配序列化器 -->
     <NoWarn>$(NoWarn);WFO1000</NoWarn>
@@ -40,6 +40,7 @@
     <!-- 我这边抓取时的任务/物品数据快照：没网或第一次运行时直接可用 -->
     <EmbeddedResource Include="Assets\data-seed.json" />
     <EmbeddedResource Include="Assets\task-locations.json" />
+    <EmbeddedResource Include="Assets\task-overrides.json" />
     <EmbeddedResource Include="Assets\app.ico" />
     <EmbeddedResource Include="Assets\story-tasks.json" />
     <!-- 地图静态标记：容器/散落物资/出生点/危险区，由 tools/build-markers.ps1 生成 -->

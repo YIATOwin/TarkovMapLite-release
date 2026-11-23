@@ -455,8 +455,14 @@ public static class TarkovData
         return result;
     });
 
+    private static string _baseTaskRecords="[]";
+    internal static JsonArray EditableTasks() => TaskOverrides.Apply(JsonNode.Parse(_baseTaskRecords)!.AsArray());
+    internal static JsonArray BaseTasks() => JsonNode.Parse(_baseTaskRecords)!.AsArray();
+    internal static void ReloadTaskOverrides() => ParseRecords(JsonNode.Parse(_baseTaskRecords)!.AsArray());
     private static void ParseRecords(JsonArray? tasks)
     {
+        _baseTaskRecords=(tasks??new JsonArray()).ToJsonString();
+        tasks=TaskOverrides.Apply(tasks??new JsonArray());
         var zones = new Dictionary<string, List<ZoneShape>>(StringComparer.OrdinalIgnoreCase);
         var names = new Dictionary<string, string>();
         var traders = new Dictionary<string, string>();

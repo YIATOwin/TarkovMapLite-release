@@ -83,6 +83,7 @@ internal sealed partial class MapForm : Form
     private readonly PlayerLocator _player = new();
     /// <summary>最近一次进图（scene preset path）读到的地图 key，玩家定位就绑在这张图上。</summary>
     private string _raidMapKey = "";
+    private readonly DateTime _locationStartup=DateTime.Now;
     /// <summary>本局开始的时刻：对局结束清理截图时用它界定"本局期间拍的"。</summary>
     private DateTime _raidStartedAt = DateTime.MinValue;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 3000 };
@@ -138,23 +139,13 @@ internal sealed partial class MapForm : Form
         };
 
         _log.Changed += () => { RefreshTaskList(); FillMapCombo(); _canvas.Invalidate(); UpdateStatus(); };
-        _log.MapLoading += key => BeginInvoke(() =>
+        _log.MapLoading += key =>
         {
-            // 进新图 = 上一局已经结束，先把上一局期间拍的截图清掉（开关默认关）
-            CleanupRaidScreenshots(_raidStartedAt, DateTime.Now);
-            _raidStartedAt = DateTime.Now;
-            // 新一局开始：旧的位置点作废
-            _raidMapKey = key;
-            _player.NotBefore = DateTime.Now;
-            _canvas.PlayerPosition = null;
-            _canvas.PlayerForward = null;
-            _canvas.PlayerMapKey = "";
-            // 回放历史日志时不要跟着老会话乱跳，只跟随当前（最新）会话
-            if (!_replaying)
-            {
-                SelectMap(key);
-            }
-        });
+            if(IsDisposed || Disposing)return;
+            var started=_log.LastSceneAt??DateTime.Now;
+            void ChangedMap()=>BeginRaid(key,started);
+            if(InvokeRequired)BeginInvoke((Action)ChangedMap);else ChangedMap();
+        };
 
         Load += async (_, _) => await StartAsync();
         FormClosing += (_, _) => SaveViewSettings();
@@ -333,11 +324,15 @@ internal sealed partial class MapForm : Form
         _testButton.Width = 86;
         _testButton.Font = new Font("Microsoft YaHei UI", 8.5f);
         _testButton.Click += (_, _) => TestNewestScreenshot();
+        _testButton.MouseUp+=(_,e)=>{if(e.Button==MouseButtons.Right)ShowLocationDiagnostics();};
         bottom.Controls.Add(_status);
         bottom.Controls.Add(_dataStatus);
         bottom.Controls.Add(_shotsButton);
         bottom.Controls.Add(_testButton);
         BuildUpdateButton(bottom);
+        var editorButton=new UiButton{Text="任务维护",Dock=DockStyle.Right,Width=86,Font=new Font("Microsoft YaHei UI",8.5f)};
+        editorButton.Click+=(_,_)=>{using var editor=new TaskEditorForm();editor.Saved+=()=>ApplyMap();editor.ShowDialog(this);};
+        bottom.Controls.Add(editorButton);
 
         var right = new Panel { Dock = DockStyle.Right, Width = 336, BackColor = UiTokens.Sunken, Padding = new Padding(0) };
         _header.Dock = DockStyle.Top;
@@ -849,6 +844,9 @@ internal sealed partial class MapForm : Form
         ApplyMap(keepView: false);
         RestoreMapLayer();
 
+        StartLocationPolling();
+        // Screenshot polling starts before network refresh; screenshots taken while downloading
+        // must not be rejected by moving the launch-time threshold forward afterwards.
         var stale = TarkovData.FetchedAt == DateTime.MinValue
                     || TarkovData.Schema < TarkovData.CurrentSchema
                     || DateTime.Now - TarkovData.FetchedAt > TimeSpan.FromHours(24);
@@ -870,24 +868,43 @@ internal sealed partial class MapForm : Form
             }
         }
 
+    }
+
+    private void StartLocationPolling()
+    {
         _timer.Tick += (_, _) =>
         {
-            _log.Poll();
-            _player.Poll();
-            UpdatePlayerMarker();
-            UpdateStatus();
+            PollLocation();
         };
-        _player.NotBefore = DateTime.Now;
-        _player.Changed += () => BeginInvoke(() =>
+        _player.Changed += () =>
         {
-            UpdatePlayerMarker();
-            UpdateStatus();
-        });
+            _testFix=null;
+            UpdatePlayerMarker();UpdateStatus();
+        };
         _timer.Start();
         // 手机端：状态推送和动作回收都走这个 250ms 的计时器（打开面板前它什么也不做）
         _mobileTimer.Tick += (_, _) => PumpMobile();
         _mobileTimer.Start();
         UpdateStatus();
+    }
+
+    private void BeginRaid(string key,DateTime started)
+    {
+        if(started>DateTime.Now.AddSeconds(30))started=DateTime.Now;
+        if(started<_locationStartup)started=_locationStartup;
+        CleanupRaidScreenshots(_raidStartedAt,started);
+        _raidStartedAt=started;_raidMapKey=key;
+        _player.NotBefore=started;_testFix=null;
+        _canvas.PlayerPosition=null;_canvas.PlayerForward=null;_canvas.PlayerMapKey="";_canvas.PlayerFloor=null;
+        if(!_replaying)SelectMap(key);
+    }
+    private void PollLocation()
+    {
+        _log.Poll();
+        // Logs can become available after startup. Replay deliberately emits no MapLoading event.
+        if(string.IsNullOrEmpty(_raidMapKey) && !string.IsNullOrEmpty(_log.LastSceneMapKey))
+            _raidMapKey=_log.LastSceneMapKey;
+        _player.Poll();UpdatePlayerMarker();UpdateStatus();
     }
 
     /// <summary>下拉框：每张地图后面带上这张图上"进行中"的任务数。</summary>
@@ -1646,6 +1663,12 @@ internal sealed partial class MapForm : Form
     /// </summary>
     private void UpdatePlayerMarker()
     {
+        // Explicit manual preview wins until the next newly detected live screenshot.
+        if (_testFix is { } test && CurrentMap is { } viewing)
+        {
+            ApplyFix(viewing, test.X, test.Y, test.Z, test.FX, test.FZ);
+            return;
+        }
         // 1) 真实定位：只认"本次启动之后"的截图（避免把几天前的老图当成当前位置）
         var real = _player.Current;
         var realMap = string.IsNullOrEmpty(_raidMapKey) ? null : MapPack.Find(_raidMapKey);
@@ -1657,12 +1680,6 @@ internal sealed partial class MapForm : Form
                 string.Equals(viewingMap.Data, realMap.Data, StringComparison.OrdinalIgnoreCase)
                 ? viewingMap : realMap;
             ApplyFix(projection, real.X, real.Y, real.Z, real.ForwardX, real.ForwardZ);
-            return;
-        }
-        // 2) 测试截图：按"当前正在看的地图"投影，方便确认截图目录和投影是否正常
-        if (_testFix is { } test && CurrentMap is { } viewing)
-        {
-            ApplyFix(viewing, test.X, test.Y, test.Z, test.FX, test.FZ);
             return;
         }
         _canvas.PlayerPosition = null;
@@ -1697,7 +1714,7 @@ internal sealed partial class MapForm : Form
             _testFix = null;
             UpdatePlayerMarker();
             _status.Text = Directory.Exists(folder)
-                ? $"没有找到可用截图：{folder}（里面没有 PNG，或文件名里没有坐标）"
+                ? $"没有找到可用截图：{_player.Status}（右键“测试截图”查看定位诊断）"
                 : $"截图目录不存在：{folder}";
             return;
         }
@@ -1705,7 +1722,7 @@ internal sealed partial class MapForm : Form
         UpdatePlayerMarker();
         // 截图可能来自别的图，投影到当前图上就落到画布外了；说清楚，免得以为按钮没反应
         var outside = _canvas.PlayerPosition is { } point
-                      && (point.X < 0 || point.Y < 0 || point.X > _canvas.Width || point.Y > _canvas.Height);
+                      && (point.X < 0 || point.Y < 0 || point.X > (CurrentMap?.ViewBoxWidth??0) || point.Y > (CurrentMap?.ViewBoxHeight??0));
         _status.Text = $"测试截图：{fix.File}　X {fix.X:0.0} Y {fix.Y:0.0} Z {fix.Z:0.0}"
                        + $"（{fix.CapturedAt:MM-dd HH:mm}，按当前地图投影）"
                        + (outside ? "　⚠ 坐标不在当前地图范围内，这张截图可能来自别的地图" : "");
@@ -2065,16 +2082,20 @@ internal sealed partial class MapForm : Form
         var fix = _player.Current;
         var playerNote = fix == null
             ? _player.Status
+            : string.IsNullOrEmpty(_raidMapKey)
+                ? "已读到截图，等待游戏日志识别地图（右键测试截图可诊断）"
+            : _player.ReadProblem
+                ? $"{_player.Status} · 上次位置 {fix.CapturedAt:HH:mm:ss}"
             : string.Equals(_canvas.PlayerMapKey, map?.Key, StringComparison.OrdinalIgnoreCase)
-                ? $"玩家：X {fix.X:0.0}　Z {fix.Z:0.0}{FloorHint(map?.Data ?? "", fix.X, fix.Z, fix.Y)}"
+                ? $"玩家：X {fix.X:0.0}　Z {fix.Z:0.0}{FloorHint(map?.Data ?? "", fix.X, fix.Z, fix.Y)} · {fix.CapturedAt:HH:mm:ss}"
                 : $"{MapPack.Find(_canvas.PlayerMapKey)?.DisplayName ?? "?"} 的玩家：X {fix.X:0.0} Z {fix.Z:0.0}（切回该图可见）";
         var parts = new List<string>
         {
+            playerNote,
             $"本图进行中 {activeOnMap}",
             $"{map?.DisplayName ?? "-"}：{zones?.Count ?? 0} 个区域",
             TarkovData.Status,
             string.IsNullOrEmpty(_log.LogsFolder) ? "日志：未找到" : "日志：" + _log.LogsFolder,
-            playerNote,
         };
         _status.Text = string.Join("　│　", parts);
         SetDataStatus(null);

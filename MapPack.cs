@@ -168,4 +168,15 @@ public static class MapPack
         var (dx, dy) = MapCalibration.Of(map.Key);
         return (u + dx, v + dy);
     }
+
+    /// <summary>Inverse projection including the user's image calibration.</summary>
+    public static (double X,double Z) FromImage(MapProjection map,double u,double v)
+    {
+        // Sampling the affine projection also covers rotation, cropped variants and calibration.
+        var o=ToImage(map,0,0);var x=ToImage(map,1,0);var z=ToImage(map,0,1);
+        var a=x.X-o.X;var b=z.X-o.X;var c=x.Y-o.Y;var d=z.Y-o.Y;
+        var determinant=a*d-b*c;
+        if(Math.Abs(determinant)<1e-12)throw new InvalidOperationException("地图投影不可逆。");
+        return ((d*(u-o.X)-b*(v-o.Y))/determinant,(-c*(u-o.X)+a*(v-o.Y))/determinant);
+    }
 }

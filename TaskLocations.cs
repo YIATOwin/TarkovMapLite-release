@@ -80,6 +80,7 @@ internal static class TaskLocations
     internal static List<JsonObject> Merge(JsonObject task)
     {
         var result = Objects(task["zones"]).Select(z => (JsonObject)z.DeepClone()).ToList();
+        if(task["manualLocations"]?.GetValue<bool>()==true)return result;
         var authoritative = result.Where(z => !string.IsNullOrEmpty(z["o"]?.ToString()) && (z["p"] as JsonArray)?.Count >= 3).ToArray();
         // Old caches have no objective IDs. New caches use them to avoid restoring retired objectives.
         var objectives = Objects(task["obj"]).ToArray();
